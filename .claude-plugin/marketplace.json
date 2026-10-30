@@ -1,0 +1,14 @@
+{
+  "name": "cad-agent",
+  "description": "The CAD Agent plugin marketplace.",
+  "owner": {
+    "name": "srobroek"
+  },
+  "plugins": [
+    {
+      "name": "cad-agent",
+      "source": "./",
+      "description": "Agent-assisted mechanical CAD from rapid concept through verified STEP AP242 release."
+    }
+  ]
+}

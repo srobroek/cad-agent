@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression tests for CAD harness output generation."""
+"""Regression tests for neutral agent sources and generated harness profiles."""
 
 from __future__ import annotations
 
@@ -8,19 +8,22 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
+import yaml
+
 CAD = Path(__file__).resolve().parents[1]
-REVIEWERS = ("cad-mech-reviewer", "cad-dfm-reviewer")
-AGENTS = sorted(path.stem for path in (CAD / "agents").glob("*.md"))
+AGENT_NAMES = sorted(path.stem for path in (CAD / "agents").glob("*.md"))
+CAPABILITIES = {"read", "write-scratch", "shell-uv", "web"}
 
 
 class HarnessGeneratorTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory(prefix="cad-harness-test-")
-        self.addCleanup(self.temporary.cleanup)
-        self.cad = Path(self.temporary.name) / "cad"
+        temporary = tempfile.TemporaryDirectory(prefix="cad-harness-test-")
+        self.addCleanup(temporary.cleanup)
+        self.cad = Path(temporary.name) / "cad-agent"
         shutil.copytree(CAD, self.cad, copy_function=shutil.copyfile)
         self.generator = self.cad / "harness" / "generate.py"
 
@@ -37,127 +40,145 @@ class HarnessGeneratorTests(unittest.TestCase):
         result = self.run_generator()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-    def test_check_accepts_generated_files_and_rejects_modified_output(self) -> None:
+    def test_round_trip_check_and_drift_detection(self) -> None:
         self.generate()
         current = self.run_generator("--check")
-        self.assertIn(f"PASS: {3 * len(AGENTS) + 2} harness files current", current.stdout)
-        self.assertEqual(
-            (self.cad / "harness" / "opencode" / "commands" / "cad-flow.md").read_text(encoding="utf-8"),
-            """---
-description: Prototype-to-CAD flow (cad plugin)
----
-
-Load the `cad-flow` skill and follow it. With arguments, apply it to $ARGUMENTS. Without arguments, resume the existing `hw/` design record, or ask what to design when there is none.
-""",
-        )
-        command_path = self.cad / "harness" / "opencode" / "commands" / "cad-flow.md"
-        command_path.write_text(command_path.read_text(encoding="utf-8") + "\nmanual drift\n", encoding="utf-8")
-        stale_command = self.run_generator("--check")
-        self.assertNotEqual(stale_command.returncode, 0, stale_command.stdout)
-        self.assertIn("stale harness/opencode/commands/cad-flow.md", stale_command.stderr)
-        command_path.unlink()
-        missing_command = self.run_generator("--check")
-        self.assertNotEqual(missing_command.returncode, 0, missing_command.stdout)
-        self.assertIn("missing harness/opencode/commands/cad-flow.md", missing_command.stderr)
-        self.generate()
-        target = self.cad / "harness" / "claude" / "agents" / "cad-mech-reviewer.md"
-        target.write_text(target.read_text(encoding="utf-8") + "\nmanual drift\n", encoding="utf-8")
+        self.assertEqual(current.returncode, 0, current.stdout + current.stderr)
+        self.assertIn(f"PASS: {4 * len(AGENT_NAMES) + 1} harness files current", current.stdout)
+        output = self.cad / "harness" / "codex" / "agents" / f"{AGENT_NAMES[0]}.toml"
+        output.write_text(output.read_text(encoding="utf-8") + "# manual drift\n", encoding="utf-8")
         stale = self.run_generator("--check")
-        self.assertNotEqual(stale.returncode, 0, stale.stdout)
-        self.assertIn("stale harness/claude/agents/cad-mech-reviewer.md", stale.stderr)
-        missing_path = self.cad / "harness" / "kiro" / "agents" / "cad-mech-reviewer.json"
-        missing_path.unlink()
-        missing = self.run_generator("--check")
-        self.assertNotEqual(missing.returncode, 0, missing.stdout)
-        self.assertIn("missing harness/kiro/agents/cad-mech-reviewer.json", missing.stderr)
+        self.assertEqual(stale.returncode, 1)
+        self.assertIn(f"stale harness/codex/agents/{AGENT_NAMES[0]}.toml", stale.stderr)
         self.generate()
-        leftover = self.cad / "harness" / "opencode" / "agents" / "cad-retired-agent.md"
-        leftover.write_text("---\ndescription: gone\n---\n", encoding="utf-8")
+        unexpected = self.cad / "harness" / "kiro" / "agents" / "cad-retired-agent.json"
+        unexpected.write_text("{}\n", encoding="utf-8")
         extra = self.run_generator("--check")
-        self.assertNotEqual(extra.returncode, 0, extra.stdout)
-        self.assertIn("unexpected harness/opencode/agents/cad-retired-agent.md", extra.stderr)
+        self.assertEqual(extra.returncode, 1)
+        self.assertIn("unexpected harness/kiro/agents/cad-retired-agent.json", extra.stderr)
         self.generate()
-        self.assertFalse(leftover.exists())
+        self.assertFalse(unexpected.exists())
 
-    def test_generator_rejects_unknown_tools_skills_and_names(self) -> None:
-        source = self.cad / "agents" / "cad-analyst.md"
+
+    def test_neutral_sources_have_only_contract_metadata(self) -> None:
+        for path in sorted((self.cad / "agents").glob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            source = yaml.safe_load(text.split("---", 2)[1])
+            self.assertEqual(set(source), {"name", "description", "capabilities", "skills"})
+            self.assertEqual(source["name"], path.stem)
+            self.assertIsInstance(source["capabilities"], list)
+            self.assertIsInstance(source["skills"], list)
+            self.assertTrue(set(source["capabilities"]) <= CAPABILITIES)
+            self.assertNotRegex(text, r"(?i)\bOMP\b|skill://|xd://|\bBeads\b|autoloadSkills|@task|@reviewer|\.omp-plugin|PI_SESSION_ID")
+            self.assertNotRegex(text, r"(?i)\b(?:task|eval)\s+(?:tool|agent|function)\b")
+
+    def test_claude_plugin_marketplace_targets_repo_root(self) -> None:
+        plugin = json.loads((self.cad / ".claude-plugin/plugin.json").read_text(encoding="utf-8"))
+        marketplace = json.loads((self.cad / ".claude-plugin/marketplace.json").read_text(encoding="utf-8"))
+        self.assertEqual(plugin["name"], "cad-agent")
+        self.assertEqual(plugin["agents"], [f"./harness/claude/agents/{name}.md" for name in AGENT_NAMES])
+        self.assertEqual(marketplace["name"], "cad-agent")
+        self.assertEqual(marketplace["plugins"][0]["name"], "cad-agent")
+        self.assertEqual(marketplace["plugins"][0]["source"], "./")
+        self.assertNotIn("omp", json.dumps(plugin).lower())
+        self.assertNotIn("omp", json.dumps(marketplace).lower())
+
+    def test_claude_fields_follow_subagent_frontmatter_schema(self) -> None:
+        self.generate()
+        for name in AGENT_NAMES:
+            text = (self.cad / "harness/claude/agents" / f"{name}.md").read_text(encoding="utf-8")
+            front = yaml.safe_load(text.split("---", 2)[1])
+            self.assertEqual(front["name"], name)
+            self.assertTrue(front["description"])
+            self.assertIn("Read", front["tools"])
+            self.assertIsInstance(front["skills"], list)
+            self.assertEqual(front["model"], "inherit")
+
+    def test_codex_toml_fields_and_policy_limits(self) -> None:
+        self.generate()
+        for path in sorted((self.cad / "harness/codex/agents").glob("*.toml")):
+            config = tomllib.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(config["name"], path.stem)
+            self.assertTrue(config["description"])
+            self.assertEqual(set(config), {"name", "description", "developer_instructions"})
+            self.assertIn(".cad-work-only sandbox", config["developer_instructions"])
+            sourcing = tomllib.loads((self.cad / "harness/codex/agents/cad-sourcing-researcher.toml").read_text(encoding="utf-8"))
+            self.assertIn("inherit web access from the parent session", sourcing["developer_instructions"])
+    def test_opencode_v2_frontmatter_has_ordered_rules_and_yaml_shape(self) -> None:
+        self.generate()
+        for path in sorted((self.cad / "harness/opencode/agents").glob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            front = yaml.safe_load(text.split("---", 2)[1])
+            self.assertEqual(front["mode"], "subagent")
+            self.assertIsInstance(front["permissions"], list)
+            self.assertTrue(all(set(rule) == {"action", "resource", "effect"} for rule in front["permissions"]))
+            self.assertIn({"action": "*", "resource": "*", "effect": "deny"}, front["permissions"])
+            self.assertIn("<!-- Generated by cad-agent; do not edit. -->", text)
+
+        writer = (self.cad / "harness/opencode/agents/cad-part-designer.md").read_text(encoding="utf-8")
+        rules = yaml.safe_load(writer.split("---", 2)[1])["permissions"]
+        edit_rules = [rule for rule in rules if rule["action"] == "edit"]
+        shell_rules = [rule for rule in rules if rule["action"] == "shell"]
+        self.assertEqual(edit_rules[-2:], [
+            {"action": "edit", "resource": "*", "effect": "deny"},
+            {"action": "edit", "resource": ".cad-work/**", "effect": "allow"},
+        ])
+        self.assertEqual(shell_rules[-2:], [
+            {"action": "shell", "resource": "*", "effect": "deny"},
+            {"action": "shell", "resource": "uv *", "effect": "allow"},
+        ])
+        self.assertEqual([rule for rule in rules if rule["action"] == "webfetch"], [{"action": "webfetch", "resource": "*", "effect": "deny"}])
+        for path in sorted((self.cad / "harness/opencode/agents").glob("*.md")):
+            parsed = yaml.safe_load(path.read_text(encoding="utf-8").split("---", 2)[1])
+            if path.stem != "cad-sourcing-researcher":
+                self.assertTrue(any(rule == {"action": "websearch", "resource": "*", "effect": "deny"} for rule in parsed["permissions"]))
+
+    def test_kiro_v3_json_uses_installed_skill_resources(self) -> None:
+        self.generate()
+        for path in sorted((self.cad / "harness/kiro/agents").glob("*.json")):
+            config = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(config["name"], path.stem)
+            self.assertTrue(config["description"])
+            self.assertIn("read", config["tools"])
+            self.assertIsInstance(config["permissions"]["rules"], list)
+            self.assertTrue(config["resources"])
+            self.assertTrue(all(resource.startswith("skill://.kiro/skills/cad-") for resource in config["resources"]))
+            self.assertIn("<!-- Generated by cad-agent; do not edit. -->", config["prompt"])
+
+        writer = json.loads((self.cad / "harness/kiro/agents/cad-part-designer.json").read_text(encoding="utf-8"))
+        self.assertIn({"capability": "fs_write", "match": [".cad-work/**"], "effect": "allow"}, writer["permissions"]["rules"])
+        self.assertIn({"capability": "shell", "match": ["uv *"], "effect": "allow"}, writer["permissions"]["rules"])
+        reader = json.loads((self.cad / "harness/kiro/agents/cad-mech-reviewer.json").read_text(encoding="utf-8"))
+        self.assertNotIn("write", reader["tools"])
+        self.assertNotIn("shell", reader["tools"])
+
+    def test_command_is_a_generated_opencode_skill_launcher(self) -> None:
+        self.generate()
+        command = (self.cad / "harness/opencode/commands/cad-flow.md").read_text(encoding="utf-8")
+        front, body = command.split("---", 2)[1:]
+        self.assertEqual(yaml.safe_load(front)["description"], "Prototype-to-CAD flow")
+        self.assertIn("Read the `cad-flow` skill", body)
+        self.assertIn("$ARGUMENTS", body)
+
+    def test_rejects_unknown_capabilities_skills_and_names(self) -> None:
+        source = self.cad / "agents/cad-analyst.md"
         original = source.read_text(encoding="utf-8")
-        for old, new, message in (("tools: read,", "tools: telepathy, read,", "tools must be distinct names"),
-                                  ("autoloadSkills: cad-motion", "autoloadSkills: cad-missing", "skills cad does not ship"),
-                                  ("name: cad-analyst", "name: cad-renamed", "must match the file name")):
-            with self.subTest(field=old):
-                source.write_text(original.replace(old, new, 1), encoding="utf-8")
-                result = self.run_generator("--check")
-                self.assertEqual(result.returncode, 1, result.stdout)
-                self.assertIn(message, result.stderr)
-        source.write_text(original, encoding="utf-8")
-
-    def test_harness_formats_expose_only_read_capabilities(self) -> None:
-        self.generate()
-        for name in REVIEWERS:
-            with self.subTest(agent=name):
-                kiro = json.loads((self.cad / "harness" / "kiro" / "agents" / f"{name}.json").read_text(encoding="utf-8"))
-                self.assertEqual(set(kiro), {"name", "description", "prompt", "tools", "permissions", "resources"})
-                self.assertEqual(kiro["tools"], ["read"])
-                skill = "cad-review-mech" if name == "cad-mech-reviewer" else "cad-review-dfm"
-                self.assertEqual(kiro["resources"], [f"skill://cad/skills/{skill}/SKILL.md"])
-                rules = kiro["permissions"]["rules"]
-                self.assertIn({"capability": "fs_write", "match": ["**/*"], "effect": "deny"}, rules)
-                self.assertIn({"capability": "shell", "match": ["*"], "effect": "deny"}, rules)
-                claude = (self.cad / "harness" / "claude" / "agents" / f"{name}.md").read_text(encoding="utf-8")
-                self.assertIn("tools: Read, Grep, Glob", claude)
-                self.assertIn(f"skills: [{skill}]", claude)
-                self.assertIn("model: inherit", claude)
-                opencode = (self.cad / "harness" / "opencode" / "agents" / f"{name}.md").read_text(encoding="utf-8")
-                self.assertIn("mode: subagent", opencode)
-                self.assertIn("'*': deny", opencode)
-                self.assertIn("edit: deny", opencode)
-                self.assertIn("bash: deny", opencode)
-                self.assertNotIn("webfetch", opencode)
-
-    def test_workers_write_only_the_scratch_root_and_run_only_uv(self) -> None:
-        self.generate()
-        for name in ("cad-part-designer", "cad-concept-designer", "cad-analyst"):
-            with self.subTest(agent=name):
-                kiro = json.loads((self.cad / "harness" / "kiro" / "agents" / f"{name}.json").read_text(encoding="utf-8"))
-                self.assertEqual(kiro["tools"], ["read", "write", "shell"])
-                rules = kiro["permissions"]["rules"]
-                self.assertIn({"capability": "fs_write", "match": [".cad-work/**"], "effect": "allow"}, rules)
-                self.assertIn({"capability": "shell", "match": ["uv *"], "effect": "allow"}, rules)
-                self.assertIn({"capability": "subagent", "match": ["*"], "effect": "deny"}, rules)
-                self.assertFalse(any(r["effect"] == "allow" and r["capability"] in {"fs_write", "shell"}
-                                     and r["match"] not in ([".cad-work/**"], ["uv *"]) for r in rules))
-                opencode = (self.cad / "harness" / "opencode" / "agents" / f"{name}.md").read_text(encoding="utf-8")
-                self.assertIn("  edit:\n    '*': deny\n    '*.cad-work/*': allow\n", opencode)
-                self.assertIn("  bash:\n    '*': deny\n    'uv *': allow\n", opencode)
-                self.assertIn("  task: deny\n", opencode)
-                claude = (self.cad / "harness" / "claude" / "agents" / f"{name}.md").read_text(encoding="utf-8")
-                self.assertIn("tools: Read, Grep, Glob, Edit, Write, Bash\n", claude)
-        part = (self.cad / "harness" / "claude" / "agents" / "cad-part-designer.md").read_text(encoding="utf-8")
-        self.assertIn("skills: [cad-model, cad-design]\n", part)
-        self.assertIn("scratch.py deliver", part)
-
-    def test_sourcing_researcher_reads_and_searches_the_web_but_never_writes(self) -> None:
-        self.generate()
-        kiro = json.loads((self.cad / "harness" / "kiro" / "agents" / "cad-sourcing-researcher.json").read_text(encoding="utf-8"))
-        self.assertEqual(kiro["tools"], ["read", "web"])
-        rules = kiro["permissions"]["rules"]
-        for capability in ("fs_write", "shell", "subagent"):
-            self.assertEqual([r["effect"] for r in rules if r["capability"] == capability], ["deny"])
-        self.assertIn({"capability": "web_search", "match": ["*"], "effect": "allow"}, rules)
-        opencode = (self.cad / "harness" / "opencode" / "agents" / "cad-sourcing-researcher.md").read_text(encoding="utf-8")
-        for line in ("  edit: deny\n", "  bash: deny\n", "  webfetch: allow\n", "  websearch: allow\n"):
-            self.assertIn(line, opencode)
-        claude = (self.cad / "harness" / "claude" / "agents" / "cad-sourcing-researcher.md").read_text(encoding="utf-8")
-        self.assertIn("tools: Read, Grep, Glob, WebSearch, WebFetch\n", claude)
-
-    def test_claude_manifest_lists_every_generated_agent(self) -> None:
-        self.generate()
-        manifest = json.loads((self.cad / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
-        self.assertEqual(manifest["agents"], [f"./harness/claude/agents/{name}.md" for name in AGENTS])
-
+        cases = (
+            ("capabilities: [read, write-scratch, shell-uv]", "capabilities: [telepathy, read]", "capabilities must be distinct"),
+            ("skills: [cad-motion, cad-analysis]", "skills: [cad-missing]", "skills name files CAD does not ship"),
+            ("name: cad-analyst", "name: cad-renamed", "must be a cad-* kebab-case id"),
+            ("capabilities: [read, write-scratch, shell-uv]", "capabilities: [read, read]", "capabilities must be distinct"),
+        )
+        try:
+            for old, new, message in cases:
+                with self.subTest(field=old):
+                    source.write_text(original.replace(old, new, 1), encoding="utf-8")
+                    result = self.run_generator("--check")
+                    self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                    self.assertIn(message, result.stderr)
+        finally:
+            source.write_text(original, encoding="utf-8")
 
 
 if __name__ == "__main__":
     unittest.main()
-
