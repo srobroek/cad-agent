@@ -1,5 +1,5 @@
 {
-  "name": "cad",
+  "name": "cad-agent",
   "description": "Agent-assisted mechanical CAD from rapid concept through verified STEP AP242 release.",
   "agents": [
     "./harness/claude/agents/cad-analyst.md",
