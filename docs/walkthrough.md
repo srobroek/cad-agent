@@ -15,6 +15,8 @@ The generated Kiro agent profiles use V3 configuration. Run the flow with a work
 
 The Claude plugin entry point is `/cad-agent:cad-flow`. To complete a gate, give explicit approval. The lead records the approval and rationale in a new `hw/decisions/DR-###.md`. A preview, successful check, or agent recommendation is not approval.
 
+LAYOUT freeze, PARTS, DETAIL and ANALYSIS each come as two gates. Once the built version passes the fast checks, the lead records a decision marked PROVISIONAL, without asking you, and the next stage may start. The human gate follows the full check, which checks every pair and runs the full motion sweep; only your approval closes it. A failed full check, a MAJOR finding of the L2 light review, or a change you name at the human gate voids the provisional decision. The lead then reopens that stage and every later stage built on that version, and `hw/product.yaml` `flow.stage` returns to the reopened stage.
+
 ## Before the flow: check and prepare
 
 Run the environment check from the project root:
@@ -88,7 +90,7 @@ FreeCAD 1.1.4 and its TechDraw templates are required. If a check fails, resolve
 
 **Type:** `Design parts for the approved layout. Resolve purchased-part identities, materials, processes, finishes, and mass targets. Build and check an integrated version. Run the F2 form check, render the version, and present the PARTS gate.`
 
-**Review:** made-part proposals, sourcing evidence, integrated build and checks, F2 findings, and version renders. The lead dispatches subassembly and sourcing workers together, then integrates their results.
+**Review:** made-part proposals, sourcing evidence, integrated build and checks, F2 findings, version renders, and the light mechanical and DFM review that runs beside the full check. The lead dispatches subassembly and sourcing workers together, then integrates their results.
 
 **Approve:** approve the part architecture and sourcing direction, or identify changes for detail design.
 
