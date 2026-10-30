@@ -24,8 +24,19 @@ class FilePair(NamedTuple):
     source: Path
     target: Path
     key: str
+    content: bytes | None = None
 
 
+def installer_content(source: Path, harness: str, home: Path | None) -> bytes | None:
+    """Use Kiro's documented home-expanded skill URI for user-scope profiles."""
+    if harness != "kiro" or home is None or source.parent != GENERATED / "kiro" / "agents":
+        return None
+    profile = json.loads(source.read_text(encoding="utf-8"))
+    profile["resources"] = [
+        resource.replace("skill://.kiro/skills/", "skill://~/.kiro/skills/")
+        for resource in profile.get("resources", [])
+    ]
+    return (json.dumps(profile, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -88,7 +99,7 @@ def file_pairs(harnesses: tuple[str, ...], scope: Path, home: Path | None = None
         for source in sorted(agent_root.iterdir()):
             if source.is_file():
                 target = agents_dir / source.name
-                pairs.append(FilePair(source, target, relative_key(target, scope)))
+                pairs.append(FilePair(source, target, relative_key(target, scope), installer_content(source, harness, home)))
         if commands_dir is not None:
             source = GENERATED / "opencode/commands/cad-flow.md"
             target = commands_dir / source.name
@@ -157,14 +168,14 @@ def install(pairs: list[FilePair], scope: Path, dry_run: bool) -> int:
             planned.append((pair, True, True))
             continue
         target_hash = sha256(target)
-        source_hash = sha256(source)
+        installed_content = pair.content if pair.content is not None else source.read_bytes()
+        install_hash = hashlib.sha256(installed_content).hexdigest()
         if owned_hash is not None:
             if target_hash != owned_hash:
                 raise ValueError(f"installed CAD file was modified; refusing to overwrite {target}")
-        if owned_hash is not None:
-            planned.append((pair, target_hash != source_hash, True))
+            planned.append((pair, target_hash != install_hash, True))
             continue
-        if target_hash == source_hash:
+        if target.read_bytes() == installed_content:
             planned.append((pair, False, True))
             continue
         if generated_marker(target):
@@ -183,7 +194,10 @@ def install(pairs: list[FilePair], scope: Path, dry_run: bool) -> int:
     for pair, needs_write, claim in planned:
         if needs_write:
             pair.target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(pair.source, pair.target)
+            if pair.content is None:
+                shutil.copyfile(pair.source, pair.target)
+            else:
+                pair.target.write_bytes(pair.content)
             print(f"installed {pair.target}")
             wrote = True
         if claim:

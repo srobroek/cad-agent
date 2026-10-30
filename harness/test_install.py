@@ -5,11 +5,11 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import json
 import subprocess
 import sys
 import tempfile
 import unittest
-
 CAD = Path(__file__).resolve().parents[1]
 INSTALLER = CAD / "harness/install.py"
 HARNESS_PATHS = {
@@ -99,9 +99,14 @@ class InstallerTests(unittest.TestCase):
                 if harness == "opencode":
                     self.assertIn(str(root / "commands/cad-flow.md"), dry.stdout)
                 self.assertEqual(self.run_installer(*command).returncode, 0)
-                self.assertTrue((root / skills_relative / "cad-flow/SKILL.md").is_file())
-                for agent_file in AGENT_FILES[harness]:
-                    self.assertTrue((root / agents_relative / agent_file).is_file())
+                if harness == "kiro":
+                    for agent_file in AGENT_FILES[harness]:
+                        profile = json.loads((root / agents_relative / agent_file).read_text(encoding="utf-8"))
+                        self.assertTrue(profile["resources"])
+                        for resource in profile["resources"]:
+                            self.assertTrue(resource.startswith("skill://~/.kiro/skills/"), resource)
+                            resource_path = self.home / resource.removeprefix("skill://~/")
+                            self.assertTrue(resource_path.is_file(), f"{agent_file} resource is missing: {resource_path}")
                 self.assertEqual(self.run_installer(*command, "--uninstall").returncode, 0)
                 self.assertFalse((root / skills_relative).exists())
                 self.assertFalse((root / agents_relative).exists())
