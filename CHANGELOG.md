@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Keep shared-environment launches working for scripts named `setup.py`, `pyproject.toml`, or `setup.cfg`, while preserving their PEP 723 dependencies and interpreter selection.
+- Ignore generated version, render, and release output when delivering a built scratch workspace, and stop at gates when the lead cannot ask the user.
 
 ## 0.1.0
 

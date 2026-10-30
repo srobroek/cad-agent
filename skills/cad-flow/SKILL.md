@@ -59,6 +59,7 @@ MUST Run each L1-L4 commit batch as `uv run --script "$CAD_SKILLS/cad-flow/scrip
 MUST Use FreeCAD 1.1.4 as the CAD application. CadQuery 2.8 and build123d 0.13 use separate environments.
 MUST Keep rough-to-detailed iteration: concepts establish direction, layout freezes interfaces and envelopes, parts precede fits and drawings, and release follows verification and critique.
 MUST Present the gate summary, ask the user, record approval as a DR decision, and advance `product.yaml` `flow.stage` only after approval.
+MUST If you cannot ask at a gate, write open questions and proposed assumptions in its summary. Keep the gate open and stage unchanged, then stop. Do not proceed on assumptions.
 MUST Dispatch every unit of a stage in the same parallel batch when the harness supports parallel subagents; otherwise run the units in sequence with the same briefs.
 MUST Own the shared record yourself: `product.yaml`, `requirements.yaml`, `assembly.yaml`, `interfaces.yaml`, `bom.csv`, `verification.csv`, `decisions/`, concept scene, all `hw/versions/` builds, renders, integrated drawings, gates, and questions to the user. A worker writes only `.cad-work/<unit>/`; a part designer also replaces its own `hw/parts/<PN>/` through `scratch.py deliver`. Give each PN to exactly one unit.
 MUST Give every file you mention in a report, question, gate, or summary as an absolute path on its own line: records, decisions, model.py, STEP and GLB, check JSON, renders, captures, drawings, and BOM. Add the URL of the live viewer or preview gallery while one runs.
