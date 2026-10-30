@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Collect PEP 723 dependency headers
+        run: |
+          python3 - > skills-pep723-headers.txt <<'PY'
+          import re
+          import subprocess
+
+          block = re.compile(r"(?m)^# /// script$\s(?P<content>(^#(| .*)$\s)+)^# ///$")
+          files = subprocess.run(
+              ["git", "ls-files", "-z", "skills/*.py", "skills/**/*.py"],
+              capture_output=True,
+              text=True,
+              check=True,
+          ).stdout
+          headers = {
+              match["content"]
+              for path in files.split("\0")
+              if path
+              for match in block.finditer(open(path, encoding="utf-8").read())
+          }
+          print("".join(sorted(headers)), end="")
+          PY
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: skills-pep723-headers.txt
+
+      - name: CAD skill tests
+        run: |
+          status=0
+          while IFS= read -r test; do
+            uv run --no-project --with pyyaml==6.0.3 --with jsonschema==4.26.0 --with defusedxml==0.7.1 \
+              python -B -m unittest discover -s "$(dirname "$test")" -p "$(basename "$test")" || status=1
+          done < <(git ls-files 'skills/*/test_*.py' 'skills/*/tests/test_*.py')
+          exit "$status"
+
+      - name: Harness tests and generated files
+        run: |
+          python3 -m unittest discover -s harness -p 'test_*.py'
+          python3 harness/generate.py --check

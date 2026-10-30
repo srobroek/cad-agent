@@ -1,0 +1,26 @@
+CAD Agent attribution
+=====================
+
+This repository is an independent fork of the CAD skills imported from
+srobroek/omp-plugins at commit ab1dac9e48. The standalone project is maintained
+as srobroek/cad-agent. The upstream repository's Apache-2.0 license is included
+in LICENSE; this notice records provenance and third-party attributions.
+
+The cad-model skill contains modified portions adapted from AgentCAD 0.7.0:
+https://github.com/jdilla1277/agentcad
+
+Copyright James Dillard. Used under the Apache License, Version 2.0, the same
+license as this repository. AgentCAD 0.7.0 includes no NOTICE file of its own;
+its license is the unmodified Apache-2.0 text. See skills/cad-model/NOTICE for
+the source paths and a description of the modifications.
+
+FreeCAD 1.1.4 bundles the Osifont font used by the CAD model and drawings
+workflows. Its file is distributed with FreeCAD, not copied into this
+repository. Osifont is licensed under LGPL v3, GPL v2, or GPL v3, each with
+the GPL font exception. The CAD model contract pins the bundled font by SHA-256;
+see skills/cad-model/references/contract.md.
+
+The CAD skill documentation also identifies DejaVuSans (Bitstream Vera / Arev
+license) and ReliefSingleLineCAD (SIL Open Font License 1.1) as fonts provided
+by their respective installed runtime environments; neither font is bundled
+in this repository or selected by the workflow.
