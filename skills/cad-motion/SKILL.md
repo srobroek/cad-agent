@@ -3,6 +3,8 @@ name: cad-motion
 description: Poses, sweeps and renders jointed assemblies for interference, worst-case FEA pose and motion video. Triggers on "pose the arm", "sweep the joints", "render the motion".
 ---
 
+Resolve `$CAD_SKILLS` as the parent directory of this skill's directory; it contains the installed `cad-*` skill folders.
+
 # CAD Motion
 
 Stage L1 LAYOUT (joints and limits in `assembly.yaml`, the default motion render) and L4 ANALYSIS (sweep,
@@ -51,12 +53,12 @@ with couplings (exit 2) unless it runs on a motion plan's frames (`--frames`, th
 Verify coupled motion with `pose.py` and `sweep.py`.
 
 1. Pose:
-   `uv run --script skill://cad-flow/scripts/run.py cad-motion/scripts/pose.py --hw hw --version vN --set J-002=-90`
+   `uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-motion/scripts/pose.py --hw hw --version vN --set J-002=-90`
    publishes immutable `pose.step`, `result.json`, and a manifest under `hw/motion/vN/<pose-name>/` in millimetres.
    Use `--case ID` to select the bundle subject; the default is `pose`. A rerun with the same recipe reuses the
    bundle; changed settings require `--replace`, which retains the previous bundle under `.cad-work/replaced/`.
    With scratch geometry (`--step` or `--parts-dir`), pass `--out .cad-work/<unit>/posed.step`.
-2. Sweep: `uv run --script skill://cad-flow/scripts/run.py cad-motion/scripts/sweep.py --hw hw --version vN
+2. Sweep: `uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-motion/scripts/sweep.py --hw hw --version vN
    [--case ID] [--replace] [--steps 19] [--grid 3] [--min-clearance MM] [--pair-clearance REF:REF=MM]
    [--include-pair REF:REF] [--end-effector REF] [--jobs 1|N|auto] [--cache DIR | --no-cache]`
    → immutable `hw/motion/vN/<case>/` with `worst.step`, `worst.step.json`, and `result.json`; also reports
@@ -77,7 +79,7 @@ Verify coupled motion with `pose.py` and `sweep.py`.
    `minimum_clearance` (smallest margin: a pair's distance minus its tightest requirement), or
    `maximum_interference` (largest undeclared overlap). One-driver engine over 720 degrees at 5
    degree steps, published as `hw/motion/vN/engine-cycle/`:
-   `uv run --script skill://cad-flow/scripts/run.py cad-motion/scripts/sweep.py --hw hw --version vN --case engine-cycle --steps 145 --grid 0 --worst-criterion minimum_clearance`
+   `uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-motion/scripts/sweep.py --hw hw --version vN --case engine-cycle --steps 145 --grid 0 --worst-criterion minimum_clearance`
    The same sweep on scratch geometry writes its worst-case STEP to a new `.cad-work/` path:
    `... sweep.py --hw hw --parts-dir .cad-work/UNIT/parts --steps 145 --grid 0 --worst-criterion minimum_clearance --worst-step .cad-work/UNIT/worst.step`
    Pair requirements: the sweep measures every clearance requirement in `hw/interfaces.yaml`
@@ -86,7 +88,7 @@ Verify coupled motion with `pose.py` and `sweep.py`.
    record's on that pair (`overrides` names it). Each `pair_clearance` row reports the pair,
    `required_mm`, the smallest `clearance_mm` with its sample and pose (the larger overlap breaks a
    tie at 0 mm), `samples_below`, `status`, and its `source`. A row below its requirement exits 1.
-3. FreeCAD: `uv run --script skill://cad-flow/scripts/run.py cad-motion/scripts/freecad_assembly.py --hw hw --version vN [--case ID] [--replace] [--report-part REF]`
+3. FreeCAD: `uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-motion/scripts/freecad_assembly.py --hw hw --version vN [--case ID] [--replace] [--report-part REF]`
    publishes `result.json` and its retained FreeCAD job files under `hw/motion/vN/<case>/evidence/`; its JSON summary includes
    `frames`, start/mid/end `placements`, `limit_check`, `violations`, and `residuals`.
 4. Record each result as a `verification.csv` row: `requirement_id` from requirements.yaml,
@@ -120,10 +122,10 @@ derived joints included, stays inside its limits. A gap fails (exit 1) unless th
 `partial` with a reason, which passes as `flagged`. Coupled, fixed or unknown joints and targets
 outside the limits are plan errors (exit 2; a coupled joint names its driver).
 
-1. Plan: `uv run --script skill://cad-flow/scripts/run.py cad-motion/scripts/motion.py plan --hw hw --version vN
+1. Plan: `uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-motion/scripts/motion.py plan --hw hw --version vN
    [--case C | --plan .cad-work/<unit>/plan.yaml] [--print-default] [--frames-out .cad-work/<unit>/frames.json]`
    prints the coverage report; `--print-default` prints the default plan as YAML to start a case from.
-2. Render: `... motion.py render --hw hw --version vN [--case C] [--outputs glb,sheet,video,frames]
+2. Render: `uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-motion/scripts/motion.py render --hw hw --version vN [--case C] [--outputs glb,sheet,video,frames]
    [--size 1280x720] [--crosscheck freecad] [--replace] [--out-dir .cad-work/<unit>/render]` checks
    coverage first (a failure writes nothing), then publishes `hw/motion/vN/<case>/`: `plan.json`,
    `coverage.json`, `result.json`, and as asked `motion.glb` (the version's own GLB nodes and

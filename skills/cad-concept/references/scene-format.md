@@ -1,7 +1,7 @@
 # Concept scene format
 
-Schema: `skill://cad-concept/assets/schemas/concept-scene.schema.json` (JSON Schema 2020-12).
-Worked example: `skill://cad-concept/assets/examples/lamp-arm.scene.json`, a desk lamp arm
+Schema: `assets/schemas/concept-scene.schema.json` (JSON Schema 2020-12).
+Worked example: `assets/examples/lamp-arm.scene.json`, a desk lamp arm
 with three variants and joints base -10..80 deg, elbow -120..0 deg, head -45..45 deg.
 `scripts/concept.py check` enforces the schema plus the cross-field rules marked CHECK.
 
@@ -75,8 +75,7 @@ good render and shows the error in the panel.
 
 ## Handoff manifest
 
-`scripts/concept.py handoff <scene> [--variant ID] [--out FILE]` writes
-`skill://cad-concept/assets/schemas/handoff.schema.json`: the scene digest, the chosen
-variant's `params`, every node in parents-first order with `path` (slash-joined ids), authored
-transforms, and an envelope (bounds in the node frame with joints at nominal), every joint with a
-unit axis and `unit: deg|mm`, and each alternative's fate (`not-chosen`, `dropped`, `merged`).
+`scripts/concept.py handoff <scene> [--variant ID] [--out FILE]` writes `assets/schemas/handoff.schema.json`:
+the scene digest, the chosen variant's `params`, every node in parents-first order with `path`
+(slash-joined ids), authored transforms, and an envelope (bounds in the node frame with joints at nominal),
+every joint with a unit axis and `unit: deg|mm`, and each alternative's fate (`not-chosen`, `dropped`, `merged`).

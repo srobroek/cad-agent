@@ -12,7 +12,7 @@
 """Review renders of the cad-design reference lamp arm, one PNG set per kernel.
 
 Usage:
-    uv run --script skill://cad-flow/scripts/run.py cad-design/scripts/review_render.py --out DIR [--kernels cadquery build123d]
+    uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-design/scripts/review_render.py --out DIR [--kernels cadquery build123d]
         [--parts-root DIR] [--hw HW] [--pose nominal|zero] [--port 0]
 
 Builds the checkout's `cad/examples/lamp-arm` parts with build_reference.py into

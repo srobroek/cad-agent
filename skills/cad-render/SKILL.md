@@ -3,25 +3,27 @@ name: cad-render
 description: Renders cad-model versions into PBR product PNGs (iso, front, side, exploded, close-ups, part views) for stage gates. Triggers on "render v3", "show me the renders".
 ---
 
+Resolve `$CAD_SKILLS` as the parent directory of this skill's directory; it contains the installed `cad-*` skill folders.
+
 # CAD Product Render
 
 Stages L1 LAYOUT to L4 ANALYSIS: every commit batch renders its version after `cad-model run`,
 and every stage gate shows the renders. Use `cad-concept` for L0 CONCEPT variants.
-Paths below are relative to this skill's directory, `skill://cad-render/`.
+Paths below are relative to this skill's directory.
 Interactive look-dev (environment, exposure, shadow and AO tuning by eye) runs in OCP CAD
 Viewer Studio mode through `cad-viewer`; this skill is the unattended renderer.
 
 TRIGGER
 + "render v3", "show me the renders", "what does it look like now", "product shot"
-+ an L1 to L4 commit batch after `cad-model run`, or any stage gate in `skill://cad-flow`
-- L0 concept variants -> `skill://cad-concept`
++ an L1 to L4 commit batch after `cad-model run`, or any stage gate in `cad-flow`
+- L0 concept variants -> `cad-concept`
 - interactive look-dev, orbiting, section or explode by hand -> `cad-viewer` (OCP CAD Viewer Studio mode)
-- a check result (validity, interference) -> `skill://cad-model` `check`; a render is never one
+- a check result (validity, interference) -> `cad-model` `check`; a render is never one
 
 ## Workflow
 
-1. Build first: `skill://cad-model` `run` writes `hw/versions/vN/` and `latest.json`.
-2. Render: `uv run --script skill://cad-flow/scripts/run.py cad-render/scripts/render.py hw [--version latest|vN] [--views ...] [--size WxH] [--subject S] [--replace] [--out-dir .cad-work/...]`
+1. Build first: `cad-model` `run` writes `hw/versions/vN/` and `latest.json`.
+2. Render: `uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-render/scripts/render.py hw [--version latest|vN] [--views ...] [--size WxH] [--subject S] [--replace] [--out-dir .cad-work/...]`
    -> immutable `hw/renders/<vN>/<subject>/` bundles with requested PNGs, `render.json`, and `manifest.json`.
    The bundle manifest seals its files and binds the bundle to the version manifest. `render.json` holds
    quality, retry, material and input decisions. A same-recipe bundle is reused, including with `--replace`;

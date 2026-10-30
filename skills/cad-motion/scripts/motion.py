@@ -6,9 +6,9 @@
 contact sheet, MP4, and an optional FreeCAD cross-check of the coupling laws.
 
 Usage:
-    uv run --script skill://cad-flow/scripts/run.py cad-motion/scripts/motion.py plan --hw HW --version vN|latest
+    uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-motion/scripts/motion.py plan --hw HW --version vN|latest
         [--case CASE | --plan .cad-work/UNIT/plan.yaml] [--print-default] [--frames-out .cad-work/UNIT/frames.json]
-    uv run --script skill://cad-flow/scripts/run.py cad-motion/scripts/motion.py render --hw HW --version vN|latest
+    uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-motion/scripts/motion.py render --hw HW --version vN|latest
         [--case CASE | --plan .cad-work/UNIT/plan.yaml] [--outputs glb,sheet,video,frames] [--size 1280x720]
         [--crosscheck freecad] [--replace] [--out-dir .cad-work/UNIT/render]
 

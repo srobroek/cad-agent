@@ -5,7 +5,7 @@
 """Pose an assembly at given joint values and write the posed STEP AP242.
 
 Usage:
-    uv run --script skill://cad-flow/scripts/run.py cad-motion/scripts/pose.py --hw HW
+    uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-motion/scripts/pose.py --hw HW
         (--version vN|latest | --step ASSEMBLY.step | --parts-dir DIR)
         [--attach REF=PARENT_REF ...] [--set J-###=VALUE ...] --out POSED.step
 

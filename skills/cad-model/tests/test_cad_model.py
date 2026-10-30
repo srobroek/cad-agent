@@ -1198,10 +1198,10 @@ class CheckRuleTests(unittest.TestCase):
             ("LMP-0002", "LMP-0005"), ("LMP-0002", "LMP-0006"), ("LMP-0003", "LMP-0007")})
         self.assertTrue(all(item["classification"] == "interference" for item in declared))
 
-    def test_an_installed_plugin_copy_classifies_press_fits_with_its_own_cad_fits(self) -> None:
-        """The plugin runs from OMP's cache or a --plugin-dir, where nothing above it is this repository."""
+    def test_an_installed_skill_tree_classifies_press_fits_with_its_own_cad_fits(self) -> None:
+        """An installed skill tree need not be named `cad` or sit inside this repository."""
         with tempfile.TemporaryDirectory() as tmp:
-            plugin = Path(tmp) / "cache" / "srobroek-omp___cad___0.0.0"  # never named `cad`, unlike the repository's
+            plugin = Path(tmp) / "installed" / "cad-agent-skill-tree"
             shutil.copytree(HERE.parents[2], plugin, ignore=shutil.ignore_patterns("__pycache__"))
             hw = Path(tmp) / "hw"
             hw.mkdir()

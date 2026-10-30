@@ -3,6 +3,8 @@ name: cad-recheck
 description: Use when committing a batch of CAD hardware project changes at or after its recheck threshold.
 ---
 
+Resolve `$CAD_SKILLS` as the parent directory of this skill's directory; it contains the installed `cad-*` skill folders.
+
 # CAD Recheck
 
 TRIGGER
@@ -15,9 +17,9 @@ TRIGGER
 1. On a batch commit only, read the staged `hw/product.yaml` fields `flow.stage` and `flow.recheck_from`.
 2. Before the threshold, build and render only; do not run checks or write a stamp.
 3. At or after the threshold, recheck changed parts and their dependents (see Changed parts and dependents), including this stage's checks and every earlier stage's checks.
-4. Write the check results as JSON, then run `uv run --script skill://cad-recheck/scripts/stamp.py --stage <stage> --checks <json-file> --passed` only when all required checks passed. Omit `--passed` for a failed result.
+4. Write the check results as JSON, then run `uv run --script scripts/stamp.py --stage <stage> --checks <json-file> --passed` only when all required checks passed. Omit `--passed` for a failed result.
 5. Stage the design changes and `hw/.cad/recheck.json`. The pre-commit hook accepts only a passing stamp for the exact staged `hw/` tree.
-6. Install the hook in a hardware project's repository with `uv run --script skill://cad-recheck/scripts/install-hook.py --project <project-directory>`.
+6. Install the hook in a hardware project's repository with `uv run --script scripts/install-hook.py --project <project-directory>`.
 
 The installer refuses to replace a different `core.hooksPath` or ignore non-sample hooks in `.git/hooks/`. Integrate the CAD hook with existing hooks, or explicitly pass `--force` to replace/ignore them. Commit the generated `.githooks/` directory so the hook and its stamp verifier are available to other checkouts.
 

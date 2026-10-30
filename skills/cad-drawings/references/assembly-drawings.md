@@ -10,9 +10,9 @@ numbers are the same on every sheet. Every sheet has:
 - numbered assembly notes.
 
 ```sh
-uv run --script skill://cad-flow/scripts/run.py cad-drawings/scripts/assembly_drawing.py HW \
+uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-drawings/scripts/assembly_drawing.py HW \
   --version vN --output-dir OUT [--timeout SECONDS]
-uv run --script skill://cad-drawings/scripts/assembly_check.py OUT
+uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-drawings/scripts/assembly_check.py OUT
 ```
 
 Exit 0 means that the run published the package. Exit 1 means content findings; the run publishes

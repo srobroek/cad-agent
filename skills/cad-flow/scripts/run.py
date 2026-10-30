@@ -5,11 +5,11 @@
 # ///
 """Launch any CAD PEP 723 script in uv's environment shared by its dependencies.
 
-Usage: uv run --script skill://cad-flow/scripts/run.py <skill>/scripts/<script.py> [args...]
+Usage: uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" <skill>/scripts/<script.py> [args...]
 
-The target path is relative to cad/skills/. `cadmodel.scriptenv` reads the target's
-PEP 723 header and starts it with `--with-requirements`, which keys uv's cache by
-the dependency set and interpreter rather than the target file's path.
+The target path is relative to the directory containing this installed `cad-*` skills tree.
+`cadmodel.scriptenv` reads the target's PEP 723 header and starts it with `--with-requirements`,
+which keys uv's cache by the declared dependency set.
 """
 
 from __future__ import annotations

@@ -179,39 +179,23 @@ class Fixture(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
 class SessionIdentity(unittest.TestCase):
-    def test_session_path_keys_project_name_and_override(self) -> None:
-        state = Path("/tmp/private-state")
+    def test_session_path_scopes_by_project_and_optional_explicit_name(self) -> None:
+        state = {"XDG_STATE_HOME": "/tmp/private-state"}
         project = Path("/tmp/project-a")
-        other_project = Path("/tmp/project-b")
-        with mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(state)}, clear=True):
-            same_a = session.session_path(project)
-            same_b = session.session_path(project.resolve())
-            other = session.session_path(other_project)
+        with mock.patch.dict(os.environ, state, clear=True):
+            same = session.session_path(project)
+            same_resolved = session.session_path(project.resolve())
+            other = session.session_path(Path("/tmp/project-b"))
+        self.assertEqual(same, same_resolved)
+        self.assertNotEqual(same, other)
+        with mock.patch.dict(os.environ, state, clear=True):
             worker_a = session.session_path(project, "worker-a")
             worker_b = session.session_path(project, "worker-b")
-        self.assertEqual(same_a, same_b)
-        self.assertNotEqual(same_a, other)
         self.assertNotEqual(worker_a, worker_b)
-        with mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(state),
-                                          "CAD_VIEWER_SESSION": str(Path("/tmp/explicit.json")),
-                                          "PI_SESSION_ID": "harness-session"}, clear=True):
-            self.assertEqual(session.session_path(other_project, "worker"), Path("/tmp/explicit.json"))
-
-    def test_harness_session_ids_and_explicit_names_split_hosts(self) -> None:
-        project = Path("/tmp/project-a")
-        with mock.patch.dict(os.environ, {"XDG_STATE_HOME": "/tmp/private-state", "PI_SESSION_ID": "omp-a"},
-                             clear=True):
-            omp_a = session.session_path(project)
-            with mock.patch.dict(os.environ, {"PI_SESSION_ID": "omp-b"}):
-                omp_b = session.session_path(project)
-        self.assertNotEqual(omp_a, omp_b)
-        with mock.patch.dict(os.environ, {"XDG_STATE_HOME": "/tmp/private-state",
-                                          "CLAUDE_CODE_SESSION_ID": "claude-a"}, clear=True):
-            claude = session.session_path(project)
-        self.assertNotEqual(omp_a, claude)
-        with mock.patch.dict(os.environ, {"XDG_STATE_HOME": "/tmp/private-state"}, clear=True):
-            self.assertNotEqual(session.session_path(project, "worker-a"),
-                                session.session_path(project, "worker-b"))
+        with mock.patch.dict(os.environ, {**state, "CAD_VIEWER_SESSION_NAME": "worker-a"}, clear=True):
+            self.assertEqual(session.session_path(project), worker_a)
+        with mock.patch.dict(os.environ, {**state, "CAD_VIEWER_SESSION": "/tmp/explicit.json"}, clear=True):
+            self.assertEqual(session.session_path(Path("/tmp/project-b"), "worker"), Path("/tmp/explicit.json"))
 
 
     def test_command_hw_and_working_directory_share_project_root(self) -> None:

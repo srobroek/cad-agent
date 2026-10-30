@@ -3,6 +3,8 @@ name: cad-review-dfm
 description: Reviews part manufacturability against its declared FDM or CNC process with measured evidence. Use when a design needs an independent manufacturing review.
 ---
 
+Resolve `$CAD_SKILLS` as the parent directory of this skill's directory; it contains the installed `cad-*` skill folders.
+
 # Design for Manufacturing Review
 
 TRIGGER

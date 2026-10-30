@@ -3,18 +3,18 @@ name: cad-concept
 description: Iterates 2-4 rough three.js concept variants in a live viewer, then exports the chosen one for CAD. Triggers on "sketch some concepts", "pick a variant".
 ---
 
+Resolve `$CAD_SKILLS` as the parent directory of this skill's directory; it contains the installed `cad-*` skill folders.
+
 # CAD Concept (L0)
 
-Stage L0 CONCEPT of `skill://cad-flow`: rough primitive variants the user compares, refines,
+Stage L0 CONCEPT of `cad-flow`: rough primitive variants the user compares, refines,
 merges, or drops until the VARIANT gate, then a handoff manifest for L1 LAYOUT. Joints describe
 the mechanism at its nominal configuration and are passed to L1 LAYOUT in the handoff.
-Paths below are relative to this skill's directory, `skill://cad-concept/`.
-
-TRIGGER
+Paths below are relative to this skill's directory.
 + "sketch some concepts", "show me a few options", "compare variants", "pick a variant"
 + `hw/product.yaml` has `flow.stage: concept`
-- envelopes, interfaces, or a BOM skeleton -> L1 LAYOUT in `skill://cad-flow`
-- real geometry in CadQuery or build123d -> L2 PARTS in `skill://cad-flow`
+- envelopes, interfaces, or a BOM skeleton -> L1 LAYOUT in `cad-flow`
+- real geometry in CadQuery or build123d -> L2 PARTS in `cad-flow`
 
 GATES
 ASK which live variant passes the VARIANT gate; record nothing as chosen until the user names it.
@@ -34,14 +34,14 @@ ASK which live variant passes the VARIANT gate; record nothing as chosen until t
    live variant when useful; screenshots land in `hw/concept/screenshots/`.
 6. Apply each request as one operation from the table, then re-run step 3.
 7. On "commit batch": run step 3 and save one screenshot per live variant. No other checks
-   run before LAYOUT freeze. Hand the batch to `skill://cad-flow` for COMMIT.
-8. "More detail?" -> back to step 5. Otherwise ASK the VARIANT gate, set `chosen`, and run
-   -> exit 0 means the manifest passed the bundled handoff JSON schema.
-9. MUST stop the concept server when the user is done: after the VARIANT gate passes or the
-   session ends. Stop it through the harness job or service handle. If none exists, start it with
-   `&`, keep `$!`, and run `kill <pid>`. Tell the user which viewer URL is going away.
+   run before LAYOUT freeze. Hand the batch to `cad-flow` for COMMIT.
+8. "More detail?" -> back to step 5. Otherwise ASK the VARIANT gate, set `chosen` only after
+   approval is recorded in a `DR-###` decision in `hw/decisions/`, then run `concept.py handoff <scene>`.
+9. MUST stop the concept server when the user is done: after the VARIANT gate passes or the session
+   ends. Stop it through the harness job or service handle. If none exists, start it with `&`, keep `$!`,
+   and run `kill <pid>`. Tell the user which viewer URL is going away.
    The 30-minute idle timeout stops abandoned servers after inactivity. Report the handoff path
-   to `skill://cad-flow`, which opens L1 LAYOUT.
+   to `cad-flow`, which opens L1 LAYOUT.
 
 | user says | operation |
 |---|---|

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/srobroek/omp-plugins/cad/skills/cad-concept/assets/schemas/handoff.schema.json",
+  "$id": "https://github.com/srobroek/cad-agent/skills/cad-concept/assets/schemas/handoff.schema.json",
   "title": "CAD concept handoff (L0 CONCEPT to L1 LAYOUT)",
   "description": "The chosen concept variant flattened for CAD: stable node ids and hierarchy, rough envelopes, authored transforms, joints with limits, and the variant parameters. Written by scripts/concept.py handoff. Z is up, lengths are mm, rotations are XYZ Euler degrees.",
   "type": "object",

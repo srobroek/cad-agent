@@ -5,7 +5,7 @@
 """Kinematic sweep: interference, clearance, reach envelope, and worst-case pose.
 
 Usage:
-    uv run --script skill://cad-flow/scripts/run.py cad-motion/scripts/sweep.py --hw HW
+    uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-motion/scripts/sweep.py --hw HW
         (--version vN|latest | --step ASSEMBLY.step | --parts-dir DIR)
         [--attach REF=PARENT_REF ...] --worst-step WORST.step
         [--steps 19] [--grid 3] [--end-effector REF] [--include-pair REF:REF ...]
@@ -515,7 +515,7 @@ def pair_requirements(chain: Any, declared: list[dict[str, Any]],
 
 def pose_command(args: argparse.Namespace, settings: dict[str, float]) -> str:
     """The pose.py command that replays a sample, into this case or scratch output."""
-    parts = ["uv run --script skill://cad-flow/scripts/run.py cad-motion/scripts/pose.py", f"--hw {args.hw}",
+    parts = ['uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-motion/scripts/pose.py', f"--hw {args.hw}",
              geometry_option(args)]
     parts += [f"--attach {spec}" for spec in args.attach]
     parts += [f"--set {jid}={value!r}" for jid, value in settings.items()]

@@ -3,6 +3,8 @@ name: cad-model
 description: Builds part model scripts into versioned STEP AP242, GLB, and metrics, then checks or diffs versions. Triggers on "build v3", "check the model", "diff".
 ---
 
+Resolve `$CAD_SKILLS` as the parent directory of this skill's directory; it contains the installed `cad-*` skill folders.
+
 # CAD Model Build and Check
 
 Stages L1 LAYOUT to L4 ANALYSIS: every commit batch builds a version; at or after
@@ -24,14 +26,14 @@ TRIGGER
    drawing. Add `build_manufacture(params)`, declared in part.yaml `manufacture`, for a part made in
    another state than it is installed in, such as a strap printed flat. LOAD references/contract.md
    when writing or reviewing a model.py.
-2. Build: `uv run --script skill://cad-flow/scripts/run.py cad-model/scripts/cad_model.py run hw --label vN [--kernel auto]`
+2. Build: `uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-model/scripts/cad_model.py run hw --label vN [--kernel auto]`
    → `hw/versions/vN/` and `hw/versions/latest.json`; JSON summary on stdout. `auto` runs each
    part in its declared kernel's own uv environment; `cadquery` or `build123d` additionally
    requires every part to declare that kernel. The version snapshots its records in `record/` and
    holds `manufacturing/<PN>/` for every custom-made part: `part.step` (AP242, mm), `part.stl`
    for FDM (binary, mm, on the printer bed) and `manufacturing.json`. A manufacturing output that
    fails its checks fails the run: no version, latest unchanged.
-3. Check: `uv run --script skill://cad-flow/scripts/run.py cad-model/scripts/cad_model.py check vN --hw hw [--out .cad-work/<unit>/check.json] [--jobs 1|N|auto] [--cache DIR | --no-cache]` (explicit results must be new `.cad-work/` paths).
+3. Check: `uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-model/scripts/cad_model.py check vN --hw hw [--out .cad-work/<unit>/check.json] [--jobs 1|N|auto] [--cache DIR | --no-cache]` (explicit results must be new `.cad-work/` paths).
    → check result JSON; press fits and heat-set inserts declared in `hw/interfaces.yaml` are allowed
    to interfere automatically. `build_volume` checks each FDM part, in the state it is printed in,
    against the printer envelope of the version's `product.yaml`.
@@ -43,7 +45,7 @@ TRIGGER
    `pair`, `min_clearance_mm`) at the nominal pose, joint-connected and fitted pairs included; a
    pair below its requirement blocks the check.
    `blocking_failures` names every failed blocking check.
-4. Diff: `uv run --script skill://cad-flow/scripts/run.py cad-model/scripts/cad_model.py diff vA vB --hw hw` → per-part
+4. Diff: `uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-model/scripts/cad_model.py diff vA vB --hw hw` → per-part
    volume and bbox deltas, added/removed parts, exact shared / A-only / B-only volumes, and the
    manufacturing state, tolerance, output policy and placement changes per custom-made part.
 5. Recheck: write the check JSON with `--out`, then pass it to `cad-recheck` `stamp.py --checks`,

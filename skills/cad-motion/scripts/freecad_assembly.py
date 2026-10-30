@@ -6,11 +6,11 @@
 against the joint limits, or, on a motion plan's frames, against coupling.py's coupled values.
 
 Usage:
-    uv run --script skill://cad-flow/scripts/run.py cad-motion/scripts/freecad_assembly.py --hw HW
+    uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-motion/scripts/freecad_assembly.py --hw HW
         (--step ASSEMBLY.step | --parts-dir DIR | --version vN|latest)
         [--attach REF=PARENT_REF ...] [--report-part REF ...] [--time-step 0.01]
         [--freecad FREECADCMD] [--job-dir DIR] [--timeout 600]
-    uv run --script skill://cad-flow/scripts/run.py cad-motion/scripts/freecad_assembly.py --hw HW --version vN
+    uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-motion/scripts/freecad_assembly.py --hw HW --version vN
         --frames .cad-work/UNIT/frames.json --job-dir .cad-work/UNIT/crosscheck [--start coupled|far-branch]
 
 Inputs and kinematics are pose.py's (same options, same occurrence chain). The job writes one STEP

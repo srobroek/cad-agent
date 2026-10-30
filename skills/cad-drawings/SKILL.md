@@ -3,6 +3,8 @@ name: cad-drawings
 description: Use for generating checked, producer-ready FreeCAD part drawings (PDF, SVG, PNG) from a built cad-model version and the part's drawing intent.
 ---
 
+Resolve `$CAD_SKILLS` as the parent directory of this skill's directory; it contains the installed `cad-*` skill folders.
+
 # CAD Drawings
 
 TRIGGER
@@ -11,15 +13,15 @@ TRIGGER
 
 ## Workflow
 
-1. Draft the intent from the B-rep first: `uv run --script skill://cad-drawings/scripts/drawing_draft.py hw [--version vN] --part PN --output-dir DIR` writes `DIR/<PN>/drawing_intent.draft.yaml`. It lists every recognised feature with its faces and measured sizes, the faces no pattern matched, the locators and a proposed `drawing` block with a model-aligned datum frame, views and a direct request for every wall, rib and shell thickness and every pocket, cutout and notch size. A drafted wall's thickness and a width between inclined flanks are requested `at` their reference plane with their angles, and a spherical recess by its SR and depth. It never writes part.yaml or model.py.
+1. Draft the intent from the B-rep first: `uv run --script scripts/drawing_draft.py hw [--version vN] --part PN --output-dir DIR` writes `DIR/<PN>/drawing_intent.draft.yaml`. It lists every recognised feature with its faces and measured sizes, the faces no pattern matched, the locators and a proposed `drawing` block with a model-aligned datum frame, views and a direct request for every wall, rib and shell thickness and every pocket, cutout and notch size. A drafted wall's thickness and a width between inclined flanks are requested `at` their reference plane with their angles, and a spherical recess by its SR and depth. It never writes part.yaml or model.py.
    - Before the model has a `drawing_features(params, shape)` hook (cad-model `references/contract.md`), each proposed locator gives its kind, faces and one `select` line per face (support type, normal or axis, level or radius). Write the hook from those lines: name each locator by its design role, classify faces by PARAMS, never by face index, and leave a face with no role out so the gate names it. Rebuild, then draft again.
    - With the hook, the draft uses the hook's locator names, lists the locators that hold each recognised feature, and reports the hook's binding findings (`hook.findings`: unbound, ambiguous or unaccounted faces). Fix the hook until there are none.
    - Review the block against the design intent and complete it: datums, coordinate frame, views, sections and sheets, per-feature intent, dimension requests, geometric tolerances, ISO 13715 `edges`, a general `surface_texture` (ISO 21920-1), notes and sheet policy. Order each separation request so it never locates a datum, and never locates one plane twice. Replace every `REVIEW` placeholder. LOAD `references/drawing-intent.md` for the feature kinds and fields, and `references/drawing-standards.md` for the producer-ready rows.
-   - Merge it: `uv run --script skill://cad-drawings/scripts/drawing_merge.py hw [--version vN] --part PN --draft DIR/<PN>/drawing_intent.draft.yaml` replaces part.yaml's `drawing` key and keeps every other line. It refuses, leaving part.yaml unchanged, a `REVIEW` placeholder (`draft_unreviewed`), a feature the version's hook does not return (`feature_not_found`), a version without the hook (`drawing_intent_missing`), and a record the cad-record schema rejects (`invalid_drawing_intent`).
+   - Merge it: `uv run --script scripts/drawing_merge.py hw [--version vN] --part PN --draft DIR/<PN>/drawing_intent.draft.yaml` replaces part.yaml's `drawing` key and keeps every other line. It refuses, leaving part.yaml unchanged, a `REVIEW` placeholder (`draft_unreviewed`), a feature the version's hook does not return (`feature_not_found`), a version without the hook (`drawing_intent_missing`), and a record the cad-record schema rejects (`invalid_drawing_intent`).
    For a catalogue item, give `part.yaml` a `procurement` record (a standard part names its `standard` and is ordered by its designation) and, when the item needs a sheet, a `vendor_specification` or `source_control` drawing whose `dimensions` carry the specification's limits; LOAD the vendor section of `references/drawing-intent.md`.
 2. Give `product.yaml` a `drawing` policy (projection, standards, default sheet, named tolerance policies). Bind interface sizes in `interfaces.yaml`: fits as `hole`/`shaft` feature endpoints, heat-set seats with `feature`, ring grooves on `retaining_ring.feature`.
-3. Build the version: `uv run --script skill://cad-flow/scripts/run.py cad-model/scripts/cad_model.py run hw --label vN`.
-4. Run `uv run --script skill://cad-drawings/scripts/drawing.py hw [--version vN|latest] --part PN [--part PN ...] [--output-dir .cad-work/...] [--replace] [--timeout S] [--jobs N]`.
+3. Build the version: `uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-model/scripts/cad_model.py run hw --label vN`.
+4. Run `uv run --script scripts/drawing.py hw [--version vN|latest] --part PN [--part PN ...] [--output-dir .cad-work/...] [--replace] [--timeout S] [--jobs N]`.
    A passing default part package publishes as the immutable `hw/drawings/vN/<PN>/` bundle. `--version` selects the verified built version; a repeated matching recipe reuses its bundle. A changed recipe is refused unless `--replace`, which retains the prior bundle under `.cad-work/replaced/`.
 5. Read the JSON summary and every PNG preview, one per sheet. A failing run lists findings with the architecture's failure codes and leaves `sheet-N.rejected.svg`/`.png` and `rejected.json`, never a PDF. A part with no drawing intent or no hook fails `drawing_intent_missing` with one finding per recognised feature it leaves undimensioned; a feature the sheet does not size fails `dimension_coverage_incomplete`, one finding per feature naming its faces and what is missing. Report every feature still undimensioned, with its reason, as a list.
    A passing sheet must also read well. When dimensions crowd the principal view (50 or more features), never drop one: move views to further sheets (`views[].sheet`), cut sections through the interior (`normal_axis` puts the plane through a recess's or opening's centre), give interior features and their requests `presentation: section` so their sizes go to the sections, give small features a detail view with `presentation: detail`, and fix a larger `sheet.scale`. List the allowed `sheet.sizes` smallest first: the planner moves views to further sheets before it takes a larger size, so a large sheet is not left half empty.
@@ -38,9 +40,9 @@ TRIGGER
 
 LOAD references/assembly-drawings.md before writing the `drawing` block of `assembly.yaml`.
 
-1. Run `uv run --script skill://cad-flow/scripts/run.py cad-drawings/scripts/assembly_drawing.py hw --version vN|latest [--output-dir .cad-work/...] [--replace] [--jobs N]`.
+1. Run `uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-drawings/scripts/assembly_drawing.py hw --version vN|latest [--output-dir .cad-work/...] [--replace] [--jobs N]`.
    A passing default assembly package publishes as the immutable `hw/drawings/vN/assembly/` bundle. A matching recipe is reused; a changed recipe is refused unless `--replace`, which retains the prior bundle under `.cad-work/replaced/`.
-2. Re-check a published package with `uv run --script skill://cad-flow/scripts/run.py cad-drawings/scripts/assembly_check.py <hw/drawings/vN/assembly>`. SIGINT/SIGTERM terminates every active FreeCAD process group.
+2. Re-check a published package with `uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-drawings/scripts/assembly_check.py <hw/drawings/vN/assembly>`. SIGINT/SIGTERM terminates every active FreeCAD process group.
 
 ## Install FreeCAD
 

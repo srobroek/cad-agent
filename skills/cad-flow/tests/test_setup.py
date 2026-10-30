@@ -21,9 +21,9 @@ spec.loader.exec_module(setup)
 
 
 def report(*failed: str):
-    ids = ("uv", *setup.WARM_IDS, "freecad-command", "freecad-version", "techdraw-templates", "beads")
+    ids = ("uv", *setup.WARM_IDS, "freecad-command", "freecad-version", "techdraw-templates")
     checks = tuple(setup.preflight.Check(
-        identifier, identifier, "fail" if identifier in failed else "pass", identifier != "beads", "detail", "fix")
+        identifier, identifier, "fail" if identifier in failed else "pass", True, "detail", "fix")
         for identifier in ids)
     return setup.preflight.Report(checks)
 
@@ -52,26 +52,30 @@ class PlanTests(unittest.TestCase):
         self.assertTrue(all(identifier in {"uv", "warm-cadquery", "manual-libraries"} for identifier in identifiers))
         self.assertIn("https://astral.sh/uv/install.sh", items[0].command)
 
-    def test_formula_copy_is_idempotent(self) -> None:
-        beads = self.root / "workspace" / ".beads"
-        beads.mkdir(parents=True)
-        env = {**self.env, "BEADS_DIR": str(beads)}
-        planned = [item.id for item in setup.plan(report(), self.root, self.home, env)]
-        self.assertIn("formulas", planned)
-        self.assertTrue(all(identifier in {"formulas", "manual-libraries"} for identifier in planned))
-        setup._copy_formulas(self.root, env)
-        planned = [item.id for item in setup.plan(report(), self.root, self.home, env)]
-        self.assertNotIn("formulas", planned)
-        self.assertTrue(all(identifier == "manual-libraries" for identifier in planned))
-        self.assertEqual({path.name for path in (beads / "formulas").glob("*.formula.toml")},
-                         {path.name for path in setup.FORMULAS.glob("*.formula.toml")})
-
     def test_requested_harness_is_planned_but_not_implicit(self) -> None:
         with patch.object(setup, "_harness_needed", return_value=True):
             implicit = setup.plan(report(), self.root, self.home, self.env)
             requested = setup.plan(report(), self.root, self.home, self.env, "opencode")
         self.assertFalse(any(item.id.startswith("harness-") for item in implicit))
-        self.assertIn("harness-opencode", [item.id for item in requested])
+        self.assertIn("python3", requested[0].command)
+        self.assertIn("harness/install.py", requested[0].command)
+        self.assertIn(str(setup.CAD_ROOT), requested[0].command)
+
+    def test_install_uses_checkout_installer_with_project_relative_destination(self) -> None:
+        with patch.object(setup, "_run") as run:
+            setup._install_harness("codex", self.root)
+        run.assert_called_once_with(
+            ["python3", str(setup.CAD_ROOT / "harness" / "install.py"), "--harness", "codex", "--project", "."],
+            cwd=self.root)
+
+    def test_installed_skill_copy_points_to_checkout_when_installer_is_absent(self) -> None:
+        with patch.object(setup, "CAD_ROOT", self.root), patch.object(setup, "_harness_needed", return_value=True):
+            planned = setup.plan(report(), self.root, self.home, self.env, "codex")
+        self.assertEqual(planned[0].id, "harness-unavailable")
+        self.assertIn("cad-agent checkout", planned[0].command)
+        with patch.object(setup, "CAD_ROOT", self.root):
+            with self.assertRaisesRegex(RuntimeError, "not bundled with installed skills"):
+                setup._install_harness("codex", self.root)
 
     def test_linux_browser_libraries_offer_playwright_deps_for_debian_and_ubuntu_derivatives(self) -> None:
         check = setup.preflight.Check(

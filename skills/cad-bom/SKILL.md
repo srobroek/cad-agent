@@ -3,6 +3,8 @@ name: cad-bom
 description: Rolls up an engineering BOM from a STEP AP242 assembly and hw/parts metadata into bom.csv. Triggers on "build the BOM", "EBOM", "bill of materials".
 ---
 
+Resolve `$CAD_SKILLS` as the parent directory of this skill's directory; it contains the installed `cad-*` skill folders.
+
 # CAD EBOM Roll-up
 
 Stage BOM, after L3 DETAIL; RECHECK reruns it from LAYOUT freeze onward.
@@ -17,7 +19,7 @@ TRIGGER
 
 1. Export the assembly as STEP AP242 with product names that start with the PN
    (`PIN-0001` or `PIN-0001 Dowel pin`).
-2. `uv run --script skill://cad-flow/scripts/run.py cad-bom/scripts/bom.py ASSEMBLY.step --hw hw [--version vN|latest]` writes `hw/bom.csv` by default and prints JSON summary fields `status`, `rows`, `total_qty`, `missing_part_yaml`, `missing_in_step`, `unidentified`. With `--version`, `reconciled_against` names the selected version. The command reads metadata from that version's snapshot.
+2. `uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-bom/scripts/bom.py ASSEMBLY.step --hw hw [--version vN|latest]` writes `hw/bom.csv` by default and prints JSON summary fields `status`, `rows`, `total_qty`, `missing_part_yaml`, `missing_in_step`, `unidentified`. With `--version`, `reconciled_against` names the selected version. The command reads metadata from that version's snapshot.
 3. Exit 1 means the record and the model disagree; bom.csv is still written. Resolve each list:
    `missing_part_yaml` → create the part.yaml or rename the product;
    `missing_in_step` → remove the stale part or add it to the model;

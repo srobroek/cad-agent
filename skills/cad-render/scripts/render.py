@@ -9,9 +9,9 @@
 """Render verified cad-model versions to product PNG bundles via the static three.js PBR page.
 
 Usage:
-    uv run --script skill://cad-flow/scripts/run.py cad-render/scripts/render.py HW [--version latest|vN] [--views iso front side exploded] [--subject S]
+    uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-render/scripts/render.py HW [--version latest|vN] [--views iso front side exploded] [--subject S]
         [--size 1600x1200] [--jobs N] [--cache-dir DIR] [--replace] [--out-dir .cad-work/PATH]
-    uv run --script skill://cad-flow/scripts/run.py cad-render/scripts/render.py HW --version vN --motion SPEC.json
+    uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-render/scripts/render.py HW --version vN --motion SPEC.json
         --out-dir .cad-work/PATH [--size 1280x720] [--cache-dir DIR]
 
 Resolves a verified built version through cad-record's layout API, maps each part's part.yaml

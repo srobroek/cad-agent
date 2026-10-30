@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/srobroek/omp-plugins/cad/skills/cad-concept/assets/schemas/concept-scene.schema.json",
+  "$id": "https://github.com/srobroek/cad-agent/skills/cad-concept/assets/schemas/concept-scene.schema.json",
   "title": "CAD L0 concept scene",
   "description": "Rough visual concept: 1-4 live variants built from primitives, rendered side by side by the cad-concept viewer. Z is up, lengths are mm, rotations are XYZ Euler degrees. Cross-field rules (unique ids, joint wiring, limit order) are checked by scripts/concept.py check.",
   "type": "object",

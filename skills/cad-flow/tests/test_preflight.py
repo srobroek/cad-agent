@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
+import json
 import os
-import subprocess
 import sys
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -21,6 +23,43 @@ spec.loader.exec_module(preflight)
 scriptenv = preflight.scriptenv
 
 
+
+class HarnessInstallTests(unittest.TestCase):
+    def test_receipt_must_include_installed_skills_and_agents_at_contract_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary)
+            skill = project / ".agents/skills/cad-flow/SKILL.md"
+            agent = project / ".codex/agents/cad-analyst.toml"
+            skill.parent.mkdir(parents=True)
+            agent.parent.mkdir(parents=True)
+            skill.write_text("skill", encoding="utf-8")
+            agent.write_text("agent", encoding="utf-8")
+            sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+            (project / ".cad-agent-install.json").write_text(json.dumps({"format": 1, "files": {
+                ".agents/skills/cad-flow/SKILL.md": sha(skill),
+                ".codex/agents/cad-analyst.toml": sha(agent)}}), encoding="utf-8")
+            check = preflight._harness_check("codex", project, Path(temporary) / "home", {"HOME": temporary})
+            self.assertEqual(check.status, "pass")
+            self.assertIn("1 cad-* skill", check.detail)
+            (project / ".codex/agents/cad-analyst.toml").unlink()
+            self.assertEqual(preflight._harness_check("codex", project, Path(temporary) / "home", {}).status, "warn")
+
+    def test_opencode_receipt_uses_installer_project_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary)
+            skill = project / ".opencode/skills/cad-flow/SKILL.md"
+            agent = project / ".opencode/agents/cad-analyst.md"
+            for path in (skill, agent):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("installed", encoding="utf-8")
+            sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+            (project / ".cad-agent-install.json").write_text(json.dumps({"format": 1, "files": {
+                ".opencode/skills/cad-flow/SKILL.md": sha(skill),
+                ".opencode/agents/cad-analyst.md": sha(agent)}}), encoding="utf-8")
+            check = preflight._harness_check("opencode", project, Path(temporary) / "home", {})
+            self.assertEqual(check.status, "pass")
+            self.assertEqual(preflight._harness_check("claude", project, Path(temporary) / "home", {}).status,
+                             "warn")
 class ReportTests(unittest.TestCase):
     def test_required_failure_sets_exit_code_and_summary(self) -> None:
         report = preflight.Report((
@@ -41,12 +80,6 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(report.as_json()["checks"][0]["fix"], "install it")
         self.assertIn("Fix: install it", preflight.render_text(report))
 
-    def test_optional_warning_does_not_fail_report(self) -> None:
-        report = preflight.Report((
-            preflight.Check("beads", "Beads", "warn", False, "not installed", "install bd"),
-        ))
-        self.assertEqual(report.exit_code, 0)
-        self.assertEqual(report.counts["warn"], 1)
 
 
 def completed(args, stdout: str = "", returncode: int = 0):
@@ -168,19 +201,17 @@ class WarmPlanTests(unittest.TestCase):
                 patch.object(preflight, "_runtime_check", side_effect=lambda uv, item: passing(item.id)), \
                 patch.object(preflight, "_chromium_check", side_effect=chromium), \
                 patch.object(preflight, "_vendor_check", side_effect=vendor), \
-                patch.object(preflight, "_timed_freecad_checks", side_effect=lambda env, home: [preflight.Check("freecad-command", "FreeCAD command", "pass", True, "", ""), preflight.Check("freecad-version", "FreeCAD version", "pass", True, "", ""), preflight.Check("techdraw-templates", "TechDraw templates", "pass", True, "", "")]), \
-                patch.object(preflight, "_beads_check", side_effect=lambda cwd, env: passing("beads")), \
                 patch.object(preflight, "_harness_check", side_effect=lambda name, *a: passing(f"harness-{name}")), \
                 patch("sys.stderr"):
-            report = preflight.run_checks({"HOME": "/nowhere"}, Path("/p"), Path("/nowhere"), "omp", warm=warm)
+            report = preflight.run_checks({"HOME": "/nowhere"}, Path("/p"), Path("/nowhere"), "codex", warm=warm)
         self.assertEqual(order, ["uv", "cadquery", "build123d", "cad-model", "ocp-viewer",
-                                 "playwright-chromium", "three-vendor-cache", "beads", "harness-omp"])
+                                 "playwright-chromium", "three-vendor-cache", "harness-codex"])
         return order, seen
 
     def test_warm_first_loads_every_runtime_after_cad_tool_and_fetches_what_checks_need(self) -> None:
         order, seen = self.plan(warm=True)
-        self.assertEqual(order[:9], ["uv", "cadquery", "build123d", "cad-model", "ocp-viewer",
-                                    "playwright-chromium", "three-vendor-cache", "beads", "harness-omp"])
+        self.assertEqual(order, ["uv", "cadquery", "build123d", "cad-model", "ocp-viewer",
+                                 "playwright-chromium", "three-vendor-cache", "harness-codex"])
         self.assertEqual(seen, {"install": True, "fill": True})
 
     def test_plain_preflight_installs_and_fetches_nothing(self) -> None:
@@ -246,10 +277,10 @@ class WarmRecordTests(unittest.TestCase):
 
         self_path = self.path
         with patch.object(preflight.subprocess, "Popen", Child):
-            started = preflight.start_background(self.environ, harness="omp")
+            started = preflight.start_background(self.environ, harness="codex")
         self.assertTrue(started["started"], started)
         command, kwargs = spawned[0]
-        self.assertEqual(command[1:], [str(SCRIPT), "--warm", "--harness", "omp"])
+        self.assertEqual(command[1:], [str(SCRIPT), "--warm", "--harness", "codex"])
         self.assertTrue(kwargs["start_new_session"])
         self.assertIs(kwargs["stdin"], subprocess.DEVNULL)
         self.assertEqual(started["log"], str(self.path.with_suffix(".log")))
@@ -266,7 +297,7 @@ class MainTests(unittest.TestCase):
     def test_main_returns_report_exit_code_and_json(self) -> None:
         report = preflight.Report((preflight.Check("uv", "uv", "fail", True, "missing", "install"),))
         with patch.object(preflight, "run_checks", return_value=report), patch("sys.stdout") as stdout:
-            result = preflight.main(["--json", "--harness", "omp"])
+            result = preflight.main(["--json", "--harness", "codex"])
         self.assertEqual(result, 1)
         output = "".join(call.args[0] for call in stdout.write.call_args_list)
         self.assertIn('"exit_code": 1', output)

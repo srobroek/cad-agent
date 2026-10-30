@@ -10,14 +10,11 @@ its checks first-load every runtime environment, so the first build afterwards s
 warm-up records its progress and report for this plugin copy. `--background` starts one in a
 detached process and returns at once; `--status [--wait SECONDS]` reports on the last one.
 """
-
-from __future__ import annotations
-import re
-
 import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -42,6 +39,13 @@ STARTUP_TIMEOUT = 60  # a background warm-up records itself as running within th
 EXIT_NO_WARM = 2  # --status: no warm-up recorded, or it stopped without a report
 EXIT_RUNNING = 3  # --status: the warm-up is still running
 
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(128 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
 @dataclass(frozen=True)
 class CadTool:
     name: str
@@ -378,95 +382,48 @@ def _vendor_check(environ: Mapping[str, str], fill: bool = False) -> Check:
         detail = f"Could not {'fill' if fill else 'verify'} cad-render's three.js cache: {error}."
     return _check("three-vendor-cache", "Pinned three.js vendor cache", "fail", detail,
                   "Run `preflight.py --warm` with network access to fill the pinned cache, then retry.")
-
-
-def beads_workspace(cwd: Path, environ: Mapping[str, str]) -> Path | None:
-    """Find the Beads workspace used by the preflight and setup commands."""
-    workspace = Path(environ["BEADS_DIR"]) if environ.get("BEADS_DIR") else next(
-        (parent / ".beads" for parent in (cwd, *cwd.parents) if (parent / ".beads").is_dir()), None)
-    return workspace if workspace is not None and workspace.is_dir() else None
-
-
-def _beads_check(cwd: Path, environ: Mapping[str, str]) -> Check:
-    bd = shutil.which("bd", path=environ.get("PATH"))
-    workspace = beads_workspace(cwd, environ)
-    has_workspace = workspace is not None
-    if bd and has_workspace:
-        return _check("beads", "Beads", "pass", f"bd at {bd}; workspace at {workspace}.", "", required=False)
-    absent = []
-    if not bd:
-        absent.append("bd is not on PATH")
-    if not has_workspace:
-        absent.append("no .beads workspace was found from the current directory or BEADS_DIR")
-    return _check("beads", "Beads", "warn", "; ".join(absent) + ".",
-                  "Install bd and initialize a Beads workspace if using the workflow formulas and approval gates.",
-                  required=False)
-
-
-def _plugin_named(value: Any) -> bool:
-    if isinstance(value, dict):
-        names = [value.get(key) for key in ("name", "id", "plugin", "package")]
-        matches = any(isinstance(name, str) and (name == "cad" or name.startswith("cad@")
-                                                  or name.endswith("/cad")) for name in names)
-        install_path = value.get("installPath") or value.get("path")
-        if matches and install_path is not None:
-            return Path(str(install_path)).exists()
-        return matches or any(_plugin_named(child) for child in value.values())
-    if isinstance(value, list):
-        return any(_plugin_named(child) for child in value)
-    return False
-
-
 def _harness_check(harness: str, cwd: Path, home: Path, environ: Mapping[str, str]) -> Check:
-    if harness == "opencode":
-        skills = sorted(path.name for path in (cwd / ".opencode" / "skills").glob("cad-*") if path.is_dir())
-        agents = sorted(path.name for path in (cwd / ".opencode" / "agents").glob("cad-*"))
-        present = bool(skills and agents)
-        detail = f"Found {len(skills)} cad-* skill(s) and {len(agents)} cad-* agent(s) under .opencode/."
-        fix = "Copy the generated cad skills and agents into .opencode/skills/ and .opencode/agents/ as in cad/README.md."
-    elif harness == "kiro":
-        agents_dir = cwd / ".kiro" / "agents"
-        agents = sorted(agents_dir.glob("cad-*.json")) if agents_dir.is_dir() else []
-        link = cwd / "cad"
-        linked = link.is_dir() and (link / "skills").is_dir()
-        present = bool(agents and linked)
-        detail = f"Found {len(agents)} cad reviewer agent(s) in .kiro/agents; cad link {'is' if linked else 'is not'} present."
-        fix = "Link the plugin to workspace cad/ and copy harness/kiro/agents/*.json to .kiro/agents/ as in cad/README.md."
-    elif harness == "claude":
-        claude_home = Path(environ.get("CLAUDE_CONFIG_DIR") or (home / ".claude"))
-        settings = (cwd / ".claude" / "settings.json", cwd / ".claude" / "settings.local.json",
-                    claude_home / "settings.json", claude_home / "settings.local.json")
-        enabled = False
-        for path in settings:
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
+    """Check exact installed paths and hashes from cad-agent's ownership receipt."""
+    scopes = (cwd, home)
+    prefixes = {
+        "claude": ((".claude/skills/", ".claude/agents/"), (".claude/skills/", ".claude/agents/")),
+        "codex": ((".agents/skills/", ".codex/agents/"), (".agents/skills/", ".codex/agents/")),
+        "opencode": ((".opencode/skills/", ".opencode/agents/"), (".config/opencode/skills/", ".config/opencode/agents/")),
+        "kiro": ((".kiro/skills/", ".kiro/agents/"), (".kiro/skills/", ".kiro/agents/")),
+    }
+    installed_skills: set[str] = set()
+    installed_agents: set[str] = set()
+    for scope, (skill_prefix, agent_prefix) in zip(scopes, prefixes[harness]):
+        try:
+            receipt = json.loads((scope / ".cad-agent-install.json").read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            continue
+        files = receipt.get("files") if isinstance(receipt, dict) and receipt.get("format") == 1 else None
+        if not isinstance(files, dict):
+            continue
+        for key, digest in files.items():
+            if not isinstance(key, str) or not isinstance(digest, str):
                 continue
-            enabled_plugins = data.get("enabledPlugins", {}) if isinstance(data, dict) else {}
-            enabled |= isinstance(enabled_plugins, dict) and any(
-                str(key).startswith("cad@") and value is True for key, value in enabled_plugins.items())
-        cache = claude_home / "plugins" / "cache"
-        cached = any((path / "plugin.json").is_file() for path in cache.glob("**/cad/**")) if cache.exists() else False
-        present = enabled or cached
-        detail = "Claude Code cad plugin is enabled or cached." if present else "Claude Code cad plugin enablement/cache was not detected."
-        fix = "Install or load the cad plugin with `claude plugin install cad@srobroek-omp` (or `--plugin-dir` for a checkout)."
-    else:
-        omp = shutil.which("omp", path=environ.get("PATH"))
-        present = False
-        detail = "OMP plugin was not detected."
-        if omp:
+            relative = Path(key)
+            if relative.is_absolute() or ".." in relative.parts:
+                continue
+            if not key.startswith((skill_prefix, agent_prefix)):
+                continue
+            target = scope / relative
             try:
-                result = subprocess.run([omp, "plugin", "list", "--json"], capture_output=True, text=True,
-                                        timeout=15, check=False, cwd=cwd, env=dict(environ))
-                if result.returncode == 0:
-                    present = _plugin_named(json.loads(result.stdout))
-                    detail = "OMP cad plugin is present in `omp plugin list --json`." if present else \
-                        "OMP plugin list did not report an installed cad plugin."
-                else:
-                    detail = "Could not read `omp plugin list --json`; OMP plugin state is unknown."
-            except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
-                detail = "Could not read `omp plugin list --json`; OMP plugin state is unknown."
-        fix = "Install the cad plugin from its marketplace with `omp plugin install cad@srobroek-omp`."
+                if not target.is_file() or _file_sha256(target) != digest:
+                    continue
+            except OSError:
+                continue
+            if key.startswith(skill_prefix) and Path(key).name == "SKILL.md":
+                installed_skills.add(key)
+            elif key.startswith(agent_prefix) and Path(key).name.startswith("cad-"):
+                if harness != "codex" or target.suffix == ".toml":
+                    installed_agents.add(key)
+
+    present = bool(installed_skills and installed_agents)
+    detail = f"Installer receipt has {len(installed_skills)} cad-* skill(s) and {len(installed_agents)} cad-* agent(s)."
+    fix = f"Run `python3 harness/install.py --harness {harness} --project .` from the cad-agent checkout."
     return _check(f"harness-{harness}", f"{harness.title()} installation", "pass" if present else "warn",
                   detail, "" if present else fix, required=False)
 
@@ -516,8 +473,7 @@ def run_checks(environ: Mapping[str, str] | None = None, cwd: Path | None = None
             "Install uv and ensure its bin directory is on PATH."))
                       for name in (*(runtime.id for runtime in RUNTIMES), CHROMIUM.id))
     checks.append(_run_check("three-vendor-cache", lambda: _vendor_check(env, fill=warm)))
-    checks.append(_run_check("beads", lambda: _beads_check(workdir, env)))
-    harnesses = (harness,) if harness else ("omp", "claude", "opencode", "kiro")
+    harnesses = (harness,) if harness else ("claude", "codex", "opencode", "kiro")
     checks.extend(_run_check(f"harness-{name}", lambda name=name: _harness_check(name, workdir, home_dir, env))
                   for name in harnesses)
     return Report(tuple(checks))
@@ -640,7 +596,7 @@ def render_text(report: Report) -> str:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--json", action="store_true", help="print the complete report as JSON")
-    parser.add_argument("--harness", choices=("omp", "claude", "opencode", "kiro"),
+    parser.add_argument("--harness", choices=("claude", "codex", "opencode", "kiro"),
                         help="check only this harness (default: check all harnesses)")
     parser.add_argument("--warm", action="store_true",
                         help="also install Playwright Chromium and fill the three.js cache; record the run for --status")
