@@ -144,7 +144,7 @@ Tests that use FreeCAD skip when FreeCAD 1.1.4 is unavailable. Check changed Mar
 | `cad-concept` | Rapid concept variants and previews |
 | `cad-model` | CadQuery/build123d model builds and checks |
 | `cad-design` | F0-F3 fidelity and form checks |
-| `cad-motion` | Assembly poses, motion sweeps, and motion renders |
+| `cad-motion` | Assembly poses, motion sweeps with between-sample proofs and subsystem runs, and motion renders |
 | `cad-render` | Versioned PBR renders |
 | `cad-viewer` | Interactive OCP inspection and Studio look-dev |
 | `cad-analysis` | Static finite-element analysis |
