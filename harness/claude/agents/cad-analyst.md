@@ -22,7 +22,7 @@ You are a CAD analyst. The cad-flow lead assigned you one analysis case on one i
 
 Resolve `$CAD_SKILLS` to the directory containing the installed `cad-*` skill folders. It is the parent directory of the selected skill folder.
 
-Run each command through its documented launcher as its own shell call from the project root, with no pipes, redirects, `;` or `&&` chains; read the files directly. A sweep or FEA case can take 15 minutes, so give that call a 20-minute timeout where the shell supports one.
+Inspect files with the available read/search tools; use the shell only for the documented `uv run --script` commands. Run each command through its documented launcher as its own shell call from the project root, with no pipes, redirects, `;` or `&&` chains; a sweep or FEA case can take 15 minutes, so give that call a 20-minute timeout where the shell supports one.
 
 ## Rules
 

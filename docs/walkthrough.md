@@ -2,8 +2,16 @@
 
 Use this guide with the lamp-arm example in `examples/lamp-arm/` or with a new product in a project that has the CAD skills installed. The skill owns the commands and record schemas. This guide is a prompt-by-prompt companion. Type each prompt after the harness entry point:
 
-- Claude Code, OpenCode, or Kiro: `/cad-flow <prompt>`
+- Interactive Claude Code or OpenCode: `/cad-flow <prompt>`
+  Interactive Kiro V3: `/cad-flow <prompt>`
+- Non-interactive Kiro: ask for the `cad-flow` skill in prose. A bare `/cad-flow` is a CLI subcommand, not chat input. See the [Kiro headless mode docs](https://kiro.dev/docs/cli/headless/).
 - Codex CLI: `$cad-flow <prompt>` or select the skill in `/skills`, then type the prompt
+
+If you run Claude Code with `-p`, set `--max-turns` above the turns needed to finish the stage. Claude Code errors when it reaches the limit. To answer a gate, capture the session ID and resume it with `claude --resume <session-id> -p "<your explicit gate decision>"`. See the [Claude CLI reference](https://code.claude.com/docs/en/cli-reference) and [headless mode](https://code.claude.com/docs/en/headless).
+
+Codex's `workspace-write` sandbox can block loopback listeners, Chromium, or FreeCAD/Qt. The [README's Codex sandbox notes](../README.md#codex-cli-sandbox-requirements) describe required permissions and full-access risks.
+
+The generated Kiro agent profiles use V3 configuration. Run the flow with a working V3 engine, such as `kiro-cli chat --v3`. Do not use the legacy V1 engine with these profiles. See the [Kiro V3 agent configuration docs](https://kiro.dev/docs/cli/v3/agent-config/).
 
 The Claude plugin entry point is `/cad-agent:cad-flow`. To complete a gate, give explicit approval. The lead records the approval and rationale in a new `hw/decisions/DR-###.md`. A preview, successful check, or agent recommendation is not approval.
 

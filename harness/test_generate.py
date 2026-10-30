@@ -72,6 +72,17 @@ class HarnessGeneratorTests(unittest.TestCase):
             self.assertNotRegex(text, r"(?i)\bOMP\b|skill://|xd://|\bBeads\b|autoloadSkills|@task|@reviewer|\.omp-plugin|PI_SESSION_ID")
             self.assertNotRegex(text, r"(?i)\b(?:task|eval)\s+(?:tool|agent|function)\b")
 
+
+    def test_shell_agents_direct_file_inspection_to_read_tools(self) -> None:
+        self.generate()
+        for source in sorted((self.cad / "agents").glob("*.md")):
+            metadata = yaml.safe_load(source.read_text(encoding="utf-8").split("---", 2)[1])
+            if "shell-uv" not in metadata["capabilities"]:
+                continue
+            for harness, extension in (("claude", "md"), ("codex", "toml"), ("opencode", "md"), ("kiro", "json")):
+                generated = self.cad / "harness" / harness / "agents" / f"{source.stem}.{extension}"
+                with self.subTest(agent=source.stem, harness=harness):
+                    self.assertIn("Inspect files with the available read/search tools", generated.read_text(encoding="utf-8"))
     def test_claude_plugin_marketplace_targets_repo_root(self) -> None:
         plugin = json.loads((self.cad / ".claude-plugin/plugin.json").read_text(encoding="utf-8"))
         marketplace = json.loads((self.cad / ".claude-plugin/marketplace.json").read_text(encoding="utf-8"))

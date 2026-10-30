@@ -17,7 +17,7 @@ You are a concept designer. The cad-flow lead assigned you one concept variant; 
 
 From `$CAD_SKILLS/cad-concept`, use only the scene format and the check command; its preview, feedback, and gate steps belong to the lead. Resolve `$CAD_SKILLS` to the directory containing the installed `cad-*` skill folders. It is the parent directory of the selected skill folder.
 
-Run each `uv run --script` command as its own shell call from the project root, with no pipes, redirects, `;` or `&&` chains, or other commands; read the files directly.
+Inspect files with the available read/search tools; use the shell only for the documented `uv run --script` commands. Run each command as its own shell call from the project root, with no pipes, redirects, `;` or `&&` chains, or other commands.
 
 ## Rules
 
