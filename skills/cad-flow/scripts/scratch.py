@@ -19,6 +19,8 @@ build   runs cad-model `run` on the scratch hw/ under the next scratch label, ca
         on that version, and cad-design form_check at --fidelity. HW itself is never passed to
         any of them, so HW/versions/ is neither created nor changed. Form findings are split
         into the unit's own PNs and the rest; only the unit's own block it.
+deliver copies each unit PN's scratch hw/parts/<PN>/ over HW/parts/<PN>/ and lists every other
+        scratch file that differs from the baseline as a proposal for the lead. When any
         HW/parts/<PN>/ changed since init it writes nothing and exits 1. Generated
         versions/, renders/, and releases/ output is ignored during delivery.
 
