@@ -107,13 +107,13 @@ The `cad-flow` skill guides these stages:
 1. GROUND, INTENT, and SPECIFY
 2. L0 CONCEPT and the VARIANT gate
 3. L1 LAYOUT and LAYOUT freeze
-4. L2 PARTS, L3 DETAIL, and BOM
-5. L4 ANALYSIS, CRITIQUE, RECONCILE, and DESIGN freeze
+4. L2 PARTS and the PARTS gate, L3 DETAIL and the DETAIL gate, and BOM
+5. L4 ANALYSIS and the ANALYSIS gate, CRITIQUE, RECONCILE, and DESIGN freeze
 6. RELEASE gate and RELEASE
 
-The skill maintains the `hw/` design record. Each L1-L4 batch builds an immutable version, runs checks, and renders the result. The lead dispatches independent stage units to harness subagents in a batch, then integrates their results.
+The skill maintains the `hw/` design record. The lead dispatches independent stage units to harness subagents in a batch, then integrates their results. Each L1-L4 batch builds one immutable version with `cad-model run` and checks it fail-fast, cheapest first: (1) the record validator with its retention and process-feasibility rules and, from L2, `form_check` with its DFM rules; (2) `cad-model check --changed-only`; (3) once a joint moves, a `sweep.py --smoke --changed-only` sweep; (4) `cad-render`, which also runs the visibility check, and the default motion render; (5) after the provisional gate, the full check: `cad-model check` over every pair and the full sweep with its between-sample check. Steps 1 to 4 run in parallel where they do not depend on each other, and a blocking failure stops the batch.
 
-The lead records user-approved gates as dated decisions in `hw/decisions/`. Gates require explicit user approval. Agent verdicts and successful checks are not approval. The workflow has no ledger.
+The lead records user-approved gates as dated decisions in `hw/decisions/` and keeps the current stage in `hw/product.yaml` `flow`. LAYOUT freeze, PARTS, DETAIL and ANALYSIS each pass two gates; INTENT, VARIANT, DESIGN freeze and RELEASE are single human gates. The lead records the provisional gate as a decision marked PROVISIONAL once every fast check passes; the next stage may start then. The human gate opens after the full check passes and needs explicit user approval. It lists the sweep's unproved between-sample intervals, which the user accepts with a decision or reruns finer. A failed full check, a MAJOR finding of the L2 light mechanical and DFM review, or a change the user names at the human gate voids the provisional decision and reopens the stage and every later stage built on that version. Nothing is frozen or released before the human gates. Agent verdicts, successful checks and provisional gates are not approval. The workflow has no ledger.
 
 See the [stage-by-stage walkthrough](docs/walkthrough.md) for prompts, review material, approvals, and project files. The [canonical `hw/` record layout](skills/cad-record/references/layout.md) lists design files and generated evidence.
 
