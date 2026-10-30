@@ -60,6 +60,8 @@ uv run --script "$CAD_SKILLS/cad-flow/scripts/setup.py"
 uv run --script "$CAD_SKILLS/cad-flow/scripts/setup.py" --yes
 ```
 
+The direct `uv run --script` form is valid for `setup.py`; the shared launcher below also handles uv's reserved script basenames.
+
 Setup checks FreeCAD 1.1.4 first. It stops if FreeCAD is absent or the version is wrong. Run preflight again after setup. Use `uv run --script "$CAD_SKILLS/cad-flow/scripts/preflight.py" --warm` to install or check Chromium and warm the render cache.
 
 ### Skill script launcher
@@ -69,6 +71,8 @@ Use the shared launcher for scripts that need the shared CAD environment:
 ```sh
 uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" <skill>/scripts/<script>.py [args...]
 ```
+
+The shared launcher reads inline dependencies and uses an environment keyed by dependency set. For `setup.py`, `pyproject.toml`, or `setup.cfg`, it uses `--with` instead of the reserved `--with-requirements` input form.
 
 The target path is relative to `$CAD_SKILLS`, such as `cad-model/scripts/cad_model.py`. Resolve each skill's scripts, assets, and documents relative to that skill folder. Run lightweight standalone scripts directly with `uv run --script`.
 

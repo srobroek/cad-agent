@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Keep shared-environment launches working for scripts named `setup.py`, `pyproject.toml`, or `setup.cfg`, while preserving their PEP 723 dependencies and interpreter selection.
+
 ## 0.1.0
 
 First standalone release of the CAD skills, forked from [srobroek/omp-plugins](https://github.com/srobroek/omp-plugins) and adapted for Claude Code, OpenAI Codex CLI, OpenCode, and Kiro CLI without OMP or Beads dependencies.

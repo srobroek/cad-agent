@@ -22,6 +22,8 @@ uv run --script /path/to/cad-agent/skills/cad-flow/scripts/setup.py
 uv run --script /path/to/cad-agent/skills/cad-flow/scripts/setup.py --yes
 ```
 
+The shared launcher also works for `setup.py` and keeps its declared dependencies in the shared environment: `uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-flow/scripts/setup.py [--yes]`.
+
 FreeCAD 1.1.4 and its TechDraw templates are required. If a check fails, resolve it before proceeding. Tests that use FreeCAD skip when it is unavailable.
 
 ## GROUND
