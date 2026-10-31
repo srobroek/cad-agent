@@ -599,15 +599,42 @@ def check_manufacture(part: dict[str, Any], path: str, hw: Path, findings: list[
         findings.append(finding(path, f"manufacture/decision {decision} does not exist at decisions/{decision}.md"))
 
 
+# A gate decision's first line is `Status: APPROVED`, `Status: PROVISIONAL` or `Status: VOID` (cad-flow
+# references/flow.md "Gate control"). A decision without that line is a plain design decision.
+GATE_STATUS = re.compile(r"Status: (?P<status>\S+)")
+GATE_STATUSES = ("APPROVED", "PROVISIONAL", "VOID")
+
+
+def not_an_approval(record: Path) -> str | None:
+    """Why the existing decision record `record` cannot approve a freeze, a change or a release: its first
+    line marks it PROVISIONAL, VOID or an unknown gate status. None for APPROVED and for a decision
+    without a status line."""
+    first = record.read_text(encoding="utf-8", errors="replace").partition("\n")[0].strip()
+    match = GATE_STATUS.fullmatch(first)
+    if match is None or match["status"] == "APPROVED":
+        return None
+    if match["status"] in GATE_STATUSES:
+        return f"is {match['status']}, not the user's approval"
+    return (f"has the unknown gate status {match['status']!r}; its first line must be `Status: APPROVED`, "
+            "`Status: PROVISIONAL` or `Status: VOID`")
+
+
 def check_flow(product: dict[str, Any], path: str, hw: Path, part_records: dict[str, Any],
                findings: list[dict[str, str]]) -> None:
     """The frozen anchor names a built version by its exact manifest, and an open change starts from it."""
     flow = product["flow"]
     frozen, change = flow.get("frozen"), flow.get("change")
+    approves = {"frozen": "freezes a version", "change": "opens an engineering change"}
     for where, item in (("frozen", frozen), ("change", change)):
-        if item is not None and not (hw / "decisions" / f"{item['decision']}.md").is_file():
+        if item is None:
+            continue
+        record = hw / "decisions" / f"{item['decision']}.md"
+        if not record.is_file():
             findings.append(finding(path, f"flow/{where}/decision {item['decision']} does not exist at "
                                           f"decisions/{item['decision']}.md"))
+        elif (problem := not_an_approval(record)) is not None:
+            findings.append(finding(path, f"flow/{where}/decision {item['decision']} {problem}; only the user's "
+                                          f"approval {approves[where]}"))
     if frozen is not None:
         manifest = layout.version_dir(hw, frozen["version"]) / "manifest.json"
         if not manifest.is_file():

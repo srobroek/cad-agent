@@ -12,7 +12,7 @@ and reads one JSON result from that file once the runner exits, identical in sha
 
     {"kernel": "cadquery", "tools": {"python": "3.12.13", "cadquery": "2.8.0", ...},
      "import_s": 3.7,
-     "sources": {"/abs/cad/skills/cad-model/scripts/cadmodel/occ.py": "<sha256>", ...},
+     "sources": {"/abs/skills/cad-model/scripts/cadmodel/occ.py": "<sha256>", ...},
      "parts": {"LMP-0003": {"ok": true, "params": {...}, "kernel_volume_mm3": 1234.5,
                             "kernel_solids": 1, "kernel_valid": true, "kernel_errors": [], "build_s": 0.4,
                             "drawing_features": {"elbow_bore": {...}} or null,

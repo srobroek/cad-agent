@@ -337,6 +337,10 @@ def assemble(hw: Path, rev: str, version: str, decision: str,
     if not decision_path.is_file():
         release.refuse(layout.relative(hw, decision_path), "decision",
                        f"{decision} does not exist at {layout.relative(hw, decision_path)}; record the release approval")
+    elif (problem := validate.not_an_approval(decision_path)) is not None:
+        release.refuse(layout.relative(hw, decision_path), "decision",
+                       f"{decision} {problem}; record the user's release approval as a decision whose first line "
+                       "is `Status: APPROVED`")
     product = _yaml(hw / "product.yaml")
     flow = product.get("flow") if isinstance(product, dict) and isinstance(product.get("flow"), dict) else {}
     frozen = flow.get("frozen")
