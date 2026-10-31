@@ -197,13 +197,18 @@ class WarmPlanTests(unittest.TestCase):
             seen["fill"] = fill
             return passing("three-vendor-cache")
 
+        cad_checks = [
+            preflight.Check(identifier, identifier, "pass", True, "", "")
+            for identifier in ("freecad-command", "freecad-version", "techdraw-templates")
+        ]
         with patch.object(preflight, "_uv_check", side_effect=lambda env: (passing("uv"), "uv")), \
                 patch.object(preflight, "_runtime_check", side_effect=lambda uv, item: passing(item.id)), \
                 patch.object(preflight, "_chromium_check", side_effect=chromium), \
                 patch.object(preflight, "_vendor_check", side_effect=vendor), \
                 patch.object(preflight, "_harness_check", side_effect=lambda name, *a: passing(f"harness-{name}")), \
                 patch("sys.stderr"):
-            report = preflight.run_checks({"HOME": "/nowhere"}, Path("/p"), Path("/nowhere"), "codex", warm=warm)
+            report = preflight.run_checks({"HOME": "/nowhere"}, Path("/p"), Path("/nowhere"), "codex",
+                                          warm=warm, cad_checks=cad_checks)
         self.assertEqual(order, ["uv", "cadquery", "build123d", "cad-model", "ocp-viewer",
                                  "playwright-chromium", "three-vendor-cache", "harness-codex"])
         return order, seen

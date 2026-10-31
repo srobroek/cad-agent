@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Keep shared-environment launches working for scripts named `setup.py`, `pyproject.toml`, or `setup.cfg`, while preserving their PEP 723 dependencies and interpreter selection.
+- Keep CAD setup and preflight planning tests independent of host FreeCAD and system-library availability.
 - Ignore generated version, render, and release output when delivering a built scratch workspace, and stop at gates when the lead cannot ask the user.
 - Port the omp-plugins `cad` changes through dc89664:
   - Check each built version fail-fast, cheapest first, and close LAYOUT freeze, PARTS, DETAIL and ANALYSIS with two gates: a provisional decision the lead records once the fast checks pass, then the user's approval after the full check. A failed full check, a MAJOR L2 light-review finding or a change the user names voids the provisional decision and reopens that stage and every later stage built on that version. A gate decision's first line is `Status: APPROVED`, `Status: PROVISIONAL` or `Status: VOID`; `validate.py` and `release.py` refuse a PROVISIONAL or VOID decision as the freeze, change or release approval.
