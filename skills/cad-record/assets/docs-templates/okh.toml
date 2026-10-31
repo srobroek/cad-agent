@@ -1,0 +1,43 @@
+schema = "OKH-LOSH-v1.0"
+
+[okhv]
+name = "{{name}}"
+repo = "HUMAN-OWNED: set project repository URL"
+version = "{{version}}"
+license = "{{license}}"
+licensor = "HUMAN-OWNED: set product licensor"
+author = "HUMAN-OWNED: set product author"
+design_owner = "HUMAN-OWNED: set product design owner"
+release = "{{release}}"
+release_date = "{{release_date}}"
+documentation_language = "HUMAN-OWNED: choose documentation language"
+hardware_license = "{{hardware_license}}"
+software = "HUMAN-OWNED: list software and versions"
+tool = "HUMAN-OWNED: list tools and settings"
+
+[technology_readiness_level]
+value = "HUMAN-OWNED: assess readiness level"
+
+[documentation]
+readme = "index.md"
+
+[bom]
+complete = true
+source = "{{bom_source}}"
+parts_to_make = "{{parts_to_make}}"
+parts_to_buy = "{{parts_to_buy}}"
+
+[manufacturing_files]
+files = ["{{manufacturing_files}}"]
+# planned processes: {{manufacturing_processes}}
+
+[operating_instructions]
+readme = "index.md"
+assembly_steps = "{{assembly_steps}}"
+tools_and_consumables = "{{tools_and_consumables}}"
+[quality_management]
+quality_system = "HUMAN-OWNED: state applicable quality system"
+
+[validation]
+validation_method = "{{validation_method}}"
+validation_description = "{{validation_description}}"

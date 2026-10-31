@@ -1,0 +1,329 @@
+#!/usr/bin/env python3
+"""Focused tests for CAD setup planning and fail-fast tool requirements."""
+
+from __future__ import annotations
+
+import importlib.util
+import io
+import os
+import subprocess
+import tempfile
+import unittest
+from contextlib import redirect_stdout
+from pathlib import Path
+from unittest.mock import patch
+
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "setup.py"
+spec = importlib.util.spec_from_file_location("cad_setup", SCRIPT)
+assert spec is not None and spec.loader is not None
+setup = importlib.util.module_from_spec(spec)
+import sys
+sys.modules[spec.name] = setup
+spec.loader.exec_module(setup)
+
+
+def report(*failed: str):
+    ids = ("uv", *setup.WARM_IDS, "freecad-command", "freecad-version", "techdraw-templates")
+    checks = tuple(setup.preflight.Check(
+        identifier, identifier, "fail" if identifier in failed else "pass", True, "detail", "fix")
+        for identifier in ids)
+    return setup.preflight.Report(checks)
+
+
+class PlanTests(unittest.TestCase):
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.home = self.root / "home"
+        self.home.mkdir()
+        self.env = {"HOME": str(self.home)}
+        # Generic setup-plan tests should not gain Linux-only system-library advice.
+        platform_patch = patch.object(setup.platform, "system", return_value="Darwin")
+        platform_patch.start()
+        self.addCleanup(platform_patch.stop)
+
+    def test_each_runtime_failure_uses_existing_warm_step(self) -> None:
+        for identifier in setup.WARM_IDS:
+            with self.subTest(check=identifier):
+                items = setup.plan(report(identifier), self.root, self.home, self.env)
+                warm = [item for item in items if item.id == f"warm-{identifier}"]
+                self.assertEqual(len(warm), 1)
+                self.assertIn(identifier, warm[0].command)
+
+    def test_uv_and_runtime_failures_have_distinct_actions(self) -> None:
+        items = setup.plan(report("uv", "cadquery"), self.root, self.home, self.env)
+        identifiers = [item.id for item in items]
+        self.assertEqual(set(identifiers), {"uv", "warm-cadquery"})
+        uv = next(item for item in items if item.id == "uv")
+        self.assertIn("https://astral.sh/uv/install.sh", uv.command)
+
+    def test_requested_harness_is_planned_but_not_implicit(self) -> None:
+        with patch.object(setup, "_harness_needed", return_value=True):
+            implicit = setup.plan(report(), self.root, self.home, self.env)
+            requested = setup.plan(report(), self.root, self.home, self.env, "opencode")
+        self.assertFalse(any(item.id.startswith("harness-") for item in implicit))
+        requested_harness = next(item for item in requested if item.id == "harness-opencode")
+        self.assertIn("python3", requested_harness.command)
+        self.assertIn("harness/install.py", requested_harness.command)
+        self.assertIn(str(setup.CAD_ROOT), requested_harness.command)
+
+    def test_install_uses_checkout_installer_with_project_relative_destination(self) -> None:
+        with patch.object(setup, "_run") as run:
+            setup._install_harness("codex", self.root)
+        run.assert_called_once_with(
+            ["python3", str(setup.CAD_ROOT / "harness" / "install.py"), "--harness", "codex", "--project", "."],
+            cwd=self.root)
+
+    def test_installed_skill_copy_points_to_checkout_when_installer_is_absent(self) -> None:
+        with patch.object(setup, "CAD_ROOT", self.root), patch.object(setup, "_harness_needed", return_value=True):
+            planned = setup.plan(report(), self.root, self.home, self.env, "codex")
+        unavailable_harness = next(item for item in planned if item.id == "harness-unavailable")
+        self.assertIn("cad-agent checkout", unavailable_harness.command)
+        with patch.object(setup, "CAD_ROOT", self.root):
+            with self.assertRaisesRegex(RuntimeError, "not bundled with installed skills"):
+                setup._install_harness("codex", self.root)
+
+    def test_linux_browser_libraries_offer_playwright_deps_for_debian_and_ubuntu_derivatives(self) -> None:
+        check = setup.preflight.Check(
+            "playwright-chromium", "Playwright Chromium", "fail", True,
+            "Could not launch Chromium", "install deps")
+        for release in ({"ID": "ubuntu"}, {"ID": "linuxmint", "ID_LIKE": "ubuntu debian"}):
+            with self.subTest(release=release), \
+                    patch.object(setup.platform, "system", return_value="Linux"), \
+                    patch.object(setup, "_release_info", return_value=release):
+                items = setup.plan(setup.preflight.Report((check,)), self.root, self.home, self.env)
+            browser = next(item for item in items if item.id == "browser-libraries")
+            self.assertIn("playwright install-deps chromium", browser.command)
+
+    def test_linux_browser_libraries_keep_manual_advice_outside_debian_family(self) -> None:
+        check = setup.preflight.Check(
+            "playwright-chromium", "Playwright Chromium", "fail", True,
+            "Could not launch Chromium: libfoo.so.1", "install deps")
+        with patch.object(setup.platform, "system", return_value="Linux"), \
+                patch.object(setup, "_release_info", return_value={"ID": "amzn"}):
+            items = setup.plan(setup.preflight.Report((check,)), self.root, self.home, self.env)
+        browser = next(item for item in items if item.id == "browser-libraries-manual")
+        self.assertIn("Debian/Ubuntu only", browser.command)
+        self.assertIn("libfoo.so.1", browser.command)
+
+    def test_linux_manual_plan_includes_ocp_shared_libraries(self) -> None:
+        with patch.object(setup.platform, "system", return_value="Linux"):
+            items = setup.plan(report(), self.root, self.home, self.env)
+        manual = next(item for item in items if item.id == "manual-libraries")
+        for library in ("libglvnd-glx", "libX11", "expat"):
+            self.assertIn(library, manual.command)
+
+    def test_setup_imports_subprocess_for_run_and_exception_path(self) -> None:
+        self.assertIsNotNone(setup.subprocess)
+        with patch.object(setup.subprocess, "run", side_effect=FileNotFoundError("missing")):
+            with self.assertRaises(FileNotFoundError):
+                setup._run(["missing-command"])
+
+    def test_release_info_parses_id_like(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "os-release"
+            path.write_text('ID="linuxmint"\nID_LIKE="ubuntu debian"\n', encoding="utf-8")
+            self.assertTrue(setup._is_debian_family(setup._release_info(path)))
+class MainTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.home = self.root / "home"
+        self.home.mkdir()
+
+    def test_missing_cad_tool_fails_before_other_actions(self) -> None:
+        missing = setup.preflight.Check(
+            "freecad-command", "FreeCAD command", "fail", True,
+            "FreeCAD 1.1.4 freecadcmd was not found.",
+            "Install FreeCAD 1.1.4 from https://github.com/FreeCAD/FreeCAD/releases/tag/1.1.4; "
+            "lookup order: FREECADCMD, PATH, the macOS app bundle, ~/.local/bin/freecadcmd.")
+        with patch.dict("os.environ", {"HOME": str(self.home), "FREECADCMD": "/nonexistent"}, clear=True), \
+                patch.object(setup.preflight, "_timed_freecad_checks", return_value=[missing]), \
+                patch.object(setup.preflight, "run_checks") as run_checks, \
+                patch.object(setup, "plan") as plan, \
+                redirect_stdout(io.StringIO()) as output:
+            status = setup.main(["--yes"])
+        self.assertNotEqual(status, 0)
+        message = output.getvalue()
+        self.assertIn("FreeCAD 1.1.4", message)
+        self.assertIn("https://github.com/FreeCAD/FreeCAD/releases/tag/1.1.4", message)
+        self.assertIn("FREECADCMD", message)
+        self.assertIn("PATH", message)
+        self.assertIn("macOS app bundle", message)
+        self.assertIn("~/.local/bin/freecadcmd", message)
+        run_checks.assert_not_called()
+        plan.assert_not_called()
+
+    def test_present_cad_tool_runs_normal_plan(self) -> None:
+        checks = [
+            setup.preflight.Check("freecad-command", "FreeCAD command", "pass", True, "present", ""),
+            setup.preflight.Check("freecad-version", "FreeCAD version", "pass", True, "FreeCAD 1.1.4", ""),
+            setup.preflight.Check("techdraw-templates", "TechDraw templates", "pass", True, "present", ""),
+        ]
+        expected = report()
+        with patch.dict("os.environ", {"HOME": str(self.home)}, clear=True), \
+                patch.object(setup.preflight, "_timed_freecad_checks", return_value=checks), \
+                patch.object(setup.preflight, "run_checks", return_value=expected) as run_checks, \
+                patch.object(setup, "plan", return_value=[]) as plan, \
+                redirect_stdout(io.StringIO()) as output:
+            status = setup.main([])
+        self.assertEqual(status, 0)
+        run_checks.assert_called_once()
+        plan.assert_called_once()
+        self.assertIn("Setup plan: nothing to do.", output.getvalue())
+        self.assertIn("Dry run: no setup actions were executed.", output.getvalue())
+
+    def test_cad_tool_failure_skips_action_even_with_yes(self) -> None:
+        failed = setup.preflight.Check("freecad-command", "FreeCAD command", "fail", True, "missing", "install it")
+        with patch.dict("os.environ", {"HOME": str(self.home)}, clear=True), \
+                patch.object(setup.preflight, "_timed_freecad_checks", return_value=[failed]), \
+                patch.object(setup.preflight, "run_checks") as run_checks, \
+                redirect_stdout(io.StringIO()):
+            status = setup.main(["--yes"])
+        self.assertNotEqual(status, 0)
+        run_checks.assert_not_called()
+
+    def test_nonpassing_cad_check_prevents_all_other_setup_work(self) -> None:
+        bad_templates = setup.preflight.Check(
+            "techdraw-templates", "TechDraw templates", "fail", True, "missing templates", "install FreeCAD")
+        with patch.dict("os.environ", {"HOME": str(self.home)}, clear=True), \
+                patch.object(setup.preflight, "_timed_freecad_checks", return_value=[bad_templates]), \
+                patch.object(setup.preflight, "run_checks") as run_checks, \
+                patch.object(setup, "plan") as plan, redirect_stdout(io.StringIO()):
+            status = setup.main(["--yes"])
+        self.assertNotEqual(status, 0)
+        run_checks.assert_not_called()
+        plan.assert_not_called()
+
+
+    def test_wrong_version_or_missing_templates_fail_before_setup(self) -> None:
+        bad_version = setup.preflight.Check("freecad-version", "FreeCAD version", "fail", True,
+                                            "FreeCAD 1.2.0", "Install FreeCAD 1.1.4")
+        with patch.dict("os.environ", {"HOME": str(self.home)}, clear=True), \
+                patch.object(setup.preflight, "_timed_freecad_checks", return_value=[
+                    setup.preflight.Check("freecad-command", "FreeCAD command", "pass", True, "present", ""),
+                    bad_version,
+                ]), patch.object(setup.preflight, "run_checks") as run_checks, \
+                patch.object(setup, "plan") as plan, redirect_stdout(io.StringIO()):
+            status = setup.main([])
+        self.assertNotEqual(status, 0)
+        run_checks.assert_not_called()
+        plan.assert_not_called()
+
+
+TEMPLATE_IGNORE = SCRIPT.parents[2] / "cad-record" / "assets" / "project-template" / "hw" / ".gitignore"
+
+
+class StorageTests(unittest.TestCase):
+    """The git storage rules of generated results, from product.yaml storage.results_in_git."""
+
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.hw = self.root / "hw"
+        self.hw.mkdir()
+
+    def answer(self, value: str | None) -> None:
+        storage = "" if value is None else f"storage:\n  results_in_git: {value}\n"
+        (self.hw / "product.yaml").write_text(f"id: lamp\n{storage}", encoding="utf-8")
+
+    def apply(self) -> list[str]:
+        items = setup.storage_plan(self.root)
+        with redirect_stdout(io.StringIO()):
+            failures, _ = setup._execute(items, self.root, self.root, {}, None)
+        self.assertEqual(failures, [])
+        return [item.id for item in items]
+
+    def text(self, name: str) -> str | None:
+        path = self.hw / name
+        return path.read_text(encoding="utf-8") if path.is_file() else None
+
+    def git(self, *args: str) -> None:
+        subprocess.run(["git", "-C", str(self.root), *args], check=True, capture_output=True,
+                       env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+
+    def test_an_unasked_or_declined_answer_ignores_results_like_the_template(self) -> None:
+        for value in (None, "false"):
+            with self.subTest(value=value):
+                for name in (".gitignore", ".gitattributes"):
+                    (self.hw / name).unlink(missing_ok=True)
+                self.answer(value)
+                self.assertEqual(self.apply(), ["git-storage"])
+                self.assertEqual(self.text(".gitignore"), TEMPLATE_IGNORE.read_text(encoding="utf-8"))
+                self.assertIsNone(self.text(".gitattributes"))
+                self.assertIn("/versions/\n/checks/\n", self.text(".gitignore"))
+                self.assertEqual(setup.storage_plan(self.root), [], "the rules hold, so nothing is planned")
+
+    def test_approval_writes_lfs_rules_and_a_later_no_restores_the_ignore_rules(self) -> None:
+        (self.hw / ".gitignore").write_text("notes.tmp\n", encoding="utf-8")
+        (self.hw / ".gitattributes").write_text("*.csv text\n", encoding="utf-8")
+        self.answer(None)
+        self.apply()
+        self.answer("true")
+        plan = setup.storage_plan(self.root)
+        self.assertIn("never runs git lfs", plan[0].command)
+        self.apply()
+        self.assertEqual(self.text(".gitignore"), "notes.tmp\n")
+        attributes = self.text(".gitattributes")
+        self.assertTrue(attributes.startswith(f"*.csv text\n\n{setup.STORAGE_BEGIN}\n"))
+        for rule in ("versions/**/*.step filter=lfs diff=lfs merge=lfs -text",
+                     "versions/**/*.glb filter=lfs diff=lfs merge=lfs -text",
+                     "renders/**/*.glb filter=lfs diff=lfs merge=lfs -text"):
+            self.assertIn(f"\n{rule}\n", attributes)
+        self.answer("false")
+        self.apply()
+        self.assertEqual(self.text(".gitattributes"), "*.csv text\n")
+        self.assertEqual(self.text(".gitignore"), "notes.tmp\n\n" + TEMPLATE_IGNORE.read_text(encoding="utf-8"))
+
+    def test_a_file_holding_only_the_block_is_removed_when_the_block_goes(self) -> None:
+        self.answer("true")
+        self.apply()
+        self.answer("false")
+        self.apply()
+        self.assertIsNone(self.text(".gitattributes"))
+
+    def test_tracked_results_are_listed_with_the_manual_untracking_step_and_never_untracked(self) -> None:
+        self.git("init", "-q")
+        for rel in ("versions/v1/parts/LMP-0001.step", "motion/v1/assembly/result.json", "parts/LMP-0001/model.py"):
+            (self.hw / rel).parent.mkdir(parents=True, exist_ok=True)
+            (self.hw / rel).write_text("x\n", encoding="utf-8")
+        self.git("add", "hw")
+        self.answer("false")
+        plan = {item.id: item for item in setup.storage_plan(self.root)}
+        untrack = plan["git-untrack-manual"].command
+        self.assertIn("git rm -r --cached hw/motion/v1 hw/versions", untrack)
+        self.assertIn("Setup never runs it", untrack)
+        self.assertNotIn("parts", untrack)
+        with redirect_stdout(io.StringIO()), patch("sys.stderr", new_callable=io.StringIO) as stderr:
+            failures, _ = setup._execute(list(plan.values()), self.root, self.root, {}, None)
+        self.assertEqual(failures, [])
+        self.assertIn("Manual step: git still tracks", stderr.getvalue())
+        self.assertEqual(setup.tracked_results(self.hw), ["motion/v1", "versions"], "setup untracked nothing")
+        self.answer("true")
+        self.assertNotIn("git-untrack-manual", [item.id for item in setup.storage_plan(self.root)])
+
+    def test_a_malformed_answer_is_a_manual_step_and_plan_ignores_a_folder_without_hw(self) -> None:
+        self.answer('"yes"')
+        items = setup.storage_plan(self.root)
+        self.assertEqual([item.id for item in items], ["storage-manual"])
+        self.assertIn("must be true or false", items[0].command)
+        self.assertEqual(setup.storage_plan(self.root / "hw"), [])
+
+    def test_storage_flag_writes_only_the_rules_without_the_cad_checks(self) -> None:
+        self.answer(None)
+        with patch.object(setup.Path, "cwd", return_value=self.root), \
+                patch.object(setup.preflight, "_timed_freecad_checks") as freecad, \
+                redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(setup.main(["--storage"]), 0)
+            self.assertIsNone(self.text(".gitignore"))
+            self.assertEqual(setup.main(["--storage", "--yes"]), 0)
+        freecad.assert_not_called()
+        self.assertIn("Write the git storage rules", output.getvalue())
+        self.assertEqual(self.text(".gitignore"), TEMPLATE_IGNORE.read_text(encoding="utf-8"))
+
+
+if __name__ == "__main__":
+    unittest.main()
