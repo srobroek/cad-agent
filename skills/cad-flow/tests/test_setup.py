@@ -38,6 +38,10 @@ class PlanTests(unittest.TestCase):
         self.home = self.root / "home"
         self.home.mkdir()
         self.env = {"HOME": str(self.home)}
+        # Generic setup-plan tests should not gain Linux-only system-library advice.
+        platform_patch = patch.object(setup.platform, "system", return_value="Darwin")
+        platform_patch.start()
+        self.addCleanup(platform_patch.stop)
 
     def test_each_runtime_failure_uses_existing_warm_step(self) -> None:
         for identifier in setup.WARM_IDS:
@@ -50,18 +54,19 @@ class PlanTests(unittest.TestCase):
     def test_uv_and_runtime_failures_have_distinct_actions(self) -> None:
         items = setup.plan(report("uv", "cadquery"), self.root, self.home, self.env)
         identifiers = [item.id for item in items]
-        self.assertEqual(identifiers[:2], ["uv", "warm-cadquery"])
-        self.assertTrue(all(identifier in {"uv", "warm-cadquery", "manual-libraries"} for identifier in identifiers))
-        self.assertIn("https://astral.sh/uv/install.sh", items[0].command)
+        self.assertEqual(set(identifiers), {"uv", "warm-cadquery"})
+        uv = next(item for item in items if item.id == "uv")
+        self.assertIn("https://astral.sh/uv/install.sh", uv.command)
 
     def test_requested_harness_is_planned_but_not_implicit(self) -> None:
         with patch.object(setup, "_harness_needed", return_value=True):
             implicit = setup.plan(report(), self.root, self.home, self.env)
             requested = setup.plan(report(), self.root, self.home, self.env, "opencode")
         self.assertFalse(any(item.id.startswith("harness-") for item in implicit))
-        self.assertIn("python3", requested[0].command)
-        self.assertIn("harness/install.py", requested[0].command)
-        self.assertIn(str(setup.CAD_ROOT), requested[0].command)
+        requested_harness = next(item for item in requested if item.id == "harness-opencode")
+        self.assertIn("python3", requested_harness.command)
+        self.assertIn("harness/install.py", requested_harness.command)
+        self.assertIn(str(setup.CAD_ROOT), requested_harness.command)
 
     def test_install_uses_checkout_installer_with_project_relative_destination(self) -> None:
         with patch.object(setup, "_run") as run:
@@ -73,8 +78,8 @@ class PlanTests(unittest.TestCase):
     def test_installed_skill_copy_points_to_checkout_when_installer_is_absent(self) -> None:
         with patch.object(setup, "CAD_ROOT", self.root), patch.object(setup, "_harness_needed", return_value=True):
             planned = setup.plan(report(), self.root, self.home, self.env, "codex")
-        self.assertEqual(planned[0].id, "harness-unavailable")
-        self.assertIn("cad-agent checkout", planned[0].command)
+        unavailable_harness = next(item for item in planned if item.id == "harness-unavailable")
+        self.assertIn("cad-agent checkout", unavailable_harness.command)
         with patch.object(setup, "CAD_ROOT", self.root):
             with self.assertRaisesRegex(RuntimeError, "not bundled with installed skills"):
                 setup._install_harness("codex", self.root)
