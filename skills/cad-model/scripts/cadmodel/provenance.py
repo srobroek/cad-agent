@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-SKILLS = Path(__file__).resolve().parents[3]  # cad/skills: every plugin module a process can load lives below it
+SKILLS = Path(__file__).resolve().parents[3]  # skills/: every CAD skill module a process can load lives below it
 
 
 def runtime(tools: Mapping[str, str]) -> dict[str, Any]:

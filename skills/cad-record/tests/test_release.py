@@ -533,6 +533,30 @@ class Refusal(ReleaseCase):
         hw = self.project()
         self.refused(hw, "hw/decisions/DR-099.md", "decision", "DR-099 does not exist", decision="DR-099")
 
+    def test_a_provisional_or_void_decision_never_approves_a_release(self) -> None:
+        hw = self.project()
+        for status in ("PROVISIONAL", "VOID"):
+            with self.subTest(status=status):
+                write(hw / "decisions" / "DR-006.md", f"Status: {status}\n\n# DR-006 Release A\n")
+                self.refused(hw, "hw/decisions/DR-006.md", "decision", f"DR-006 is {status}, not the user's approval",
+                             decision="DR-006")
+        write(hw / "decisions" / "DR-006.md", "Status: approved\n\n# DR-006 Release A\n")
+        self.refused(hw, "hw/decisions/DR-006.md", "decision", "unknown gate status 'approved'", decision="DR-006")
+        write(hw / "decisions" / "DR-006.md", "Status: APPROVED\n\n# DR-006 Release A\n\nThe user approved v1 as A.\n")
+        result, report = self.release(hw, decision="DR-006")
+        self.assertEqual((result, report["status"]), (0, "released"), report.get("findings"))
+
+    def test_a_freeze_on_a_provisional_decision_refuses_the_release(self) -> None:
+        hw = self.project()
+        record = hw / "decisions" / "DR-004.md"
+        write(record, "Status: PROVISIONAL\n\n" + record.read_text(encoding="utf-8"))
+        before = tree(hw)
+        result, report = self.release(hw)
+        self.assertEqual((result, report["status"]), (1, "refused"))
+        self.assertTrue(any("flow/frozen/decision DR-004 is PROVISIONAL" in item["message"]
+                            for item in report["findings"]), json.dumps(report["findings"], indent=1))
+        self.assertEqual(tree(hw), before)
+
     def test_unverified_requirements_and_missing_evidence_refuse(self) -> None:
         hw = self.project()
         edit_csv(hw / "verification.csv", lambda rows: rows[0].update(result="planned"))

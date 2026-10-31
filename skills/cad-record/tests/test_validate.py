@@ -332,6 +332,39 @@ class ValidateProject(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout)
         return [item["message"] for item in report["findings"]]
 
+    def anchor_on(self, decision: str, text: str, change: bool = False) -> list[str]:
+        """The flow decision messages for the example frozen at an unbuilt v1 by `decision` (or with an
+        open change it approves), its record written as `text`."""
+        path = self.hw / "product.yaml"
+        product = yaml.safe_load(path.read_text(encoding="utf-8"))
+        product["flow"].update(stage="design_freeze", frozen={"version": "v1", "manifest_sha256": "0" * 64,
+                                                              "decision": "DR-004"})
+        if change:
+            product["flow"]["change"] = {"decision": decision, "baseline_version": "v1", "affected_parts": ["LMP-0001"]}
+        else:
+            product["flow"]["frozen"]["decision"] = decision
+        path.write_text(yaml.safe_dump(product, sort_keys=False), encoding="utf-8")
+        (self.hw / "decisions" / f"{decision}.md").write_text(text, encoding="utf-8")
+        return [message for message in self.messages() if message.startswith("flow/") and "/decision " in message]
+
+    def test_only_the_users_approval_freezes_a_version_through_a_provisional_and_void_cycle(self) -> None:
+        self.assertEqual(self.anchor_on("DR-005", "Status: PROVISIONAL\n\n# DR-005 LAYOUT freeze, provisional\n"),
+                         ["flow/frozen/decision DR-005 is PROVISIONAL, not the user's approval; only the user's "
+                          "approval freezes a version"])
+        self.assertEqual(self.anchor_on("DR-006", "Status: VOID\n\n# DR-006 VOID: v1 full sweep failed\n\n"
+                                                  "Supersedes DR-005.\n"),
+                         ["flow/frozen/decision DR-006 is VOID, not the user's approval; only the user's approval "
+                          "freezes a version"])
+        self.assertIn("unknown gate status 'approved'", self.anchor_on("DR-007", "Status: approved\n")[0])
+        self.assertEqual(self.anchor_on("DR-008", "Status: APPROVED\n\n# DR-008 LAYOUT freeze\n\nThe user approved v1.\n"), [])
+        plain = (self.hw / "decisions" / "DR-004.md").read_text(encoding="utf-8")
+        self.assertEqual(self.anchor_on("DR-004", plain), [], "a decision without a status line is a plain decision")
+
+    def test_a_provisional_decision_never_opens_an_engineering_change(self) -> None:
+        self.assertEqual(self.anchor_on("DR-005", "Status: PROVISIONAL\n\n# DR-005 Cost-down change\n", change=True),
+                         ["flow/change/decision DR-005 is PROVISIONAL, not the user's approval; only the user's "
+                          "approval opens an engineering change"])
+
     def test_a_bare_pn_placed_three_times_is_an_ambiguous_joint_endpoint(self) -> None:
         self.edit_assembly('child: "@ring-elbow"', "child: LMP-0011")
         self.assertTrue(any("ambiguous" in m and "@ring-base, @ring-elbow, @ring-head" in m for m in self.messages()))
