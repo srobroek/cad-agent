@@ -38,6 +38,7 @@ IMPORT_TIMEOUT = 1800  # a cold first OCP load on a busy Mac has taken over 1100
 STARTUP_TIMEOUT = 60  # a background warm-up records itself as running within this
 EXIT_NO_WARM = 2  # --status: no warm-up recorded, or it stopped without a report
 EXIT_RUNNING = 3  # --status: the warm-up is still running
+TRACEBACK = "Traceback (most recent call last):"  # the header of a Python traceback on stderr
 
 
 def _file_sha256(path: Path) -> str:
@@ -71,10 +72,15 @@ CAD_TOOL = CadTool(
     download_url="https://github.com/FreeCAD/FreeCAD/releases/tag/1.1.4",
 )
 
+# Load every sibling-skill module before any check runs: a cold first run spends minutes in the
+# runtime checks, and an uninstall, reinstall or plugin update meanwhile must not surface as an
+# import error in a later check.
 sys.path.insert(0, str(FREECAD_RUNTIME))
 sys.path.insert(0, str(MODEL_SCRIPTS))
+sys.path.insert(0, str(CONCEPT_SCRIPTS))
 import freecad_runtime  # noqa: E402
 from cadmodel import scriptenv  # noqa: E402 - standard library only
+import serve as concept_serve  # noqa: E402 - standard library only
 
 
 @dataclass(frozen=True)
@@ -160,8 +166,18 @@ def _uv_check(environ: Mapping[str, str]) -> tuple[Check, str | None]:
     return (_check("uv", "uv", "pass", result.stdout.strip(), ""), uv)
 
 
-def _last_line(result: subprocess.CompletedProcess[str], fallback: str) -> str:
+def _failure_line(result: subprocess.CompletedProcess[str], fallback: str) -> str:
+    """The line saying why `result` failed: a Python traceback's exception line, else the last line.
+
+    An exception message can run on past its first line (Playwright appends a boxed banner), so the
+    traceback's last line need not say what failed.
+    """
     lines = (result.stderr or result.stdout).strip().splitlines()
+    if TRACEBACK in lines:
+        tail = lines[len(lines) - lines[::-1].index(TRACEBACK):]  # after the last traceback header
+        exception = next((line for line in tail if line and not line[0].isspace()), None)
+        if exception:
+            return exception
     return lines[-1] if lines else fallback
 
 
@@ -174,7 +190,7 @@ def _run(argv: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
     except OSError as error:
         raise RuntimeError(f"could not start {argv[0]}: {error}") from error
     if result.returncode != 0:
-        raise RuntimeError(_last_line(result, f"{Path(argv[0]).name} exited {result.returncode}"))
+        raise RuntimeError(_failure_line(result, f"{Path(argv[0]).name} exited {result.returncode}"))
     return result
 
 
@@ -351,10 +367,7 @@ def _cache_home(environ: Mapping[str, str]) -> Path:
 
 def _vendor_check(environ: Mapping[str, str], fill: bool = False) -> Check:
     # The cad-render import map is authoritative; check every SRI-pinned path it can request.
-    sys.path.insert(0, str(CONCEPT_SCRIPTS))
     try:
-        import serve as concept_serve
-
         integrity = concept_serve.vendor_integrity(RENDERER / "index.html")
         cache = _cache_home(environ) / "cad-concept" / "vendor"
         if fill:  # fetch each missing or mismatched module once, verified against its digest
