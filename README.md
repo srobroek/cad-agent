@@ -32,7 +32,7 @@ python3 "$CAD_AGENT/harness/install.py" --harness all --user
 
 Use `--project DIR` to select a project directory. `--dry-run` previews changes, and `--uninstall` removes installed CAD files. `python3 "$CAD_AGENT/harness/install.py" --help` lists the options.
 
-Alternatively, install Claude Code as a plugin. The private GitHub marketplace requires GitHub access. Authenticate with `gh auth` first, or use a local checkout:
+Alternatively, install Claude Code as a plugin from this public GitHub repository; `gh auth` is not required for public access. Or use a local checkout:
 
 ```text
 /plugin marketplace add srobroek/cad-agent
@@ -67,7 +67,7 @@ If a Claude Code `-p` run has a turn limit, set `--max-turns` above the number o
 
 For `--no-interactive` runs, do not type a bare `/cad-flow`. Kiro parses it as an unknown CLI subcommand. Instead, ask for the `cad-flow` skill in a prose prompt. For example: `kiro-cli chat --v3 --no-interactive "Use the cad-flow skill to continue the design record."` Headless Kiro takes a positional instruction or stdin. [Kiro headless mode](https://kiro.dev/docs/cli/headless/)
 
-Generated Kiro custom-agent profiles use the current V3 schema. Run a working V3 engine with `--v3`; `--agent-engine v1` cannot load these profiles. Kiro documents separate older CLI 2.x profile fields (`allowedTools` and `toolsSettings`) and a migration path, but this project does not generate duplicate legacy profiles. The E2E host's default V3 startup failed because its KiroCrew installation lacked `config/prompt.md`. Repair that installation instead of falling back to V1. [Kiro V3 agent configuration](https://kiro.dev/docs/cli/v3/agent-config/) · [Kiro profile migration](https://kiro.dev/docs/cli/v3/upgrade-agent/) · [Kiro CLI V3](https://kiro.dev/docs/cli/v3/)
+Generated Kiro custom-agent profiles use the current V3 schema. Run a working V3 engine with `--v3`; `--agent-engine v1` cannot load these profiles. Kiro documents separate older CLI 2.x profile fields (`allowedTools` and `toolsSettings`) and a migration path, but this project does not generate duplicate legacy profiles. In the E2E, the missing optional KiroCrew `config/prompt.md` prompt URI produced a non-fatal warning; the default v2 and v3 smoke tests loaded the profiles. Do not treat that warning alone as a startup failure. [Kiro V3 agent configuration](https://kiro.dev/docs/cli/v3/agent-config/) · [Kiro profile migration](https://kiro.dev/docs/cli/v3/upgrade-agent/) · [Kiro CLI V3](https://kiro.dev/docs/cli/v3/)
 
 Shell-capable worker profiles intentionally allow only the documented `uv run --script` commands. Use the harness read/search tools to inspect project files. Do not use shell commands for file inspection.
 

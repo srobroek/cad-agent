@@ -32,6 +32,7 @@ The full endpoint is STEP AP242 plus drawings, EBOM, verification matrix, and do
 ## Stage loop and recheck boundary
 
 Draft, show live previews, and collect feedback. Continue until the user says “commit” or “commit batch”. Do not check on every edit.
+Allow only one active lead session per project. Before resuming, stop or reconcile the previous turn, then re-read the `hw/` record before writing.
 - Each L1-L4 commit batch builds one version and checks it in the [fail-fast order](#fail-fast-check-order). Stop on any blocking failure. Show that exact version's renders at the stage gates.
 - An explicit check output is a new path under `.cad-work/`; generated version and producer paths come from the cad-record layout API.
 - The user's commit, the layout threshold, or the hardware git pre-commit hook triggers broader changed-parts/dependents recheck. Use `flow.recheck_from` and applicable earlier-stage checks; stamp the exact staged `hw/` only after every required check passes.
@@ -132,6 +133,6 @@ A failing full check, a MAJOR light-review finding, or a change the user names a
 
 Build a fixed version in the voided stage; once it passes the fast checks, record a new provisional decision with the new evidence, then run its full check. Each later human gate stays closed until its own full check passes again on a version built from the fix. Rebuild each reopened later stage on the fixed version: its delivered parts stay integrated, and a unit whose delivery the fix invalidates is dispatched again. Rerun a full-check case with the new version in its unit id. Nothing is frozen or released before the human gates.
 
-At each human gate, if you cannot ask, list open questions and proposed assumptions in the summary. Keep the gate open and stage unchanged, then stop. Do not proceed on assumptions. Never infer approval from silence, a preview, a successful build, a provisional gate, an agent verdict, or a release artifact. Record approval in `hw/decisions/DR-###.md` with the first line `Status: APPROVED`, and at a single human gate advance `product.yaml` `flow.stage`, only after the user approves; otherwise keep the gate open and stage unchanged.
+At each human gate, if a question is cancelled or unanswered, it is not consent. List open questions and proposed assumptions in the summary; keep the gate open and stage unchanged, state that work waits for the user, and stop. Never record assumptions as approval or infer approval from silence, a preview, a successful build, a provisional gate, an agent verdict, or a release artifact. Record approval in `hw/decisions/DR-###.md` with the first line `Status: APPROVED`, and at a single human gate advance `product.yaml` `flow.stage` only after the user explicitly approves.
 
 Every gate report, question, and summary gives each file it mentions as an absolute path on its own line: records, decisions, model.py, STEP and GLB, check JSON, renders, captures, drawing previews and PDFs, and BOM. A relative path such as `hw/renders/v2/iso.png` is not enough. Add the URL of the live viewer or preview gallery while one runs.
