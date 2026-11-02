@@ -7,6 +7,7 @@ import importlib.util
 import hashlib
 import json
 import os
+import shutil
 import sys
 import subprocess
 import tempfile
@@ -179,6 +180,37 @@ class RuntimeProbeTests(unittest.TestCase):
                        "playwright", "install", "chromium"], calls)
         self.assertIn("p.chromium.launch(headless=True)", calls[-1][-1])
 
+    def test_cold_chromium_reports_the_missing_browser_not_playwrights_banner(self) -> None:
+        # Before the warm-up installs Chromium, Playwright's launch error ends in a boxed banner;
+        # the report must carry the exception line that names the missing executable.
+        stderr = "\n".join((
+            "Traceback (most recent call last):",
+            '  File "<string>", line 5, in <module>',
+            '  File "/cache/archive-v0/x/lib/python3.12/site-packages/playwright/_impl/_connection.py", '
+            "line 636, in wrap_api_call",
+            "    raise rewrite_error(error, f\"{parsed_st['apiName']}: {error}\") from None",
+            "playwright._impl._errors.Error: BrowserType.launch: Executable doesn't exist at "
+            "/pw/chromium_headless_shell-1248/chrome-headless-shell-mac-arm64/chrome-headless-shell",
+            "╔════════════════════════════════════════════════════════════╗",
+            "║ Looks like Playwright was just installed or updated.       ║",
+            "║ Please run the following command to download new browsers: ║",
+            "║                                                            ║",
+            "║     playwright install                                     ║",
+            "║                                                            ║",
+            "║ <3 Playwright Team                                         ║",
+            "╚════════════════════════════════════════════════════════════╝",
+        )) + "\n"
+
+        def run(args, **kwargs):
+            return subprocess.CompletedProcess(args, 1, "", stderr)
+
+        with patch.object(preflight.subprocess, "run", side_effect=run):
+            check = preflight._chromium_check("uv")
+        self.assertEqual(check.status, "fail")
+        self.assertIn("Executable doesn't exist at /pw/chromium_headless_shell-1248/", check.detail)
+        self.assertNotIn("╚", check.detail)
+        self.assertIn("preflight.py --warm", check.fix)
+
 
 class WarmPlanTests(unittest.TestCase):
     def plan(self, warm: bool) -> tuple[list[str], dict[str, object]]:
@@ -325,6 +357,46 @@ class WarmRecordTests(unittest.TestCase):
             started = preflight.start_background(self.environ)
         popen.assert_not_called()
         self.assertEqual((started["started"], started["pid"]), (False, os.getpid()))
+
+
+class SkillTreeChangeTests(unittest.TestCase):
+    def test_report_completes_when_concept_scripts_vanish_during_the_cold_first_load(self) -> None:
+        # A cold first run spends minutes first-loading the runtimes. An uninstall, reinstall or
+        # plugin update in that window removes sibling skill files; the vendor check that follows
+        # must still verify the (cold, empty) cache and report, not raise ModuleNotFoundError.
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            shutil.copytree(preflight.SKILLS, root / "skills", ignore=shutil.ignore_patterns("__pycache__"))
+            with patch.dict(sys.modules), patch.object(sys, "path", list(sys.path)):
+                for name in ("serve", "cad_record_layout", "freecad_runtime", "cadmodel", "cadmodel.scriptenv"):
+                    sys.modules.pop(name, None)
+                copy_spec = importlib.util.spec_from_file_location(
+                    "cad_preflight_copy", root / "skills" / "cad-flow" / "scripts" / "preflight.py")
+                assert copy_spec is not None and copy_spec.loader is not None
+                copy = importlib.util.module_from_spec(copy_spec)
+                sys.modules[copy_spec.name] = copy
+                copy_spec.loader.exec_module(copy)
+
+                def passing(identifier: str):
+                    return copy.Check(identifier, identifier, "pass", True, "", "")
+
+                def first_load(uv, runtime):
+                    shutil.rmtree(root / "skills" / "cad-concept", ignore_errors=True)
+                    return passing(runtime.id)
+
+                with patch.object(copy, "_uv_check", return_value=(passing("uv"), "uv")), \
+                        patch.object(copy, "_runtime_check", side_effect=first_load), \
+                        patch.object(copy, "_chromium_check", side_effect=lambda uv, install=False: passing("playwright-chromium")), \
+                        patch("sys.stderr"):
+                    report = copy.run_checks(
+                        {"XDG_CACHE_HOME": str(root / "cache"), "HOME": folder}, root, root, "claude",
+                        cad_checks=[passing(name) for name in ("freecad-command", "freecad-version", "techdraw-templates")])
+            self.assertFalse((root / "skills" / "cad-concept").exists())
+        vendor = next(check for check in report.checks if check.id == "three-vendor-cache")
+        self.assertEqual((vendor.status, vendor.required), ("fail", True))
+        self.assertIn("missing module(s)", vendor.detail)
+        self.assertIn("preflight.py --warm", vendor.fix)
+        self.assertEqual(report.exit_code, 1)
 
 
 class MainTests(unittest.TestCase):
