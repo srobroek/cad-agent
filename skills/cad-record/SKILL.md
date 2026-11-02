@@ -55,7 +55,7 @@ The plan lists built versions without complete manufacturing outputs, and versio
 uv run --script scripts/release.py hw --rev A --version vN --decision DR-###
 ```
 
-It refuses the release with exit 1 and JSON findings unless all of these hold. On refusal it writes nothing outside `.cad-work/`.
+There is no `--preview` flag. A refused run exits 1 with JSON findings and writes nothing outside `.cad-work/`, but refusal is not a successful dry run.
 
 - `product.yaml` `flow.frozen` names `vN` and the sha256 of its `manifest.json`. `DR-###`, the release approval, exists: write it once the RELEASE gate approves, never before. `hw/releases/<rev>/` does not exist: a used revision is never overwritten.
 - `validate.py` reports no error. The current record equals the snapshot in `versions/vN/record/`, `product.yaml` `flow` aside, and every `model.py` is the one vN built.

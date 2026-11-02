@@ -32,7 +32,7 @@ python3 "$CAD_AGENT/harness/install.py" --harness all --user
 
 Use `--project DIR` to select a project directory. `--dry-run` previews changes, and `--uninstall` removes installed CAD files. `python3 "$CAD_AGENT/harness/install.py" --help` lists the options.
 
-Alternatively, install Claude Code as a plugin. The private GitHub marketplace requires GitHub access. Authenticate with `gh auth` first, or use a local checkout:
+Alternatively, install Claude Code as a plugin from this public GitHub repository; `gh auth` is not required for public access. Or use a local checkout:
 
 ```text
 /plugin marketplace add srobroek/cad-agent
@@ -67,7 +67,7 @@ If a Claude Code `-p` run has a turn limit, set `--max-turns` above the number o
 
 For `--no-interactive` runs, do not type a bare `/cad-flow`. Kiro parses it as an unknown CLI subcommand. Instead, ask for the `cad-flow` skill in a prose prompt. For example: `kiro-cli chat --v3 --no-interactive "Use the cad-flow skill to continue the design record."` Headless Kiro takes a positional instruction or stdin. [Kiro headless mode](https://kiro.dev/docs/cli/headless/)
 
-Generated Kiro custom-agent profiles use the current V3 schema. Run a working V3 engine with `--v3`; `--agent-engine v1` cannot load these profiles. Kiro documents separate older CLI 2.x profile fields (`allowedTools` and `toolsSettings`) and a migration path, but this project does not generate duplicate legacy profiles. The E2E host's default V3 startup failed because its KiroCrew installation lacked `config/prompt.md`. Repair that installation instead of falling back to V1. [Kiro V3 agent configuration](https://kiro.dev/docs/cli/v3/agent-config/) · [Kiro profile migration](https://kiro.dev/docs/cli/v3/upgrade-agent/) · [Kiro CLI V3](https://kiro.dev/docs/cli/v3/)
+Generated Kiro custom-agent profiles use the current V3 schema. Run a working V3 engine with `--v3`; `--agent-engine v1` cannot load these profiles. Kiro documents separate older CLI 2.x profile fields (`allowedTools` and `toolsSettings`) and a migration path, but this project does not generate duplicate legacy profiles. In the E2E, the missing optional KiroCrew `config/prompt.md` prompt URI produced a non-fatal warning; the default v2 and v3 smoke tests loaded the profiles. Do not treat that warning alone as a startup failure. [Kiro V3 agent configuration](https://kiro.dev/docs/cli/v3/agent-config/) · [Kiro profile migration](https://kiro.dev/docs/cli/v3/upgrade-agent/) · [Kiro CLI V3](https://kiro.dev/docs/cli/v3/)
 
 Shell-capable worker profiles intentionally allow only the documented `uv run --script` commands. Use the harness read/search tools to inspect project files. Do not use shell commands for file inspection.
 
@@ -111,9 +111,21 @@ The `cad-flow` skill guides these stages:
 5. L4 ANALYSIS and the ANALYSIS gate, CRITIQUE, RECONCILE, and DESIGN freeze
 6. RELEASE gate and RELEASE
 
-The skill maintains the `hw/` design record. The lead dispatches independent stage units to harness subagents in a batch, then integrates their results. Each L1-L4 batch builds one immutable version with `cad-model run` and checks it fail-fast, cheapest first: (1) the record validator with its retention and process-feasibility rules and, from L2, `form_check` with its DFM rules; (2) `cad-model check --changed-only`; (3) once a joint moves, a `sweep.py --smoke --changed-only` sweep; (4) `cad-render`, which also runs the visibility check, and the default motion render; (5) after the provisional gate, the full check: `cad-model check` over every pair and the full sweep with its between-sample check. Steps 1 to 4 run in parallel where they do not depend on each other, and a blocking failure stops the batch.
+The `cad-flow` skill maintains the `hw/` design record. The lead dispatches independent stage units to harness subagents, then integrates their results. Each L1-L4 batch builds one immutable version with `cad-model run`.
 
-The lead records user-approved gates as dated decisions in `hw/decisions/` and keeps the current stage in `hw/product.yaml` `flow`. LAYOUT freeze, PARTS, DETAIL and ANALYSIS each pass two gates; INTENT, VARIANT, DESIGN freeze and RELEASE are single human gates. The lead records the provisional gate as a decision marked PROVISIONAL once every fast check passes; the next stage may start then. The human gate opens after the full check passes and needs explicit user approval. It lists the sweep's unproved between-sample intervals, which the user accepts with a decision or reruns finer. A failed full check, a MAJOR finding of the L2 light mechanical and DFM review, or a change the user names at the human gate voids the provisional decision and reopens the stage and every later stage built on that version. Nothing is frozen or released before the human gates. Agent verdicts, successful checks and provisional gates are not approval. The workflow has no ledger.
+Run these checks in fail-fast order:
+
+1. Record validation and, from L2, `form_check` with its DFM rules.
+2. `cad-model check --changed-only`.
+3. Once a joint moves, run a `sweep.py --smoke --changed-only` sweep.
+4. Run `cad-render` with its visibility check and the default motion render.
+5. After the provisional gate, run the full `cad-model check` over every pair and the full sweep with its between-sample check.
+
+Run steps 1-4 in parallel when their inputs are ready and the checks are independent. Stop the batch on any blocking failure.
+
+The lead records user-approved gates as dated decisions in `hw/decisions/` and keeps the current stage in `hw/product.yaml` `flow`. LAYOUT freeze, PARTS, DETAIL and ANALYSIS each pass two gates. INTENT, VARIANT, DESIGN freeze and RELEASE are single human gates.
+
+The lead records the provisional gate as a decision marked PROVISIONAL once every fast check passes. The next stage may start then. The human gate opens after the full check passes and needs explicit user approval. List the sweep's unproved between-sample intervals. The user can accept them with a decision or request a finer run. A failed full check, a MAJOR L2 light review finding, or a change the user names at the human gate voids the provisional decision and reopens the stage and later stages built on it. Nothing is frozen or released before the human gates. Agent verdicts, successful checks and provisional gates are not approval. The workflow has no ledger.
 
 See the [stage-by-stage walkthrough](docs/walkthrough.md) for prompts, review material, approvals, and project files. The [canonical `hw/` record layout](skills/cad-record/references/layout.md) lists design files and generated evidence.
 
