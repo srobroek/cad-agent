@@ -1,0 +1,219 @@
+profiles:
+- id: sheet_pc_makrolon_gp_clear_099
+  revision: 1
+  title: Makrolon GP clear 099
+  level: grade
+  family: Transparent sheet polymer / polycarbonate
+  grade:
+    status: known
+    value: Makrolon GP clear 099
+    sources:
+    - kind: datasheet
+      reference: Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan 2020,
+        MF 0107 e
+      revision: Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan 2020,
+        MF 0107 e
+      url: https://www.exolongroup.com/index.php/fuseaction/download/lrn_file/mf0107_e_200101.pdf
+      accessed: '2026-11-02'
+      conditions: 'test_standard: ISO 1183-1; source_condition: water at 23 °C stated
+        in row condition; sheet; statistic: typical; quoted_source_value: Density
+        | ... | 1200 | kg/m³ | ISO 1183-1'
+    basis: supplier_typical
+  manufacturer:
+    status: known
+    value: Covestro Group (Makrolon brand); product data sheet issued by Exolon Group
+      GmbH
+    sources:
+    - kind: datasheet
+      reference: Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan 2020,
+        MF 0107 e
+      revision: Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan 2020,
+        MF 0107 e
+      url: https://www.exolongroup.com/index.php/fuseaction/download/lrn_file/mf0107_e_200101.pdf
+      accessed: '2026-11-02'
+      conditions: 'test_standard: ISO 1183-1; source_condition: water at 23 °C stated
+        in row condition; sheet; statistic: typical; quoted_source_value: Density
+        | ... | 1200 | kg/m³ | ISO 1183-1'
+    basis: supplier_typical
+  form: sheet
+  process_state:
+    process:
+      status: unknown
+      reason: The researched document describes stock/product form but does not establish
+        a manufacturing route from the U1 process vocabulary.
+    conditioning: unknown
+    notes: Solid clear sheet; typical property data in Jan 2020 product data sheet.
+      For laser cutting, edge discoloration/char cannot be avoided according to Universal
+      Laser Systems guidance; CNC machining is a suitable alternative when clear edges
+      matter. Polycarbonate laser operation requires machine-specific risk review.
+  typical_not_allowable: true
+  properties:
+  - name: density
+    value:
+      status: known
+      value:
+        value: 1200
+        units: kg_m3
+      sources:
+      - kind: datasheet
+        reference: Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan 2020,
+          MF 0107 e
+        revision: Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan 2020,
+          MF 0107 e
+        url: https://www.exolongroup.com/index.php/fuseaction/download/lrn_file/mf0107_e_200101.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 1183-1; source_condition: water at 23 °C stated
+          in row condition; sheet; statistic: typical; quoted_source_value: Density
+          | ... | 1200 | kg/m³ | ISO 1183-1'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 1183-1
+        sources:
+        - kind: datasheet
+          reference: Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan
+            2020, MF 0107 e
+          revision: Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan
+            2020, MF 0107 e
+          url: https://www.exolongroup.com/index.php/fuseaction/download/lrn_file/mf0107_e_200101.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 1183-1; source_condition: water at 23 °C
+            stated in row condition; sheet; statistic: typical; quoted_source_value:
+            Density | ... | 1200 | kg/m³ | ISO 1183-1'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          value: 23.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan
+            2020, MF 0107 e
+          revision: Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan
+            2020, MF 0107 e
+          url: https://www.exolongroup.com/index.php/fuseaction/download/lrn_file/mf0107_e_200101.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 1183-1; source_condition: water at 23 °C
+            stated in row condition; sheet; statistic: typical; quoted_source_value:
+            Density | ... | 1200 | kg/m³ | ISO 1183-1'
+        basis: supplier_typical
+      conditioning: unknown
+      notes: 'Research property density; source condition: water at 23 °C stated in
+        row condition; sheet; reported statistic: typical'
+  - name: youngs_modulus
+    value:
+      status: known
+      value:
+        value: 2350
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan 2020,
+          MF 0107 e
+        revision: Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan 2020,
+          MF 0107 e
+        url: https://www.exolongroup.com/index.php/fuseaction/download/lrn_file/mf0107_e_200101.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 527-1,-2; source_condition: 1 mm/min; sheet;
+          other condition 23 °C, 50% relative humidity stated in table; statistic:
+          typical; quoted_source_value: Tensile modulus | 1 mm/min | 2350 | MPa |
+          ISO 527-1,-2'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 527-1,-2
+        sources:
+        - kind: datasheet
+          reference: Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan
+            2020, MF 0107 e
+          revision: Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan
+            2020, MF 0107 e
+          url: https://www.exolongroup.com/index.php/fuseaction/download/lrn_file/mf0107_e_200101.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 527-1,-2; source_condition: 1 mm/min; sheet;
+            other condition 23 °C, 50% relative humidity stated in table; statistic:
+            typical; quoted_source_value: Tensile modulus | 1 mm/min | 2350 | MPa
+            | ISO 527-1,-2'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          value: 23.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan
+            2020, MF 0107 e
+          revision: Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan
+            2020, MF 0107 e
+          url: https://www.exolongroup.com/index.php/fuseaction/download/lrn_file/mf0107_e_200101.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 527-1,-2; source_condition: 1 mm/min; sheet;
+            other condition 23 °C, 50% relative humidity stated in table; statistic:
+            typical; quoted_source_value: Tensile modulus | 1 mm/min | 2350 | MPa
+            | ISO 527-1,-2'
+        basis: supplier_typical
+      conditioning: unknown
+      notes: 'Research property tensile_modulus; source condition: 1 mm/min; sheet;
+        other condition 23 °C, 50% relative humidity stated in table; reported statistic:
+        typical'
+  - name: vicat_softening_temperature
+    value:
+      status: known
+      value:
+        value: 148
+        units: deg_C
+      sources:
+      - kind: datasheet
+        reference: Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan 2020,
+          MF 0107 e
+        revision: Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan 2020,
+          MF 0107 e
+        url: https://www.exolongroup.com/index.php/fuseaction/download/lrn_file/mf0107_e_200101.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 306; source_condition: 50 N, 50 °C/h; statistic:
+          typical; quoted_source_value: Vicat softening temperature | 50 N, 50°C/h
+          | 148 | °C | ISO 306'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 306
+        sources:
+        - kind: datasheet
+          reference: Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan
+            2020, MF 0107 e
+          revision: Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan
+            2020, MF 0107 e
+          url: https://www.exolongroup.com/index.php/fuseaction/download/lrn_file/mf0107_e_200101.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 306; source_condition: 50 N, 50 °C/h; statistic:
+            typical; quoted_source_value: Vicat softening temperature | 50 N, 50°C/h
+            | 148 | °C | ISO 306'
+        basis: supplier_typical
+      temperature:
+        status: unknown
+        reason: The source temperature is a heating rate, not a specimen test temperature;
+          the exact rate remains in source conditions.
+      conditioning: unknown
+      notes: 'Research property vicat_softening_temperature; source condition: 50
+        N, 50 °C/h; reported statistic: typical'
+  note: 'The research includes open lower bound >60 MPa and non-break Charpy impact result, neither representable in U1 quantity (finite point or closed interval only). Exact source entries follow; qualitative laser guidance is separately present in guidance: [{"research_property":"yield_stress","value":">60","unit":"MPa","reason":"Open lower bound has no schema representation; inventing an upper bound changes source meaning.","test_standard":"ISO 527-1,-2","condition":"50 mm/min; sheet; table includes 23 °C, 50% RH general condition","statistic":"typical","source":{"url":"https://www.exolongroup.com/index.php/fuseaction/download/lrn_file/mf0107_e_200101.pdf","document_title_revision":"Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan 2020, MF 0107 e","retrieval_date":"2026-11-02"},"quote":"Yield stress | 50 mm/min | > 60 | MPa | ISO 527-1,-2"},{"research_property":"charpy_impact_unnotched","value":"non-break","unit":"kJ/m2","reason":"Qualitative non-break result has no finite numeric representation in U1 quantity.","test_standard":"ISO 179-1eU","condition":"23 °C; unnotched","statistic":"typical","source":{"url":"https://www.exolongroup.com/index.php/fuseaction/download/lrn_file/mf0107_e_200101.pdf","document_title_revision":"Makrolon GP Solid Polycarbonate Sheet Product Data Sheet, Jan 2020, MF 0107 e","retrieval_date":"2026-11-02"},"quote":"Charpy impact strength | 23 °C, unnotched | non-break | ISO 179-1eU"},{"research_property":"laser_cut_safety_note","value":"CO2 laser cutting is possible on suitable equipment, but edge discoloration cannot be avoided and standard settings may produce char/discoloration. Prefer CNC or an approved laser route when clear transparent edge quality is needed.","unit":"qualitative","reason":"Non-property process guidance is recorded separately in profile guidance.","test_standard":"not applicable","condition":"CO2 laser processing guidance","statistic":"manufacturer guidance","source":{"url":"https://cdn.ulsinc.com/assets/pdf/materials_subordinate/583606c097d4dd53e131cdab/polycarbonate__processing_guide.pdf","document_title_revision":"Universal Laser Systems Polycarbonate Processing Guide, revision/date not stated","retrieval_date":"2026-11-02"},"quote":"Due to the chemical structure of polycarbonate, edge discoloration cannot be avoided while laser cutting ... typical ... process ... can result in char and/or discoloration of the edge surface."}]'
+  guidance:
+  - 'Unknown (not established by the cited research; not zero or absent): elongation
+    at break'
+  - 'Unknown (not established by the cited research; not zero or absent): flexural
+    modulus/strength'
+  - 'Unknown (not established by the cited research; not zero or absent): CTE'
+  - 'Unknown (not established by the cited research; not zero or absent): moisture
+    absorption'
+  - 'Unknown (not established by the cited research; not zero or absent): maximum
+    service temperature for the specific grade (not assigned from broad class claims)'
+  - Universal Laser Systems reports that edge discoloration cannot be avoided during
+    polycarbonate laser cutting and typical settings can char/discolor edges. Clear-edge
+    needs favor qualified CNC or material/machine-specific trials. This citation addresses
+    edge quality, not occupational safety approval; local machine rules and the material
+    SDS govern.

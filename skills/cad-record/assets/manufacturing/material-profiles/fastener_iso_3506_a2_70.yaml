@@ -1,0 +1,171 @@
+profiles:
+- id: fastener_iso_3506_a2_70
+  revision: 1
+  title: ISO 3506-1 A2-70
+  level: grade
+  family: Fastener / stainless steel property class
+  grade:
+    status: known
+    value: ISO 3506-1 A2-70
+    sources:
+    - kind: standard
+      reference: ISO 3506-1:2020(E), Third edition, 2020-04
+      revision: ISO 3506-1:2020(E), Third edition, 2020-04
+      url: https://fpg-co.com/Standards/ISO%203506-1-2020.pdf
+      accessed: '2026-11-02'
+      conditions: 'test_standard: ISO 3506-1:2020; source_condition: finished fastener;
+        ambient test range 10–35 °C; full/reduced loadability requirements depend
+        on geometry; statistic: minimum; quoted_source_value: EXAMPLE 1 A2-70 specifies
+        an austenitic stainless steel fastener, work hardened, with a minimum tensile
+        strength of 700 MPa.'
+    basis: supplier_typical
+  manufacturer:
+    status: known
+    value: Not grade-specific; ISO 3506-1 compliant fastener manufacturers (standard-defined
+      class)
+    sources:
+    - kind: standard
+      reference: ISO 3506-1:2020(E), Third edition, 2020-04
+      revision: ISO 3506-1:2020(E), Third edition, 2020-04
+      url: https://fpg-co.com/Standards/ISO%203506-1-2020.pdf
+      accessed: '2026-11-02'
+      conditions: 'test_standard: ISO 3506-1:2020; source_condition: finished fastener;
+        ambient test range 10–35 °C; full/reduced loadability requirements depend
+        on geometry; statistic: minimum; quoted_source_value: EXAMPLE 1 A2-70 specifies
+        an austenitic stainless steel fastener, work hardened, with a minimum tensile
+        strength of 700 MPa.'
+    basis: supplier_typical
+  form: purchased
+  process_state:
+    process: purchased
+    conditioning: unknown
+    notes: Austenitic stainless fastener; property class 70 means work-hardened with
+      minimum tensile strength 700 MPa. Standard tests apply at ambient 10–35 °C.
+      Values are minima, not a named commercial manufacturer's batch result.
+  typical_not_allowable: true
+  properties:
+  - name: tensile_strength
+    value:
+      status: known
+      value:
+        value: 700
+        units: MPa
+      sources:
+      - kind: standard
+        reference: ISO 3506-1:2020(E), Third edition, 2020-04
+        revision: ISO 3506-1:2020(E), Third edition, 2020-04
+        url: https://fpg-co.com/Standards/ISO%203506-1-2020.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 3506-1:2020; source_condition: finished fastener;
+          ambient test range 10–35 °C; full/reduced loadability requirements depend
+          on geometry; statistic: minimum; quoted_source_value: EXAMPLE 1 A2-70 specifies
+          an austenitic stainless steel fastener, work hardened, with a minimum tensile
+          strength of 700 MPa.'
+      basis: standard
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 3506-1:2020
+        sources:
+        - kind: standard
+          reference: ISO 3506-1:2020(E), Third edition, 2020-04
+          revision: ISO 3506-1:2020(E), Third edition, 2020-04
+          url: https://fpg-co.com/Standards/ISO%203506-1-2020.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 3506-1:2020; source_condition: finished
+            fastener; ambient test range 10–35 °C; full/reduced loadability requirements
+            depend on geometry; statistic: minimum; quoted_source_value: EXAMPLE 1
+            A2-70 specifies an austenitic stainless steel fastener, work hardened,
+            with a minimum tensile strength of 700 MPa.'
+        basis: standard
+      temperature:
+        status: known
+        value:
+          lower: 10.0
+          upper: 35.0
+          units: deg_C
+        sources:
+        - kind: standard
+          reference: ISO 3506-1:2020(E), Third edition, 2020-04
+          revision: ISO 3506-1:2020(E), Third edition, 2020-04
+          url: https://fpg-co.com/Standards/ISO%203506-1-2020.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 3506-1:2020; source_condition: finished
+            fastener; ambient test range 10–35 °C; full/reduced loadability requirements
+            depend on geometry; statistic: minimum; quoted_source_value: EXAMPLE 1
+            A2-70 specifies an austenitic stainless steel fastener, work hardened,
+            with a minimum tensile strength of 700 MPa.'
+        basis: standard
+      conditioning: unknown
+      notes: 'Research property tensile_strength_minimum; source condition: finished
+        fastener; ambient test range 10–35 °C; full/reduced loadability requirements
+        depend on geometry; reported statistic: minimum'
+  - name: yield_strength
+    value:
+      status: known
+      value:
+        value: 450
+        units: MPa
+      sources:
+      - kind: standard
+        reference: ISO 3506-1:2020(E), Third edition, 2020-04
+        revision: ISO 3506-1:2020(E), Third edition, 2020-04
+        url: https://fpg-co.com/Standards/ISO%203506-1-2020.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 3506-1:2020, Table 2; source_condition: full-size
+          fastener; ambient test range 10–35 °C; statistic: minimum; quoted_source_value:
+          Table 2 ... A2 ... property class 70 ... Stress at 0,2 % non-proportional
+          elongation Rpf min. MPa ... 450'
+      basis: standard
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 3506-1:2020, Table 2
+        sources:
+        - kind: standard
+          reference: ISO 3506-1:2020(E), Third edition, 2020-04
+          revision: ISO 3506-1:2020(E), Third edition, 2020-04
+          url: https://fpg-co.com/Standards/ISO%203506-1-2020.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 3506-1:2020, Table 2; source_condition:
+            full-size fastener; ambient test range 10–35 °C; statistic: minimum; quoted_source_value:
+            Table 2 ... A2 ... property class 70 ... Stress at 0,2 % non-proportional
+            elongation Rpf min. MPa ... 450'
+        basis: standard
+      temperature:
+        status: known
+        value:
+          lower: 10.0
+          upper: 35.0
+          units: deg_C
+        sources:
+        - kind: standard
+          reference: ISO 3506-1:2020(E), Third edition, 2020-04
+          revision: ISO 3506-1:2020(E), Third edition, 2020-04
+          url: https://fpg-co.com/Standards/ISO%203506-1-2020.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 3506-1:2020, Table 2; source_condition:
+            full-size fastener; ambient test range 10–35 °C; statistic: minimum; quoted_source_value:
+            Table 2 ... A2 ... property class 70 ... Stress at 0,2 % non-proportional
+            elongation Rpf min. MPa ... 450'
+        basis: standard
+      conditioning: unknown
+      notes: 'Research property stress_at_0_2_percent_non_proportional_elongation_minimum;
+        source condition: full-size fastener; ambient test range 10–35 °C; reported
+        statistic: minimum'
+  note: Every numeric research property represented as sourced typed data. Profile-specific
+    unknowns and source cautions are explicit in guidance.
+  guidance:
+  - 'Unknown (not established by the cited research; not zero or absent): density'
+  - 'Unknown (not established by the cited research; not zero or absent): elastic
+    modulus'
+  - 'Unknown (not established by the cited research; not zero or absent): elongation
+    as a percent (standard expresses elongation after fracture as a length related
+    to d)'
+  - 'Unknown (not established by the cited research; not zero or absent): flexural/impact
+    properties'
+  - 'Unknown (not established by the cited research; not zero or absent): temperature-dependent
+    properties'
+  - The ISO text was accessed through a third-party-hosted standards preview, not
+    an authorized standards-body copy. Verify edition and table scope from an authorized
+    copy before regulated or procurement use.

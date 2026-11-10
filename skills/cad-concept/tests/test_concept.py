@@ -46,9 +46,12 @@ def project_for_scene(temp: Path, scene_path: Path) -> Path:
     shutil.copy(scene_path, hw / "concept" / "lamp-arm.scene.json")
     part = hw / "parts" / "PRT-0001"
     part.mkdir(parents=True, exist_ok=True)
+    # The template is a record version 2 record: a part states its manufacturing intent, here all unknown.
+    intent = "".join(f"  {name}: {{status: unknown, reason: not recorded yet}}\n" for name in (
+        "functions", "material_profile", "service", "critical_surfaces", "route"))
     (part / "part.yaml").write_text(
         "PN: PRT-0001\nrev: X1\ntitle: Placeholder part\nmaterial: Placeholder material\n"
-        "process: cnc\nfinish: As machined\nmass_target: null\nmake_buy: make\n", encoding="utf-8")
+        "process: cnc\nfinish: As machined\nmass_target: null\nmake_buy: make\nintent:\n" + intent, encoding="utf-8")
     return project
 
 def load(name: str, path: Path):

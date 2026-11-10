@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://srobroek.com/cad/schemas/manufacturing-capabilities.schema.json",
+  "title": "CAD manufacturing capability profiles (hw/manufacturing/capabilities.yaml)",
+  "description": "What the user's actual machines, operators and suppliers can do, kept apart from design requirements. Nominal resolution, machine specifications and drawing labels are parameters that describe the machine, never its achieved accuracy: achievable dimensional performance comes only from calibrations, each scoped to a material, feature, orientation, setup and tool, with its evidence. The plugin's capability templates carry template: true and hold no machine numbers; a template is never a capability. Parameter names per process kind are manufacturing_intent.CAPABILITY_PARAMETERS",
+  "type": "object", "additionalProperties": false, "required": ["profiles"],
+  "properties": {
+    "profiles": {"type": "array", "items": {"$ref": "#/$defs/profile"}}
+  },
+  "$defs": {
+    "parameters": {
+      "type": "object",
+      "propertyNames": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+      "additionalProperties": {"$ref": "manufacturing.schema.json#/$defs/fact"}
+    },
+    "profile": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "revision", "title", "process", "provider", "parameters", "materials", "calibrations"],
+      "properties": {
+        "id": {"$ref": "manufacturing.schema.json#/$defs/profile_id"},
+        "revision": {"type": "integer", "minimum": 1},
+        "title": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "process": {"$ref": "manufacturing.schema.json#/$defs/route_kind"},
+        "provider": {"enum": ["local", "outsourced"]},
+        "template": {"description": "present only on a plugin template: copy it, record your own values, then remove this flag", "const": true},
+        "guidance": {"$ref": "manufacturing.schema.json#/$defs/texts"},
+        "supplier": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+        "operator": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+        "machine": {
+          "type": "object", "additionalProperties": false, "required": ["identity"],
+          "properties": {
+            "identity": {"description": "make, model and the machine's own identity", "$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "location": {"$ref": "manufacturing.schema.json#/$defs/text"}
+          }
+        },
+        "envelope": {
+          "description": "The usable working envelope in the machine frame",
+          "type": "object", "additionalProperties": false, "required": ["x", "y", "z"],
+          "properties": {
+            "x": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"},
+            "y": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"},
+            "z": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"}
+          }
+        },
+        "materials": {
+          "description": "The exact materials and stock the profile is approved or forbidden for; for laser, waterjet and plasma also its thickness, coating and extraction approval. An unidentified material is never approved",
+          "oneOf": [{"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/material_approval"}},
+                    {"$ref": "manufacturing.schema.json#/$defs/fact_open"}]
+        },
+        "parameters": {"$ref": "#/$defs/parameters"},
+        "tools": {"type": "array", "minItems": 1, "items": {
+          "type": "object", "additionalProperties": false, "required": ["id", "description", "parameters"],
+          "properties": {
+            "id": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+            "description": {"$ref": "manufacturing.schema.json#/$defs/text"},
+            "parameters": {"$ref": "#/$defs/parameters"}
+          }}},
+        "workholding": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+        "constraints": {"$ref": "manufacturing.schema.json#/$defs/texts"},
+        "calibrations": {"type": "array", "items": {"$ref": "#/$defs/calibration"}},
+        "source": {"$ref": "manufacturing.schema.json#/$defs/source"}
+      },
+      "if": {"required": ["template"]},
+      "then": {"required": ["guidance"], "properties": {"calibrations": {"maxItems": 0}}},
+      "else": {"not": {"required": ["guidance"]}}
+    },
+    "material_approval": {
+      "type": "object", "additionalProperties": false, "required": ["material", "status", "source"],
+      "properties": {
+        "material": {"description": "a material profile id", "$ref": "manufacturing.schema.json#/$defs/profile_id"},
+        "status": {"enum": ["approved", "forbidden"]},
+        "thickness": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"},
+        "coating": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+        "extraction": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+        "operations": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["cut", "score", "engrave", "machine", "print", "form", "join", "other"]}},
+        "reason": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "source": {"$ref": "manufacturing.schema.json#/$defs/source"}
+      },
+      "if": {"properties": {"status": {"const": "forbidden"}}}, "then": {"required": ["reason"]}
+    },
+    "calibration": {
+      "description": "One demonstrated capability: the characteristic measured, its exact scope and the measured limits with their uncertainty and evidence",
+      "type": "object", "additionalProperties": false, "required": ["id", "characteristic", "scope", "result", "source", "date"],
+      "properties": {
+        "id": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "characteristic": {"description": "such as hole_diameter_deviation, min_wall, kerf, flatness or bridge_span", "$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "scope": {
+          "type": "object", "additionalProperties": false, "required": ["material"],
+          "properties": {
+            "material": {"description": "a material profile id", "$ref": "manufacturing.schema.json#/$defs/profile_id"},
+            "condition": {"$ref": "manufacturing.schema.json#/$defs/text"},
+            "feature": {"$ref": "manufacturing.schema.json#/$defs/text"},
+            "size": {"$ref": "manufacturing.schema.json#/$defs/quantity"},
+            "thickness": {"$ref": "manufacturing.schema.json#/$defs/quantity"},
+            "orientation": {"$ref": "manufacturing.schema.json#/$defs/text"},
+            "setup": {"$ref": "manufacturing.schema.json#/$defs/text"},
+            "tool": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+            "finish": {"$ref": "manufacturing.schema.json#/$defs/text"}
+          }
+        },
+        "result": {
+          "type": "object", "additionalProperties": false, "required": ["limits", "samples"],
+          "properties": {
+            "limits": {"description": "the measured range of the characteristic", "$ref": "manufacturing.schema.json#/$defs/quantity"},
+            "distribution": {"$ref": "manufacturing.schema.json#/$defs/text"},
+            "uncertainty": {"description": "the measurement uncertainty", "$ref": "manufacturing.schema.json#/$defs/quantity"},
+            "samples": {"type": "integer", "minimum": 1}
+          }
+        },
+        "source": {"$ref": "manufacturing.schema.json#/$defs/source"},
+        "date": {"$ref": "manufacturing.schema.json#/$defs/date"},
+        "valid_until": {"$ref": "manufacturing.schema.json#/$defs/date"},
+        "decision": {"$ref": "manufacturing.schema.json#/$defs/decision"}
+      }
+    }
+  }
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""drawing_features hook capture, feature-specific fit endpoints and heat-set inserts in check.
+"""drawing_features hook capture, feature-specific fit endpoints, heat-set inserts and locating fits in check.
 
 Run: python3 -m unittest discover -s cad/skills/cad-model/tests -p 'test_drawing_features.py' -v
 The capture tests build small two-part projects through `cad_model.py run` in both kernels and need
@@ -73,13 +73,31 @@ class FeatureLocatorContract(unittest.TestCase):
             with self.subTest(name), self.assertRaises(runner.ContractError):
                 runner.feature_locators(value)
 
+    def test_manufacture_features_locate_the_different_state_in_its_own_frame(self) -> None:
+        flat = runner.feature_locators({"outer_face": locator(frame=runner.MANUFACTURE_FRAME)},
+                                       runner.MANUFACTURE_FRAME, "manufacture_features")
+        self.assertEqual(flat["outer_face"]["frame"], "manufacture")
+        with self.assertRaisesRegex(runner.ContractError, r"manufacture_features\['outer_face'\]\.frame must be 'manufacture'"):
+            runner.feature_locators({"outer_face": locator()}, runner.MANUFACTURE_FRAME, "manufacture_features")
+        with self.assertRaisesRegex(runner.ContractError, "model_frame 'manufacture' must be one of"):
+            runner.feature_locators({"outer_face": locator(frame="manufacture")}, "manufacture")
+
+    def test_manufacture_features_needs_a_different_state(self) -> None:
+        hook = lambda params, shape: {}  # noqa: E731
+        self.assertIs(runner._manufacture_features_hook(mock.Mock(manufacture_features=hook), "different"), hook)
+        for declared in ("same", None):
+            with self.subTest(declared=declared), self.assertRaisesRegex(runner.ContractError, "reuses drawing_features"):
+                runner._manufacture_features_hook(mock.Mock(manufacture_features=hook), declared)
+        with self.assertRaisesRegex(runner.ContractError, "not callable"):
+            runner._manufacture_features_hook(mock.Mock(manufacture_features="flat"), "different")
+
 
 def write_interfaces(hw: Path, limits: str) -> None:
     (hw / "interfaces.yaml").write_text(f"interfaces:\n  - id: IF-001\n    limits:\n{limits}", encoding="utf-8")
 
 
 class FitEndpointsAndHeatSets(unittest.TestCase):
-    """check.declared_press_fits endpoints and check.declared_heat_sets; no OCP."""
+    """check.declared_press_fits endpoints, check.declared_heat_sets and check.declared_locating_fits; no OCP."""
 
     def test_feature_endpoints_give_the_part_pair_and_are_reported(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -144,6 +162,31 @@ class FitEndpointsAndHeatSets(unittest.TestCase):
         self.assertEqual((result["declared_pairs"], result["declared_fit_findings"]), ([], []))
         self.assertEqual(self.interference(0.0, [insert])["status"], "pass", "an insert drawn at its bore size is fine")
         self.assertEqual(self.interference(2.5, [])["status"], "fail", "an undeclared overlap still fails")
+
+    def test_locating_fits_come_from_the_pair_policy_and_only_an_interference_class_allows_overlap(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            hw = Path(tmp)
+            write_interfaces(hw, "      locating_fit: {fit: 6 H7/p6, pair: [TST-0002, TST-0001]}\n")
+            dowel = check.declared_locating_fits(hw)
+            write_interfaces(hw, "      locating_fit: {fit: 6 H7/g6, pair: [TST-0002, TST-0001]}\n")
+            sliding = check.declared_locating_fits(hw)
+            write_interfaces(hw, "      locating_fit: {fit: TST dowel per vendor limits, pair: [TST-0002, TST-0001]}\n")
+            vendor = check.declared_locating_fits(hw)
+            self.assertEqual(check.declared_press_fits(hw), [], "a locating fit is not a press fit")
+        self.assertEqual(dowel, [{"pair": ["TST-0001", "TST-0002"], "fit": "6 H7/p6", "classification": "interference",
+                                  "interface": "IF-001", "source": "interfaces.yaml#/interfaces/0/limits/locating_fit"}])
+        self.assertEqual((sliding[0]["classification"], vendor[0]["classification"]), ("clearance", "unclassified"))
+        geometry = {("TST-0001", "TST-0002"): {"clearance_mm": -0.1, "interference_mm3": 2.0, "method": "exact"}}
+        with mock.patch.object(check, "load_pose", return_value=mock.Mock(INTERFERENCE_MM3=0.001)):
+            allowed = check.interference(geometry, None, set(), set(), locating_fits=dowel)
+            refused = {name: check.interference(geometry, None, set(), set(), locating_fits=fits)["status"]
+                       for name, fits in (("clearance", sliding), ("unclassified", vendor))}
+            unrealized = check.interference({("TST-0001", "TST-0002"): {"clearance_mm": 0.05, "interference_mm3": 0.0,
+                                                                         "method": "exact"}},
+                                            None, set(), set(), locating_fits=dowel)
+        self.assertEqual((allowed["status"], allowed["pairs"][0]["allowed"], allowed["declared_locating_fits"]), ("pass", True, dowel))
+        self.assertEqual(refused, {"clearance": "fail", "unclassified": "fail"})
+        self.assertEqual((unrealized["status"], unrealized["declared_fit_findings"][0]["type"]), ("fail", "declared_fit_not_realized"))
 
 
 def set_model(hw: Path, pn: str, kernel: str, fixture: str, title: str, params: dict | None = None) -> None:

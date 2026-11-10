@@ -1,0 +1,7 @@
+# Assembly order, access and motion evidence
+
+A kinematic motion sweep measures the declared ideal geometry and joint motion. It does not by itself establish manufactured play, friction, compliance, insertion feasibility, tool access, retention, torque or serviceability. Keep these as explicit interface and assembly-operation obligations.
+
+For each installation, closure, join, adjustment, inspection, service or disassembly operation, record predecessor/order and closure state, parts and their pose, approach/removal direction or path, tool/holder and capability, engagement/retention/torque, and required inspection or service access. Check that bearings, pins and closed-loop parts can be installed before closure; fasteners and tools can reach their locations; engagement, edge distance, retention and load paths are credible; and the assembly can be adjusted, inspected, maintained and disassembled.
+
+Use a supported geometric path/access check only when the operation supplies the necessary geometry and a defined path. Bounds may establish clearance; ambiguous collision requires kernel confirmation. A sampled path can miss collisions between samples, so disclose its coverage and unresolved intervals. Tool strings, a nominal motion render, final seated geometry, or a successful ideal joint sweep are not proof of physical access. Unknown path, tool volume, capability or assembly order remains unknown rather than a pass. An actual fit/assembly claim needs evidence on the relevant manufactured configuration and scope.

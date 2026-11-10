@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
-"""Integration tests for the staged CAD recheck stamp and git hook."""
+"""Integration tests for the staged CAD recheck stamp and git hook.
+
+The project is a small record version 2 record: a confirmed use case and one CNC part. A stamp needs the
+evidence packet of the staged record (cad-record evidence.py); the tests build it from a synthetic
+producer packet, so they need no CAD kernel. Regression matrix row 13 (stamp refuses stale or missing
+expected checks) and the stamp boundary cases."""
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import json
 import hashlib
@@ -12,11 +18,28 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 
 SKILL = Path(__file__).resolve().parents[1]
 STAMP = SKILL / "scripts" / "stamp.py"
 INSTALLER = SKILL / "scripts" / "install-hook.py"
+ACCEPTANCE = SKILL.parent / "cad-record" / "tests" / "fixtures" / "acceptance.py"
+
+
+def load(name: str, path: Path) -> Any:
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, path)
+        assert spec and spec.loader
+        sys.modules[name] = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sys.modules[name])
+    return sys.modules[name]
+
+
+stamp_module = load("cad_recheck_stamp", STAMP)
+acceptance = load("cad_record_acceptance_fixtures", ACCEPTANCE)
+evidence, fx = acceptance.evidence, acceptance.fx
+LEGACY_PRODUCT = "id: test-project\nflow:\n  stage: {stage}\n  recheck_from: {threshold}\n"
 
 
 class RecheckHookTests(unittest.TestCase):
@@ -66,20 +89,29 @@ class RecheckHookTests(unittest.TestCase):
             env=self.git_env(),
         )
 
-    def add_part(self) -> Path:
-        part = self.root / "hw" / "parts" / "PRT-0001"
+    def add_part(self, pn: str = "PRT-0001", title: str = "Fixture") -> Path:
+        part = self.root / "hw" / "parts" / pn
         part.mkdir(parents=True, exist_ok=True)
-        (part / "part.yaml").write_text(
-            "PN: PRT-0001\nrev: X1\ntitle: Fixture\nmaterial: Steel\nprocess: cnc\n"
-            "finish: As machined\nmass_target: null\nmake_buy: make\n", encoding="utf-8")
+        intent = fx.intent([{"function": "cosmetic"}], fx.not_applicable("TST"), [fx.operation("mill", "cnc", "tst_cnc")],
+                           service=fx.not_applicable("TST"), critical_surfaces=fx.not_applicable("TST"))
+        record = {"PN": pn, "rev": "X1", "title": title, "material": "Steel", "process": "cnc", "finish": "As machined",
+                  "mass_target": None, "make_buy": "make", "intent": intent}
+        (part / "part.yaml").write_text(json.dumps(record, indent=1) + "\n", encoding="utf-8")
         return part
-    def write_product(self, stage: str, threshold: str) -> None:
+
+    def write_product(self, stage: str, threshold: str | None, *, legacy: bool = False) -> None:
         product = self.root / "hw" / "product.yaml"
         product.parent.mkdir(parents=True, exist_ok=True)
-        product.write_text(
-            f"id: test-project\nflow:\n  stage: {stage}\n  recheck_from: {threshold}\n" if threshold else f"id: test-project\nflow:\n  stage: {stage}\n",
-            encoding="utf-8",
-        )
+        if legacy:
+            product.write_text(LEGACY_PRODUCT.format(stage=stage, threshold=threshold), encoding="utf-8")
+            return
+        flow = {"stage": stage, **({"recheck_from": threshold} if threshold else {})}
+        data = {"record_version": 2, "id": "test-project", "flow": flow,
+                "use_case": acceptance.confirmed_use_case("appearance_concept")}
+        product.write_text(json.dumps(data, indent=1) + "\n", encoding="utf-8")
+        assembly = self.root / "hw" / "assembly.yaml"
+        if not assembly.exists():
+            assembly.write_text("operations: []\n", encoding="utf-8")
 
     def stage_product(self, stage: str, threshold: str = "layout") -> None:
         self.write_product(stage, threshold)
@@ -91,10 +123,20 @@ class RecheckHookTests(unittest.TestCase):
     def commit(self) -> subprocess.CompletedProcess[str]:
         return self.git("commit", "-m", "design batch", check=False)
 
-    def stamp(self, *, passed: bool, stage: str) -> dict[str, object]:
+    def evidence_packet(self, stage: str, *, outcome: str = "pass") -> Path:
+        """The evidence packet of the staged record at `stage`: every software check `outcome` in a
+        synthetic producer packet of a built v1."""
+        staged = stamp_module.staged_record(self.root)
+        producer = evidence.ProducerPacket("hw/checks/v1/tst", "0" * 64,
+                                           acceptance.producer_packet(staged.record, "v1", outcome=outcome))
+        packet = evidence.assess(staged.record, version="v1", manifest_sha256="0" * 64, packets=[producer],
+                                 selection_sha256=staged.selection_sha256).packet(stage, staged.record_sha256)
         checks = self.root / ".checks.json"
-        checks.write_text(json.dumps({"all_passed": passed, "checks": []}), encoding="utf-8")
-        args = ["--stage", stage, "--checks", str(checks)]
+        checks.write_text(json.dumps(packet), encoding="utf-8")
+        return checks
+
+    def stamp(self, *, passed: bool, stage: str, outcome: str = "pass") -> dict[str, object]:
+        args = ["--stage", stage, "--checks", str(self.evidence_packet(stage, outcome=outcome))]
         if passed:
             args.append("--passed")
         result = self.run_python(STAMP, *args, cwd=self.root)
@@ -114,8 +156,7 @@ class RecheckHookTests(unittest.TestCase):
         self.write_product("specify", "layout")
         self.git("add", "hw/product.yaml")
         self.write_product("release", "layout")
-        part = self.add_part() / "part.yaml"
-        part.write_text(part.read_text(encoding="utf-8").replace("title: Fixture", "title: Staged edit"), encoding="utf-8")
+        self.add_part(title="Staged edit")
         self.git("add", "hw/parts/PRT-0001/part.yaml")
         result = self.commit()
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -287,18 +328,70 @@ class RecheckHookTests(unittest.TestCase):
         self.assertFalse((self.root / "hw" / ".cad" / "recheck.json").exists())
         checks.write_text(json.dumps({"status": "pass", "scope": {"kind": "all_pairs", "complete": True}, "checks": {}}),
                           encoding="utf-8")
-        self.assertTrue(self.stamp_with(checks)["passed"])
-
-    def stamp_with(self, checks: Path) -> dict[str, object]:
         result = self.run_python(STAMP, "--stage", "detail", "--checks", str(checks), "--passed", cwd=self.root)
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("it is not an evidence packet", result.stderr, "a full cad-model check is not the evidence packet")
+        self.assertTrue(self.stamp_with(self.evidence_packet("detail"))["passed"])
+
+    def stamp_with(self, checks: Path, stage: str = "detail") -> dict[str, object]:
+        result = self.run_python(STAMP, "--stage", stage, "--checks", str(checks), "--passed", cwd=self.root)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return json.loads(result.stdout)
+
+    def stamp_refused(self, checks: Path, text: str, stage: str = "detail") -> None:
+        result = self.run_python(STAMP, "--stage", stage, "--checks", str(checks), "--passed", cwd=self.root)
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn(text, result.stderr)
+        self.assertFalse((self.root / "hw" / ".cad" / "recheck.json").exists())
+
+    def test_a_version_1_record_is_neither_stamped_nor_committed_at_the_threshold(self) -> None:
+        checks = self.evidence_packet("detail")
+        self.write_product("detail", "layout", legacy=True)
+        self.git("add", "hw/product.yaml")
+        self.stamp_refused(checks, "record.migration_required")
+        result = self.commit()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("record.migration_required", result.stderr)
+        self.assertIn("migrate.py", result.stderr)
+
+    def test_a_due_unknown_check_cannot_be_stamped_passed(self) -> None:
+        self.stage_product("detail")
+        self.stamp_refused(self.evidence_packet("detail", outcome="unknown"), "--passed contradicts the evidence packet")
+
+    def test_a_packet_of_another_record_or_stage_cannot_stamp(self) -> None:
+        self.stage_product("detail")
+        checks = self.evidence_packet("detail")
+        self.add_part("PRT-0002")
+        self.git("add", "hw/parts/PRT-0002/part.yaml")
+        self.stamp_refused(checks, "computed from another record")
+        self.stamp_refused(self.evidence_packet("parts"), "assessed for stage parts, not detail")
+
+    def test_a_stamp_whose_evidence_blocks_is_refused_at_commit_even_if_edited_to_passed(self) -> None:
+        self.stage_product("detail")
+        self.stamp(passed=False, stage="detail", outcome="unknown")
+        path = self.root / "hw" / ".cad" / "recheck.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["passed"] = True
+        data["checks"]["gate"] = {"stage": "detail", "passed": True, "findings": []}
+        path.write_text(json.dumps(data), encoding="utf-8")
+        self.git("add", "hw/.cad/recheck.json")
+        result = self.commit()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("blocking finding", result.stderr)
+
+    def test_the_recheck_threshold_may_move_earlier_but_never_later(self) -> None:
+        self.stage_product("detail", "release")
+        result = self.commit()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("later than HEAD's layout", result.stderr)
+        self.stage_product("specify", "intent")
+        self.stage_product("ground", "intent")  # an earlier threshold is always allowed
+        self.assertEqual(self.commit().returncode, 0, self.commit().stderr)
 
     def test_editing_staged_file_makes_stamp_stale(self) -> None:
         self.stage_product("detail")
         self.stamp(passed=True, stage="detail")
-        part = self.add_part() / "part.yaml"
-        part.write_text(part.read_text(encoding="utf-8").replace("title: Fixture", "title: Edited"), encoding="utf-8")
+        self.add_part(title="Edited")
         self.git("add", "hw/parts/PRT-0001/part.yaml")
         result = self.commit()
         self.assertNotEqual(result.returncode, 0)

@@ -63,12 +63,18 @@ def _aspects(a: dict[str, Any], b: dict[str, Any]) -> list[str]:
         facts = entry.get("placement") or {}
         return facts.get("method"), facts.get("orientation"), facts.get("transform") or []
 
+    def components(entry: dict[str, Any]) -> list[tuple[Any, ...]]:
+        return [(ident, facts.get("multiplicity"), facts.get("material_profile"), facts.get("operations"))
+                for ident, facts in sorted((entry.get("components") or {}).items())]
+
     (va, sa), (vb, sb) = native(a), native(b)
     (ma, oa, ta), (mb, ob, tb) = placement(a), placement(b)
     differs = {
         "state": a.get("state") != b.get("state"),
         "tolerance": tolerance(a) != tolerance(b),
         "output_policy": (a.get("mesh"), a.get("build_volume")) != (b.get("mesh"), b.get("build_volume")),
+        "intent": (a.get("intent") or {}).get("inputs_sha256") != (b.get("intent") or {}).get("inputs_sha256"),
+        "components": components(a) != components(b),
         "geometry": ((va, sa) != (vb, sb) if va is None or vb is None
                      else abs(vb - va) > occ.volume_slack(va, vb) * 10 or sa != sb),
         "placement": (ma, oa, len(ta)) != (mb, ob, len(tb))
@@ -79,7 +85,7 @@ def _aspects(a: dict[str, Any], b: dict[str, Any]) -> list[str]:
 
 def compare_manufacturing(a: dict[str, Any] | None, b: dict[str, Any] | None) -> dict[str, Any]:
     """Per custom-made PN of two manifests' `manufacturing` entries: added, removed, changed (naming the
-    state, tolerance, output_policy, geometry or placement aspects) or unchanged."""
+    state, tolerance, output_policy, intent, components, geometry or placement aspects) or unchanged."""
     if a is None or b is None:
         return {"available": False, "message": "a version was built before manufacturing outputs"}
     rows: dict[str, Any] = {}

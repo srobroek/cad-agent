@@ -116,7 +116,18 @@ Verify coupled motion with `pose.py` and `sweep.py`.
    (`cad-analysis` checks the STEP hash and pose, never re-poses); cite the bundle as evidence.
    The clearance and interference criteria select geometric poses; a stress case needs its own load criterion.
 
-Exit codes for all scripts:
+## Manufacturing assembly checks
+
+Further obligations and evidence limits: [assembly-access.md](references/assembly-access.md).
+
+For a record-v2 built version, `scripts/access.py --hw hw --version vN` checks normalized assembly order and geometry access for every operation; `--parts-dir` or `--step` supports explicit scratch inputs. `scripts/play.py --hw hw --version vN` checks critical moving-interface play; standalone geometry modes are `--parts-dir` or `--step`. Both may use `--attach` only as explicit run input and both publish immutable `hw/checks/<V>/...` packets for versioned runs. Exit 0 means the packet passes, 1 means failed or unknown obligations, and 2 means invalid input or infrastructure error. Do not treat form/final-pose checks as substitutes.
+
+`assembly.operations[].path` is a sequence of receiver-frame offsets from the installed pose; the operated part keeps orientation, and the final leg arrives along `direction`. If absent, the access check uses a straight insertion from the separating plane along that direction. A tool must have a cited STEP envelope and approach; display name alone is insufficient. The check models parts already present at each operation and tests nominal geometry. It samples and refines declared path legs, but cannot establish access between every possible pose or an actual assembly trial.
+
+Play is total movement about the nominal centered position. `play.py` tests the nominal case plus the corners of the declared play/compliance box (and selected scenario cases). It does not test intermediate offsets or other directions, infer undeclared play as zero, or simulate dynamic/contact behavior. Loads or a spring without declared compliance remain unknown. Declared insertion-path start is assumed reachable.
+
+`assembly_operations.check_joints` also returns the `assembly.joint@op:<id>` family for joining operations. Its record-based check reviews sourced engagement, retention, torque, host-temperature compatibility and required edge distance. It does not calculate joint strength, pull-out, fatigue, creep, preload or cure. See `cad-record/references/manufacturing-intent.md` for the record contract.
+For `access.py` and `play.py`, exit 0 means all packet obligations pass; exit 1 means failure or unknown obligation; exit 2 means usage or infrastructure error. For sweep/motion scripts:
 
 - 0: pass.
 - 1: a check failed. `sweep.py` reports joint-limit, collision, clearance and pair-requirement

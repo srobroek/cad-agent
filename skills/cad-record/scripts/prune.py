@@ -4,8 +4,10 @@ release.py calls this only after hw/releases/<REV>/ is sealed. `plan` lists what
 and a digest of that plan; `after_release` applies the plan only when the caller names that digest and a
 fresh plan still has it. A version stays when it is not older than the released one, released, the
 latest, frozen in product.yaml, the baseline of the open change, named by a decision record (a gate
-approval or a design decision about that build), or referenced by a surviving manifest: by a path below
-it, its label, or the sha256 of one of its manifests.
+approval or a design decision about that build), or referenced by a surviving manifest or recipe (such
+as a carried_from assessment) or by the evidence ledger or finding dispositions: by a path below it, its
+label, or the sha256 of one of its manifests. Evidence that only the ledger names keeps its version.
+A release manifest of a version this module does not read, or an unreadable ledger, refuses the plan.
 
 Applying writes .cad-work/prune-<REV>-<digest>/journal.json, renames each folder into that directory (one
 atomic rename on the same filesystem, so hw/ never holds a half-deleted folder), deletes the moved
@@ -39,6 +41,8 @@ if "cad_record_layout" not in sys.modules:
 layout = sys.modules["cad_record_layout"]
 
 JOURNAL = "journal.json"
+LEDGERS = ("manufacturing/evidence.yaml", "manufacturing/findings.yaml")  # accepted evidence, never pruned blind
+RELEASE_MANIFEST_VERSIONS = (None, 2, 3)  # version 1 has no schema_version
 LABEL = re.compile(r"(?<![A-Za-z0-9])v[1-9][0-9]*(?![A-Za-z0-9])")  # a version label inside prose
 CAD_MODEL = Path(__file__).resolve().parents[2] / "cad-model" / "scripts" / "cad_model.py"
 
@@ -74,12 +78,16 @@ def roots(label: str) -> list[str]:
 
 def releases(hw: Path) -> dict[str, str]:
     """The frozen version of each release package by revision. A version 1 manifest names none; the
-    reference scan keeps the versions its file list names."""
+    reference scan keeps the versions its file list names. A manifest version this module does not read
+    refuses, since it might name versions in a way the scan misses."""
     found = {}
     for path in sorted((hw / "releases").glob(f"*/{layout.MANIFEST}")):
         manifest = _json(path)
         if not isinstance(manifest, dict):
             raise layout.LayoutError(f"cannot read {layout.relative(hw, path)} before pruning")
+        if manifest.get("schema_version") not in RELEASE_MANIFEST_VERSIONS:
+            raise layout.LayoutError(f"{layout.relative(hw, path)} has manifest version {manifest.get('schema_version')!r}, "
+                                     "which this prune does not read; nothing is pruned")
         frozen = manifest.get("frozen")
         if isinstance(frozen, dict) and isinstance(frozen.get("version"), str):
             found[path.parent.name] = frozen["version"]
@@ -127,7 +135,15 @@ def _unmovable(hw: Path, rel: str) -> str | None:
 
 
 def _documents(hw: Path, skip: set[Path]) -> Iterator[tuple[str, Any]]:
-    """Every surviving manifest.json that seals a version, bundle or release package, and versions/latest.json."""
+    """The evidence ledger and finding dispositions, every surviving manifest.json that seals a version,
+    bundle or release package, and versions/latest.json."""
+    for name in LEDGERS:
+        path = hw / name
+        if path.is_file() and not path.is_symlink():
+            try:
+                yield f"{layout.HW}/{name}", yaml.safe_load(path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, yaml.YAMLError) as error:  # it might name a version
+                raise layout.LayoutError(f"cannot read hw/{name} before pruning: {error}") from error
     latest = layout.load().path("version.latest", {})
     for root, dirnames, filenames in os.walk(hw):  # never follows a link
         folder = Path(root)

@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://srobroek.com/cad/schemas/manufacturing-materials.schema.json",
+  "title": "CAD material profiles (hw/manufacturing/materials.yaml and the plugin's starter material profiles)",
+  "description": "Material identity and properties with their conditions. A family profile (PLA+, nylon, PETG, aluminium) is guidance, never a grade specification; a grade profile names the manufacturer's grade. Printed, moulded, bulk, cast and wrought properties are different profiles; every property states its test standard, temperature, conditioning and, for printed forms, orientation. A typical_not_allowable profile holds only typical or estimated values, never design allowables. Density is never strength. Property names and their dimensions are manufacturing_intent.MATERIAL_PROPERTIES",
+  "type": "object", "additionalProperties": false, "required": ["profiles"],
+  "properties": {
+    "profiles": {"type": "array", "items": {"$ref": "#/$defs/profile"}}
+  },
+  "$defs": {
+    "conditioning": {"description": "dry as moulded or dried, moisture-conditioned, as received, or not stated", "enum": ["dry", "conditioned", "as_received", "unknown"]},
+    "profile": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "revision", "title", "level", "family", "grade", "form", "process_state", "typical_not_allowable", "properties"],
+      "properties": {
+        "id": {"$ref": "manufacturing.schema.json#/$defs/profile_id"},
+        "revision": {"type": "integer", "minimum": 1},
+        "title": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "level": {"enum": ["family", "grade"]},
+        "family": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "grade": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+        "manufacturer": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+        "specification": {"description": "the standard or datasheet designation the grade conforms to", "$ref": "manufacturing.schema.json#/$defs/text_fact"},
+        "form": {"enum": ["printed", "bulk", "wrought", "cast", "moulded", "sheet", "rod", "film", "purchased", "unknown"]},
+        "process_state": {
+          "type": "object", "additionalProperties": false, "required": ["process", "conditioning"],
+          "properties": {
+            "process": {"description": "the route kind that made the tested material, or unknown", "oneOf": [{"$ref": "manufacturing.schema.json#/$defs/route_kind"}, {"$ref": "manufacturing.schema.json#/$defs/fact_open"}]},
+            "orientation": {"$ref": "manufacturing.schema.json#/$defs/text"},
+            "layup": {"$ref": "manufacturing.schema.json#/$defs/text"},
+            "temper": {"$ref": "manufacturing.schema.json#/$defs/text"},
+            "conditioning": {"$ref": "#/$defs/conditioning"},
+            "lot": {"$ref": "manufacturing.schema.json#/$defs/text"},
+            "notes": {"$ref": "manufacturing.schema.json#/$defs/text"}
+          }
+        },
+        "typical_not_allowable": {"type": "boolean"},
+        "properties": {"type": "array", "items": {"$ref": "#/$defs/property"}},
+        "guidance": {"description": "family guidance and cautions, such as fibre fill wear on nozzles and mating surfaces; never a grade allowable", "$ref": "manufacturing.schema.json#/$defs/texts"},
+        "note": {"$ref": "manufacturing.schema.json#/$defs/text"}
+      },
+      "allOf": [
+        {"if": {"properties": {"level": {"const": "family"}}},
+         "then": {"properties": {"grade": {"$ref": "manufacturing.schema.json#/$defs/fact_open"}}}},
+        {"if": {"properties": {"level": {"const": "grade"}}},
+         "then": {"properties": {"grade": {"$ref": "manufacturing.schema.json#/$defs/fact_known"}}}}
+      ]
+    },
+    "property": {
+      "type": "object", "additionalProperties": false, "required": ["name", "value", "conditions"],
+      "properties": {
+        "name": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "value": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"},
+        "conditions": {
+          "type": "object", "additionalProperties": false, "required": ["test_standard", "temperature", "conditioning"],
+          "properties": {
+            "test_standard": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "temperature": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"},
+            "conditioning": {"$ref": "#/$defs/conditioning"},
+            "orientation": {"description": "the print or grain orientation of the specimen", "$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "specimen": {"$ref": "manufacturing.schema.json#/$defs/text"},
+            "rate": {"$ref": "manufacturing.schema.json#/$defs/text"},
+            "notes": {"$ref": "manufacturing.schema.json#/$defs/text"}
+          }
+        }
+      }
+    }
+  }
+}

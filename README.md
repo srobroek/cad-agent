@@ -1,6 +1,8 @@
 # CAD Agent
 
-Agent-assisted mechanical CAD takes a product from rapid concept through a verified STEP AP242 release. Deliverables include drawings, an engineering bill of materials (EBOM), verification evidence, and design documentation. Designs target FDM or CNC. The workflow does not produce slicer, CAM, or machine-tool output.
+Agent-assisted mechanical CAD guides a product from concept through versioned CAD. It produces drawings, an engineering bill of materials (EBOM), scoped verification evidence and documentation. It assesses intended service, per-part routes, interfaces and evidenced capability. Missing evidence or coverage stays unknown. It does not generate slicer/CAM toolpaths, operate equipment or certify physical performance.
+
+Manufacturing intent is recorded per project and part: a v2 record captures intended use, requirements, candidate selection, material/process routes, real capability, assembly interfaces and evidence. Unknown facts remain unknown. The use-case **service class** describes maturity/consequence; product **rigor** (`maker|pro|regulated`) describes documentation depth. Prototype is a service class, never a rigor level. Existing v1 project records remain readable but require explicit `migrate.py --dry-run`, reviewed and owner-applied `--apply`, before gated actions or new record-writing builds. New freezes/releases require a recorded material/process selection; no selection or other required unknown blocks. See `docs/manufacturing-intent.md`.
 
 This standalone project supports Claude Code, OpenAI Codex CLI, OpenCode, and Kiro CLI through native skills and agent profiles.
 
@@ -49,7 +51,7 @@ At the project root, set `$CAD_SKILLS` to the directory containing installed `ca
 
 ### Codex CLI sandbox requirements
 
-`workspace-write` keeps command network access off by default. If you enable a local network proxy, Codex also blocks loopback and private destinations unless you allow them. In the E2E run, this sandbox could not bind the `cad-concept` and `cad-viewer` loopback servers. It could not start Chromium for `cad-render` or launch FreeCAD/Qt for drawings. In a trusted project, run these tools with `codex exec --sandbox danger-full-access` or use the `:danger-full-access` permission profile. Both remove local sandbox restrictions. Do not use them on untrusted projects. [Codex sandbox and approvals](https://learn.chatgpt.com/docs/agent-approvals-security) · [Codex permissions](https://learn.chatgpt.com/docs/permissions)
+When using `workspace-write`, command network access is off by default. If you enable a local network proxy, Codex also blocks loopback and private destinations unless you allow them. In the E2E run, this sandbox could not bind the `cad-concept` and `cad-viewer` loopback servers. It could not start Chromium for `cad-render` or launch FreeCAD/Qt for drawings. In a trusted project, run these tools with `codex exec --sandbox danger-full-access` or use the `:danger-full-access` permission profile. Both remove local sandbox restrictions. Do not use them on untrusted projects. [Codex sandbox and approvals](https://learn.chatgpt.com/docs/agent-approvals-security) · [Codex permissions](https://learn.chatgpt.com/docs/permissions)
 
 | Tool | Host capability needed |
 |---|---|
@@ -111,13 +113,17 @@ The `cad-flow` skill guides these stages:
 5. L4 ANALYSIS and the ANALYSIS gate, CRITIQUE, RECONCILE, and DESIGN freeze
 6. RELEASE gate and RELEASE
 
-The skill maintains the `hw/` design record. The lead dispatches independent stage units to harness subagents in a batch, then integrates their results. Each L1-L4 batch builds one immutable version with `cad-model run` and checks it fail-fast, cheapest first: (1) the record validator with its retention and process-feasibility rules and, from L2, `form_check` with its DFM rules; (2) `cad-model check --changed-only`; (3) once a joint moves, a `sweep.py --smoke --changed-only` sweep; (4) `cad-render`, which also runs the visibility check, and the default motion render; (5) after the provisional gate, the full check: `cad-model check` over every pair and the full sweep with its between-sample check. Steps 1 to 4 run in parallel where they do not depend on each other, and a blocking failure stops the batch.
+GROUND captures product use and operating conditions. The lead records requirements, preferences, assumptions and open questions separately. INTENT compares complete part-level architecture/material/process routes against mandatory criteria. Mandatory failures are eliminated before preference ranking. Unknowns stay conditional.
 
-The lead records user-approved gates as dated decisions in `hw/decisions/` and keeps the current stage in `hw/product.yaml` `flow`. LAYOUT freeze, PARTS, DETAIL and ANALYSIS each pass two gates; INTENT, VARIANT, DESIGN freeze and RELEASE are single human gates. The lead records the provisional gate as a decision marked PROVISIONAL once every fast check passes; the next stage may start then. The human gate opens after the full check passes and needs explicit user approval. It lists the sweep's unproved between-sample intervals, which the user accepts with a decision or reruns finer. A failed full check, a MAJOR finding of the L2 light mechanical and DFM review, or a change the user names at the human gate voids the provisional decision and reopens the stage and every later stage built on that version. Nothing is frozen or released before the human gates. Agent verdicts, successful checks and provisional gates are not approval. The workflow has no ledger.
+Do not assume a printer, material, process, capability, tolerance or service requirement. For a v1 project, review the `migrate.py` dry run. Migration is an explicit owner action before gated actions or new record builds. Optical requirements exclude opaque processes. Use traceably identified purchased transparent parts or identified transparent stock on an appropriate evidenced route. Do not suggest see-through FDM or unidentified clear plastic. SPECIFY records per-part intent, separate capability profiles, functional interfaces, assembly access and evidence obligations. See the [manufacturing-intent guide](docs/manufacturing-intent.md).
 
-See the [stage-by-stage walkthrough](docs/walkthrough.md) for prompts, review material, approvals, and project files. The [canonical `hw/` record layout](skills/cad-record/references/layout.md) lists design files and generated evidence.
+The lead maintains the `hw/` record and integrates stage work. The lead builds immutable L1-L4 versions and runs established checks in fail-fast order. Gate ownership and sequence remain with `cad-flow`.
 
-Agents receive instructions to keep worker scratch and temporary files under `.cad-work/` beside `hw/`. Harness policy is not a cross-harness operating-system security boundary. Enforcement varies across harnesses and file-writing surfaces. Use an OS sandbox or container for a hard write boundary.
+PARTS and DETAIL checks dispatch by declared process, operation, material and capability. The [process-check reference](skills/cad-design/references/process-checks.md) lists obligations. Geometric/form and build-envelope heuristics are diagnostics, not process or physical proof. The [fit/access reference](skills/cad-fits/references/process-fits.md) describes worst-case stacks and qualified RSS. Distinguish CAD validity, geometric eligibility, process planning, simulation support and physical evidence. A preview, nominal model, envelope fit, solver result, planned coupon or agent verdict does not prove physical performance. Changes to service, load, material/condition, route/capability, orientation/support/finish, geometry, interfaces or criteria can stale dependent evidence. Recheck from the earliest affected stage. The detailed [walkthrough](docs/walkthrough.md) describes prompts, reviews, approvals and records.
+
+The lead records user-approved gates as dated decisions in `hw/decisions/` and keeps the current stage in `hw/product.yaml` `flow`. LAYOUT freeze, PARTS, DETAIL and ANALYSIS each pass two gates. INTENT, VARIANT, DESIGN freeze and RELEASE are single human gates. Only explicit user approval closes a human gate. Failed checks, major scoped review findings or user-identified changes reopen dependent stages. Provisional decisions enable work but approve, freeze or release nothing. The workflow has no ledger.
+
+Agents keep worker scratch and temporary files under `.cad-work/` beside `hw/`. Harness policy is not an operating-system security boundary. Enforcement varies across harnesses and file-writing surfaces. Use an OS sandbox or container for a hard write boundary.
 
 ## Tests
 
@@ -131,28 +137,30 @@ for test in skills/*/test_*.py skills/*/tests/test_*.py; do
 done
 python3 -m unittest discover -s harness -p 'test_*.py'
 python3 harness/generate.py --check
+uv run --no-project --locked --script scripts/typecheck.py
+uvx slopvac <changed-prose-files>
 ```
 
-Tests that use FreeCAD skip when FreeCAD 1.1.4 is unavailable. Check changed Markdown with `uvx slopvac README.md CHANGELOG.md NOTICE docs/walkthrough.md`.
+The mypy command is development-only. Its PEP 723 lock pins the current verified stable version. `mypy.ini` enumerates all feature-changed/new production modules using an incremental baseline and makes the new pure contracts/handlers strict; type findings are reported in `cad-mfg-intent/U8F-notes.md`. Tests that use FreeCAD skip when FreeCAD 1.1.4 is unavailable. Check changed Markdown with `uvx slopvac`.
 
 ## Skills and agents
 
 | Skill | Responsibility |
 |---|---|
 | `cad-flow` | Stage sequence, gates, and project workflow |
-| `cad-record` | Structured design record, validation, and release |
+| `cad-record` | Structured design record, validation, migration, evidence and release |
 | `cad-concept` | Rapid concept variants and previews |
-| `cad-model` | CadQuery/build123d model builds and checks |
-| `cad-design` | F0-F3 fidelity and form checks |
+| `cad-model` | CadQuery/build123d model builds and geometry checks |
+| `cad-design` | F0-F3 appearance fidelity and manufacturing dispatch guidance |
 | `cad-motion` | Assembly poses, motion sweeps with between-sample proofs and subsystem runs, and motion renders |
 | `cad-render` | Versioned PBR renders |
 | `cad-viewer` | Interactive OCP inspection and Studio look-dev |
-| `cad-analysis` | Static finite-element analysis |
+| `cad-analysis` | Sourced static finite-element analysis |
 | `cad-bom` | EBOM roll-up |
 | `cad-drawings` | Part and assembly engineering drawings |
-| `cad-fits` | Fits and tolerance stack-ups |
+| `cad-fits` | Fits, worst-case stacks and justified statistical analysis |
 | `cad-recheck` | Changed-part and dependent rechecks |
-| `cad-review-dfm` | Evidence-based FDM/CNC manufacturability critique |
-| `cad-review-mech` | Evidence-based mechanical design critique |
+| `cad-review-dfm` | Evidence-based declared-route and capability-gap critique |
+| `cad-review-mech` | Evidence-based mechanical premise review |
 
 Harness-native agent profiles support concept design, part design, sourcing research, analysis, and mechanical and DFM review. The harness installer and generator use Python's standard library.

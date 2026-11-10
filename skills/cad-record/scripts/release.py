@@ -3,7 +3,7 @@
 # requires-python = ">=3.11"
 # dependencies = ["jsonschema>=4.23", "pyyaml>=6.0"]
 # ///
-"""Seal a release package of the frozen version: byte copies and a v2 manifest under hw/releases/<REV>/.
+"""Seal a release package of the frozen version: byte copies and a version 3 manifest under hw/releases/<REV>/.
 
     uv run --script release.py HW --rev A --version v3 --decision DR-007
     uv run --script release.py HW --rev A --version v3 --decision DR-007 --prune
@@ -13,14 +13,22 @@ never builds. It refuses the release when any of these fails, and then writes no
 .cad-work/:
 
 - the frozen anchor, the approving decision, and a revision that is not yet used;
-- validate.py on the current record, and the current record against the frozen snapshot;
+- validate.py on the current record (a record version 1 record refuses: migrate it first), and the
+  current record against the frozen snapshot: the snapshot set the version sealed, its structured
+  documents by content and its frozen sources by their exact bytes;
 - a build_guide.py okh.toml in hw/docs/ that describes another release;
-- the manufacturing outputs of every custom-made part;
+- the manufacturing outputs and the process route of every custom-made part;
 - the drawings, the analysis cases and the verification evidence, each a sealed bundle of that version;
-- bom.csv quantities against the frozen assembly.
+- bom.csv quantities against the frozen assembly;
+- the acceptance: the freeze's evidence_sha256 is the acceptance digest (evidence.py) as it stands,
+  and the evidence meets the release policy of the use case's service class: every obligation in
+  its scope resolved, no unresolved critical finding, an unvalidated trial only where the class
+  permits one and only by approved waivers, no waiver at all for safety-critical service.
 
-It stages the copies in .cad-work/release-<REV>/, writes and checks the manifest, then claims
-hw/releases/<REV>/ and renames the stage onto it.
+It stages the copies, including the acceptance inventory under acceptance/, in
+.cad-work/release-<REV>/, writes and checks the manifest, then claims hw/releases/<REV>/ and renames
+the stage onto it. Sealed version 1 and 2 packages stay readable as they are and are never reissued
+or re-certified.
 
 --prune, once the package is sealed, prints the plan of superseded versions to remove (prune.py) with
 its digest and changes nothing; when hw/releases/<REV>/ already verifies and holds this version and
@@ -67,9 +75,11 @@ prune = _load_module("cad_record_prune", Path(__file__).resolve().parent / "prun
 generated_docs = _load_module("cad_record_generated_docs", Path(__file__).resolve().parent / "generated_docs.py")
 
 MANIFEST = layout.MANIFEST
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 WORKFLOW_KEYS = {"product.yaml": ("flow",)}  # workflow state; advancing it is not a design change
 EVIDENCE_PATH = re.compile(r"hw/[^\s,;()\"'<>]+")  # a project-relative path inside a verification evidence cell
+evidence = validate.evidence
+intent = validate.intent
 
 
 @dataclass(frozen=True)
@@ -94,6 +104,7 @@ class Release:
     bundles: list[dict[str, str]] = field(default_factory=list)
     checks: dict[str, str] = field(default_factory=dict)
     considered: set[str] = field(default_factory=set)  # bundle paths already selected or refused
+    acceptance: dict[str, Any] | None = None  # the manifest's acceptance block, once the evidence is accepted
     # the release time, fixed once: the manifest records it and a generated okh.toml must name its date
     released_at: str = ""
 
@@ -126,33 +137,57 @@ def _json(path: Path) -> Any:
         return None
 
 
-def _record_names(root: Path) -> set[str]:
-    """The record files a version snapshots that exist below `root` (hw/ or a version's record/),
-    named as the version.record layout entry names them."""
-    names = set()
-    for spec in layout.load().entry("version.record").files:
-        pattern = re.sub(r"\{[A-Z_]+\}", "*", spec.name)
-        names.update(path.relative_to(root).as_posix() for path in root.glob(pattern) if path.is_file())
-    return names
+def _dict(value: object) -> dict[str, Any]:
+    """`value` when it is a JSON/YAML object, else an empty one."""
+    return value if isinstance(value, dict) else {}
+
+
+def snapshot_inventory(record: Path, manifest: dict[str, Any]) -> dict[str, str]:
+    """The record snapshot a version sealed: each file below its record/ by name, with the sha256 its
+    manifest inventory seals (the snapshot's own bytes for a manifest without an inventory)."""
+    files = manifest.get("files") if isinstance(manifest.get("files"), dict) else None
+    if files is not None:
+        return {name[len("record/"):]: sha for name, sha in files.items() if name.startswith("record/")}
+    return {path.relative_to(record).as_posix(): sha256(path) for path in sorted(record.rglob("*")) if path.is_file()}
 
 
 def _domain(name: str, data: Any) -> Any:
+    """A record document without its workflow state (WORKFLOW_KEYS)."""
     if isinstance(data, dict):
         return {key: value for key, value in data.items() if key not in WORKFLOW_KEYS.get(name, ())}
     return data
 
 
+def _structured(name: str) -> bool:
+    """A record document compared by content; frozen sources (manufacturing/sources/**) by exact bytes."""
+    return name.endswith((".yaml", ".yml")) and not name.startswith(f"{evidence.SOURCES_DIR}/")
+
+
 def check_record(release: Release, record: Path, manifest: dict[str, Any]) -> None:
-    """The current record against the frozen snapshot: the same record files with the same content,
-    workflow state aside, and the same part models."""
+    """The current record against the frozen snapshot, by the snapshot set the version itself sealed:
+    the current record files (layout.snapshot_names for the current part numbers) are exactly the
+    files it snapshotted; a structured document has the same content, workflow state aside; every
+    other file, such as a frozen source, has the exact bytes the version sealed; and each part model
+    is the one it built."""
     hw, version = release.hw, release.version
-    snapshot, current = _record_names(record), _record_names(hw)
-    for name in sorted(current - snapshot):
+    pns = sorted(path.parent.name for path in (hw / "parts").glob("*/part.yaml") if path.is_file())
+    snapshot = snapshot_inventory(record, manifest)
+    try:
+        current = set(layout.snapshot_names(hw, pns))
+    except layout.LayoutError as error:
+        release.refuse("hw/parts", "changed", str(error))
+        return
+    for name in sorted(current - set(snapshot)):
         release.refuse(f"hw/{name}", "changed", f"hw/{name} is new since {version} was frozen")
-    for name in sorted(snapshot - current):
+    for name in sorted(set(snapshot) - current):
         release.refuse(f"hw/{name}", "changed", f"hw/{name} was removed after {version} was frozen")
-    for name in sorted(snapshot & current):
-        if _domain(name, _yaml(hw / name)) != _domain(name, _yaml(record / name)) or _yaml(hw / name) is None:
+    for name in sorted(current & set(snapshot)):
+        if _structured(name):
+            mine = _yaml(hw / name)
+            same = mine is not None and _domain(name, mine) == _domain(name, _yaml(record / name))
+        else:
+            same = sha256(hw / name) == snapshot[name]
+        if not same:
             release.refuse(f"hw/{name}", "changed", f"hw/{name} differs from {version}/record/{name}, the frozen snapshot")
     built = manifest.get("parts") if isinstance(manifest.get("parts"), dict) else {}
     models = {path.parent.name for path in (hw / "parts").glob("*/model.py") if path.is_file()}
@@ -173,13 +208,23 @@ def snapshot_parts(record: Path) -> dict[str, dict[str, Any]]:
     return parts
 
 
+def route_kinds(part: dict[str, Any]) -> list[str] | None:
+    """The route kinds of a part record's `intent.route` in order, or None while the route is unknown."""
+    route = (part.get("intent") or {}).get("route") if isinstance(part.get("intent"), dict) else None
+    if not isinstance(route, list) or not route or not all(isinstance(op, dict) and op.get("kind") for op in route):
+        return None
+    return [op["kind"] for op in route]
+
+
 def check_manufacturing(release: Release, folder: Path, manifest: dict[str, Any], parts: dict[str, dict[str, Any]],
                         quantities: dict[str, int]) -> None:
-    """Every custom-made part of the frozen snapshot has its process outputs, sealed in the version
-    and passing every manufacturing check. A catalogue buy has none."""
+    """Every custom-made part of the frozen snapshot has its complete process route and its process
+    outputs, sealed in the version (with the per-component outputs of a multi-solid part) and passing
+    every blocking manufacturing check; a check its producer marks `blocking: false` is a diagnostic
+    (a legacy heuristic such as a build-volume fit), never a pass or a failure. A catalogue buy has none."""
     version = release.version
-    made = manifest.get("manufacturing") if isinstance(manifest.get("manufacturing"), dict) else {}
-    sealed = manifest.get("files") if isinstance(manifest.get("files"), dict) else {}
+    made = _dict(manifest.get("manufacturing"))
+    sealed = _dict(manifest.get("files"))
     for pn, part in sorted(parts.items()):
         if not layout.custom_made(part):
             continue
@@ -203,7 +248,7 @@ def check_manufacturing(release: Release, folder: Path, manifest: dict[str, Any]
         sidecar = _json(directory / "manufacturing.json")
         rows = [entry] + ([sidecar] if isinstance(sidecar, dict) else [])
         failed = sorted({name for row in rows for name, check in (row.get("checks") or {}).items()
-                         if isinstance(check, dict) and check.get("status") != "pass"}
+                         if isinstance(check, dict) and check.get("status") != "pass" and check.get("blocking") is not False}
                         | {name for row in rows for name in row.get("blocking_failures") or []})
         if failed or any(row.get("status") != "pass" or row.get("complete") is not True for row in rows):
             release.refuse(f"{rel}/manufacturing.json", "failed",
@@ -215,13 +260,27 @@ def check_manufacturing(release: Release, folder: Path, manifest: dict[str, Any]
         if quantity < 1:
             release.refuse(f"hw/versions/{version}/record/assembly.yaml", "missing",
                            f"custom-made {pn} has no occurrence in the frozen assembly")
-        if missing:
+        route = route_kinds(part)
+        if route is None:
+            release.refuse(f"hw/versions/{version}/record/parts/{pn}/part.yaml", "route",
+                           f"{pn} has no complete recorded route (intent.route): a release names every process of a "
+                           "custom-made part")
+        if missing or route is None:
             continue
         files = []
         for name in policy.outputs:
             files.append(f"manufacturing/{pn}/{name}")
             release.copy(files[-1], f"{rel}/{name}", sealed[f"{inside}/{name}"])
-        release.manufacturing[pn] = {"process": part["process"], "quantity": quantity, "files": files}
+        components: dict[str, list[str]] = {}
+        prefix = f"{inside}/components/"
+        for name, sha in sorted(sealed.items()):
+            if name.startswith(prefix) and name.count("/") == prefix.count("/") + 1:
+                component = name[len(prefix):].split("/", 1)[0]
+                package = f"manufacturing/{pn}/components/{name[len(prefix):]}"
+                components.setdefault(component, []).append(package)
+                release.copy(package, f"hw/versions/{version}/{name}", sha)
+        release.manufacturing[pn] = {"process": part["process"], "quantity": quantity, "files": files, "route": route,
+                                     **({"components": components} if components else {})}
         release.checks[f"manufacturing/{pn}"] = "pass"
 
 
@@ -323,6 +382,47 @@ def check_docs(release: Release) -> None:
     release.checks["docs"] = "pass"
 
 
+def check_acceptance(release: Release, frozen: Any) -> None:
+    """The intent acceptance of a record version 2 release, a domain apart from output integrity: the
+    freeze's evidence_sha256 is the acceptance digest of the current inventory, and the evidence
+    assessment of the frozen version passes the release gate of the use case's service class. The
+    inventory is copied under acceptance/ and the scope, claims, waivers and open obligations become the
+    manifest's acceptance block. Unknown never passes; a waiver stays waived."""
+    hw = release.hw
+    if not isinstance(frozen, dict):
+        return  # assemble already refused the missing anchor
+    if "evidence_sha256" not in frozen:
+        release.refuse("hw/product.yaml", "frozen", "flow.frozen anchors no evidence_sha256 (a freeze from before record "
+                       "version 2): freeze again, recording `evidence.py digest` with a decision the user approves")
+        return
+    try:
+        assessment, packets = evidence.build_assessment(hw, release.version,
+                                                        today=datetime.fromisoformat(release.released_at[:10]).date())
+        inventory = evidence.acceptance_inventory(hw, assessment.record, packets)
+    except (evidence.EvidenceError, layout.LayoutError, OSError, ValueError) as error:
+        release.refuse("hw/product.yaml", "acceptance", f"the acceptance inventory cannot be formed: {error}")
+        return
+    if assessment.record.version != intent.RECORD_VERSION:
+        return  # validate.py reports record.migration_required, which refuses the release
+    digest = evidence.acceptance_digest(inventory)
+    if digest != frozen["evidence_sha256"]:
+        release.refuse("hw/product.yaml", "acceptance", f"flow.frozen.evidence_sha256 is not the acceptance digest as it "
+                       f"stands ({digest}): the evidence changed after the freeze; freeze again or open a change")
+    blocking = [item for item in assessment.gate("release") if item.severity == "error"]
+    for item in blocking:
+        release.findings.append(validate.finding(item.path, f"{item.code}: {item.message}", code="release.acceptance"))
+    if blocking:
+        return
+    policy = assessment.release()
+    release.acceptance = {"evidence_sha256": digest, "inventory": inventory, "scope": policy.scope,
+                          "claims": {req: list(levels) for req, levels in policy.claims.items()},
+                          "waivers": [dict(waiver) for waiver in policy.waivers],
+                          "open_obligations": list(policy.open_obligations)}
+    for path, sha in inventory.items():
+        release.copy(f"acceptance/{path.removeprefix('hw/')}", path, sha)
+    release.checks["acceptance"] = "waived" if policy.trial else "pass"
+
+
 def assemble(hw: Path, rev: str, version: str, decision: str,
              now: datetime | None = None) -> tuple[Release, dict[str, Any] | None]:
     """Every check and the copy list, without writing anything, for a release at `now` (the current UTC
@@ -380,10 +480,8 @@ def assemble(hw: Path, rev: str, version: str, decision: str,
     if isinstance(assembly, dict) and assembly.get("drawing") is not None:
         select_bundle(release, "drawings", "assembly", version_sha, "assembly.yaml declares an assembly drawing")
     for case in sorted((hw / "analysis" / "cases").glob("*/case.yaml")):
-        case_id = case.parent.name
-        try:
-            layout.bundle_dir(hw, "analysis", version, case_id)
-        except layout.LayoutError:
+        case_id = layout.analysis_case(hw, case)
+        if case_id is None:
             continue  # validate.py reports a case folder outside the layout
         select_bundle(release, "analysis", case_id, version_sha, f"analysis case {case_id} has no result for {version}")
 
@@ -392,6 +490,7 @@ def assemble(hw: Path, rev: str, version: str, decision: str,
     check_evidence(release, verification, version_sha)
     bom = validate.read_csv(hw / "bom.csv", validate.CSV_COLUMNS["bom.csv"], release.findings)
     check_bom(release, bom, quantities, parts)
+    check_acceptance(release, frozen)
 
     sealed = manifest.get("files") or {}
     if "assembly.step" in sealed:
@@ -442,11 +541,14 @@ def stage(release: Release, facts: dict[str, Any]) -> Path:
         if copied != item.sha256:
             release.refuse(item.original, "tampered", f"{item.original} does not hold the bytes its seal or record names")
         files[package] = {"sha256": copied, "original": item.original}
+    if release.acceptance is None:
+        release.refuse("hw/product.yaml", "acceptance", "the release has no accepted evidence to seal")
     manifest = {
-        "schema_version": SCHEMA_VERSION, "product_id": facts["product_id"], "rev": release.rev,
-        "released_at": release.released_at,
+        "schema_version": SCHEMA_VERSION, "record_version": intent.RECORD_VERSION, "product_id": facts["product_id"],
+        "rev": release.rev, "released_at": release.released_at,
         "frozen": facts["frozen"], "approval": release.decision, "files": files,
         "manufacturing": release.manufacturing, "bundles": release.bundles, "checks": release.checks,
+        "acceptance": release.acceptance,
     }
     path = staged / MANIFEST
     validate.validate_document(manifest, "release-manifest.schema.json", layout.relative(hw, path), release.findings)
@@ -476,9 +578,32 @@ def run(hw: Path, rev: str, version: str, decision: str, now: datetime | None = 
                "manufacturing": release.manufacturing, "bundles": release.bundles, "status": "released"}
 
 
+def acceptance_problems(manifest: dict[str, Any]) -> list[str]:
+    """Why a sealed version 3 package's acceptance does not hold by its own bytes: an inventory file
+    without its exact sealed copy under acceptance/, a digest that is not the inventory's, or a frozen
+    anchor that is not that digest. Mutable hw/ files are never consulted."""
+    acceptance = _dict(manifest.get("acceptance"))
+    inventory = _dict(acceptance.get("inventory"))
+    files = _dict(manifest.get("files"))
+    problems = []
+    for path, sha in sorted(inventory.items()):
+        copy = files.get(f"acceptance/{path.removeprefix('hw/')}")
+        if not isinstance(copy, dict) or copy.get("sha256") != sha or copy.get("original") != path:
+            problems.append(f"its acceptance inventory names {path}, which it does not seal under acceptance/")
+    if not inventory or evidence.acceptance_digest(inventory) != acceptance.get("evidence_sha256"):
+        problems.append("its acceptance evidence_sha256 is not the digest of its sealed inventory")
+    frozen = _dict(manifest.get("frozen"))
+    if frozen.get("evidence_sha256") != acceptance.get("evidence_sha256"):
+        problems.append("its frozen anchor is not its acceptance digest")
+    return problems
+
+
 def sealed(hw: Path, rev: str, version: str, decision: str) -> tuple[int, dict[str, Any]]:
     """The existing hw/releases/<REV>/ when it verifies and holds `version` approved by `decision`, so a
-    --prune rerun skips sealing; refused otherwise, since a used revision is never overwritten."""
+    --prune rerun skips sealing; refused otherwise, since a used revision is never overwritten. A package
+    is read by its own manifest version: version 1 and 2 packages are inspected as sealed, never
+    re-certified; a version 3 package also verifies its sealed acceptance bytes and anchor. A manifest
+    version this release.py does not know is refused."""
     hw = hw.resolve()
     target_rel = layout.load().path("release.package", {"REV": rev})
     package = layout.locate(hw, target_rel)
@@ -486,16 +611,22 @@ def sealed(hw: Path, rev: str, version: str, decision: str) -> tuple[int, dict[s
     problems = layout.verify(package) if package.is_dir() and not package.is_symlink() else ["it is not a directory"]
     manifest = _json(package / MANIFEST) if not problems else None
     frozen = manifest.get("frozen") if isinstance(manifest, dict) else None
-    if not problems and (not isinstance(frozen, dict) or frozen.get("version") != version
-                         or manifest.get("approval") != decision):
-        problems = [f"it holds {frozen.get('version') if isinstance(frozen, dict) else None} "
-                    f"approved by {manifest.get('approval') if isinstance(manifest, dict) else None}"]
+    schema = manifest.get("schema_version", 1) if isinstance(manifest, dict) else None
+    if not problems and schema not in (1, 2, 3):
+        problems = [f"its manifest version {schema!r} is not one this release.py reads"]
+    if not problems and isinstance(manifest, dict):  # always an object here: schema is None otherwise
+        if not isinstance(frozen, dict) or frozen.get("version") != version or manifest.get("approval") != decision:
+            problems = [f"it holds {frozen.get('version') if isinstance(frozen, dict) else None} "
+                        f"approved by {manifest.get('approval')}"]
+        elif schema == 3:
+            problems = acceptance_problems(manifest)
     if problems:
         finding = validate.finding(target_rel, f"{target_rel} exists but is not the sealed release of {version} approved "
                                                f"by {decision}: {'; '.join(problems)}; a used revision is never overwritten",
                                    code="release.exists")
         return 1, {**report, "findings": [finding], "status": "refused"}
-    return 0, {**report, "already_sealed": True, "manifest_sha256": sha256(package / MANIFEST), "status": "released"}
+    return 0, {**report, "already_sealed": True, "manifest_version": schema, "manifest_sha256": sha256(package / MANIFEST),
+               "status": "released"}
 
 
 def main(argv: list[str] | None = None) -> int:

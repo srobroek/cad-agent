@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run --script
 # /// script
-# dependencies = ["pyyaml>=6.0"]
+# dependencies = ["jsonschema>=4.23", "pyyaml>=6.0"]
 # ///
 """Run a static linear FreeCAD FEM analysis from a case YAML file."""
 
@@ -20,6 +20,7 @@ from typing import Any
 
 import yaml
 
+import fea_conditions as conditions
 from fea_part_selection import OCCURRENCE_REF
 from freecad_lookup import find_freecad
 import importlib.util
@@ -42,6 +43,8 @@ def _load_module(name: str, path: Path) -> Any:
 
 SKILLS = Path(__file__).resolve().parents[2]
 LAYOUT = _load_module("cad_record_layout", SKILLS / "cad-record" / "scripts" / "layout.py")
+CHECK_PACKET = _load_module("cad_record_check_packet", SKILLS / "cad-record" / "scripts" / "check_packet.py")
+CHECK_PREFIX = "fea-"  # hw/checks/<V>/fea-<case>/: a case's engineering packet, beside its analysis bundle
 # The FreeCAD job runs in a private process group that dies with this process, Gmsh and ccx included.
 lifecycle = _load_module("cad_flow_process_lifecycle", SKILLS / "cad-flow" / "scripts" / "process_lifecycle.py")
 
@@ -130,14 +133,22 @@ def load_case(path: Path) -> dict[str, Any]:
     material = raw.get("material")
     if not isinstance(material, dict):
         raise CaseError("material must be a mapping")
-    for key in ("E", "nu", "density", "yield"):
-        value = material.get(key)
-        if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
-            raise CaseError(f"material.{key} must be a finite number")
-    if material["E"] <= 0 or material["density"] <= 0 or material["yield"] <= 0:
-        raise CaseError("material E, density, and yield must be positive")
-    if not 0 < material["nu"] < 0.5:
-        raise CaseError("material.nu must be between 0 and 0.5")
+    raw["_material_form"] = conditions.material_form(material)
+    if raw["_material_form"] == "explicit":
+        _explicit_material(material)
+    else:
+        _profile_conditions(material)
+    acceptance = raw.get("acceptance")
+    if acceptance is not None and (not isinstance(acceptance, dict) or not acceptance
+                                   or set(acceptance) - {"strength", "stiffness"}
+                                   or any(not isinstance(ref, str) or not conditions.REQUIREMENT.fullmatch(ref)
+                                          for ref in acceptance.values())):
+        raise CaseError("acceptance maps strength and/or stiffness to the REQ-### whose acceptance criterion applies")
+    convergence = raw.get("mesh_convergence")
+    if convergence is not None and (not isinstance(convergence, dict) or set(convergence) != {"decision"}
+                                    or not isinstance(convergence["decision"], str)
+                                    or not conditions.DECISION.fullmatch(convergence["decision"])):
+        raise CaseError("mesh_convergence must be {decision: DR-###}, the approved record of the mesh refinement study")
     size = raw.get("mesh_size")
     if not isinstance(size, (int, float)) or isinstance(size, bool) or not math.isfinite(size) or size <= 0:
         raise CaseError("mesh_size must be a positive finite number in mm")
@@ -187,8 +198,54 @@ def load_case(path: Path) -> dict[str, Any]:
             raise CaseError(f"loads[{index}].force must be three finite components in N")
         if not any(force):
             raise CaseError(f"loads[{index}].force must not be zero")
+        if "load" in load and (not isinstance(load["load"], str) or not load["load"]):
+            raise CaseError(f"loads[{index}].load must name the use-case load it represents")
     raw["_step"] = str(step)
     return raw
+
+
+def _explicit_material(material: dict[str, Any]) -> None:
+    """Legacy explicit numbers (standalone and record version 1 cases only)."""
+    stray = sorted(set(material) & set(conditions.PROFILE_KEYS))
+    if stray:
+        raise CaseError(f"material mixes explicit values with {', '.join(stray)}: use one form")
+    for key in conditions.EXPLICIT_KEYS:
+        value = material.get(key)
+        if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
+            raise CaseError(f"material.{key} must be a finite number")
+    if material["E"] <= 0 or material["density"] <= 0 or material["yield"] <= 0:
+        raise CaseError("material E, density, and yield must be positive")
+    if not 0 < material["nu"] < 0.5:
+        raise CaseError("material.nu must be between 0 and 0.5")
+
+
+def _profile_conditions(material: dict[str, Any]) -> None:
+    """The analysed conditions under which the part's material profile supplies the properties."""
+    stray = sorted(set(material) - set(conditions.PROFILE_KEYS))
+    if stray:
+        raise CaseError(f"material has unknown keys {', '.join(stray)}; it states either explicit E, nu, density and "
+                        "yield (unsourced) or the conditions of the part's material profile")
+    if "profile" in material and (not isinstance(material["profile"], str) or not material["profile"]):
+        raise CaseError("material.profile must be the part's material profile id")
+    stated = material.get("conditions")
+    if not isinstance(stated, dict):
+        raise CaseError("material needs explicit E, nu, density and yield (unsourced) or material.conditions: the "
+                        "conditioning, temperature and, for orientation-dependent material, orientation analysed")
+    stray = sorted(set(stated) - {"conditioning", "temperature", "orientation"})
+    if stray:
+        raise CaseError(f"material.conditions has unknown keys {', '.join(stray)}")
+    if stated.get("conditioning") not in conditions.CONDITIONINGS:
+        raise CaseError(f"material.conditions.conditioning must be one of {', '.join(conditions.CONDITIONINGS)}")
+    if not isinstance(stated.get("temperature"), dict):
+        raise CaseError("material.conditions.temperature must be a quantity such as {value: 23, units: deg_C}")
+    if "orientation" in stated and (not isinstance(stated["orientation"], str) or not stated["orientation"].strip()):
+        raise CaseError("material.conditions.orientation must name the specimen direction, such as Z")
+    model = material.get("effective_isotropic")
+    if model is not None and (not isinstance(model, dict) or set(model) != {"decision", "justification"}
+                              or not isinstance(model["decision"], str) or not conditions.DECISION.fullmatch(model["decision"])
+                              or not isinstance(model["justification"], str) or not model["justification"].strip()):
+        raise CaseError("material.effective_isotropic must be {decision: DR-###, justification: <why one isotropic "
+                        "material represents this orientation-dependent material under these loads>}")
 
 
 def valid_pose(pose: Any) -> bool:
@@ -239,6 +296,11 @@ def run_directory(case_path: Path, run_id: str, scratch_root: Path | None = None
     return parent / run_id
 
 
+def default_result_path(case_path: Path) -> Path:
+    """Where a standalone run without --out writes its result: beside the case YAML."""
+    return case_path.parent.resolve() / "results.json"
+
+
 def run_job(case_path: Path, case: dict[str, Any], *, scratch_root: Path | None = None,
             result_path: Path | None = None,
             solver_versions: dict[str, dict[str, str]] | None = None,
@@ -259,7 +321,7 @@ def run_job(case_path: Path, case: dict[str, Any], *, scratch_root: Path | None 
     job_path = run_dir / "fea_job.py"
     marker_path = run_dir / f"fea_static_{run_id}.json"
     phase_path = run_dir / f"fea_static_{run_id}_phase.json"
-    output_path = result_path or case_path.parent.resolve() / "results.json"
+    output_path = result_path or default_result_path(case_path)
     job = {
         "run_id": run_id,
         "step": case["_step"],
@@ -527,7 +589,7 @@ def solver_versions() -> dict[str, dict[str, str]]:
 
 def _snapshot_record_hashes(record_dir: Path, case: dict[str, Any]) -> dict[str, str]:
     """Read build-time records relevant to analysis and bind their hashes into the recipe."""
-    names = ["product.yaml", "interfaces.yaml", "assembly.yaml"]
+    names = ["product.yaml", "requirements.yaml", "interfaces.yaml", "assembly.yaml", "manufacturing/materials.yaml"]
     if case.get("part"):
         names.append(f"parts/{case['part']}/part.yaml")
     hashes = {}
@@ -552,7 +614,8 @@ def _is_solver_evidence(relative_path: str) -> bool:
 
 def _producer_code_hashes() -> dict[str, str]:
     paths = (Path(__file__), Path(__file__).with_name("fea_part_selection.py"),
-             Path(__file__).with_name("ccx_failure.py"))
+             Path(__file__).with_name("ccx_failure.py"), Path(__file__).with_name("fea_conditions.py"),
+             conditions.INTENT_PATH)
     return {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
 
 
@@ -583,6 +646,24 @@ def _scratch_hw(path: Path) -> Path:
     parts = path.resolve().parts
     index = parts.index(".cad-work") if ".cad-work" in parts else len(parts) - 1
     return Path(*parts[:index]) / "hw"
+
+
+def publish_engineering(hw: Path, version: str, case_id: str, result: dict[str, Any], replace: bool) -> str | None:
+    """Seal the engineering packet of the published (or reused) analysis bundle `result["bundle"]` as the
+    case's required-check bundle hw/checks/<V>/fea-<case>/, the one place cad-record evidence.py reads
+    producer packets, with the analysis bundle it came from as its evidence; reused while it holds the
+    packet of that very analysis bundle. Its path relative to the project, or None when the result has no
+    packet (record version 1, explicit numbers): exploratory results are never evidence."""
+    packet = result.get("engineering")
+    if not isinstance(packet, dict):
+        return None
+    bundle = Path(result["bundle"])
+    analysis = {"bundle": LAYOUT.relative(hw, bundle),
+                "manifest_sha256": hashlib.sha256((bundle / LAYOUT.MANIFEST).read_bytes()).hexdigest()}
+    output, _ = CHECK_PACKET.emit(LAYOUT, hw, version, CHECK_PREFIX + case_id, conditions.PRODUCER, packet,
+                                  {"analysis": analysis}, "analysis.json", {"analysis": analysis}, out=None,
+                                  replace=replace, record_version=conditions.intent().RECORD_VERSION)
+    return str(LAYOUT.relative(hw, Path(output["bundle"])))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -620,7 +701,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise CaseError("versioned FEA case YAML must be under hw/analysis/cases/<case-id>/")
             if case.get("part") and not (record_dir / "parts" / case["part"] / "part.yaml").is_file():
                 raise CaseError(f"version {version}: record snapshot is missing part {case['part']}")
-            if case.get("part"):
+            if case.get("part") and case["_material_form"] == "explicit":
                 try:
                     part_record = yaml.safe_load((record_dir / "parts" / case["part"] / "part.yaml").read_text(encoding="utf-8"))
                 except (OSError, yaml.YAMLError) as exc:
@@ -628,6 +709,8 @@ def main(argv: list[str] | None = None) -> int:
                 if not isinstance(part_record, dict):
                     raise CaseError(f"version part snapshot for {case['part']} must contain a mapping")
                 case["material"].setdefault("name", part_record.get("material", "Case material"))
+            # Material, criteria and evidence basis, settled (or refused) before anything is solved.
+            assessment = conditions.assess_version(case, record_dir=record_dir, hw=args.hw, version=version)
             recipe_inputs = {**_input_hashes(case), **_snapshot_record_hashes(record_dir, case)}
             if args.out is not None:
                 raise CaseError("--out is only allowed for standalone scratch analyses")
@@ -639,6 +722,7 @@ def main(argv: list[str] | None = None) -> int:
                 "solver_versions": {name: tool["version"] for name, tool in tools.items()},
                 "options": _case_options(case),
                 "producer_code_sha256": _producer_code_hashes(),
+                "conditions": assessment.recipe(),
             }
             reused = LAYOUT.reusable(args.hw, "bundle.analysis", params, recipe, replace=args.replace)
             if reused is not None:
@@ -656,6 +740,7 @@ def main(argv: list[str] | None = None) -> int:
                     result, status = run_job(case_path, case, scratch_root=job_scratch,
                                              result_path=output, solver_versions=tools, guard=guard)
                 if status != 2:
+                    conditions.report(result, assessment, case)
                     run_dir = Path(result["run_directory"])
                     evidence_files = []
                     evidence_names = [name for name in result.get("retained_files", []) if _is_solver_evidence(name)]
@@ -681,7 +766,13 @@ def main(argv: list[str] | None = None) -> int:
                     result["reused"] = published.reused
                 else:
                     shutil.rmtree(stage, ignore_errors=True)
+            if status != 2:
+                result["check_bundle"] = publish_engineering(args.hw, version, case_id, result, args.replace)
         else:
+            if case["_material_form"] != "explicit":
+                raise CaseError("material.conditions needs --hw and --version: the part, its material profile and its "
+                                "route come from a built version's record")
+            assessment = conditions.explicit(case, "a standalone case")
             output, project_hw = None, None
             if args.out is not None:
                 project_hw = _scratch_hw(args.out)
@@ -693,11 +784,19 @@ def main(argv: list[str] | None = None) -> int:
             with (lifecycle.claim_run(project_hw, "fea", scope=str(case_path)) if project_hw is not None and project_hw.is_dir()
                   else contextlib.nullcontext()) as guard:
                 result, status = run_job(case_path, case, scratch_root=scratch_root, result_path=output, guard=guard)
+            if status != 2:
+                conditions.report(result, assessment, case)
+                (output or default_result_path(case_path)).write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    except conditions.Refused as exc:
+        refusal = error(str(exc), code="analysis_refused")
+        refusal["error"]["details"] = {"problems": exc.problems}
+        print(json.dumps(refusal))
+        return 2
     except lifecycle.LifecycleError as exc:
         refused = isinstance(exc, lifecycle.RunRefused)
         print(json.dumps(error(str(exc), code="run_refused" if refused else "process_supervision_unavailable")))
         return 2
-    except (CaseError, OSError, LAYOUT.LayoutError) as exc:
+    except (CaseError, OSError, LAYOUT.LayoutError, CHECK_PACKET.PacketError) as exc:
         print(json.dumps(error(str(exc), code="invalid_case")))
         return 2
     print(json.dumps(result, indent=2))

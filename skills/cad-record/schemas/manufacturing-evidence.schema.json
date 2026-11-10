@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://srobroek.com/cad/schemas/manufacturing-evidence.schema.json",
+  "title": "CAD evidence ledger (hw/manufacturing/evidence.yaml)",
+  "description": "Accepted evidence per requirement, part, component, interface or operation, one entry per evidence level: CAD-valid, geometrically manufacturable, process planned, simulation-supported and physically validated are independent facets. A pass or fail cites its artifacts or sealed bundle and the configuration, material, process and conditions it applies to; physically validated evidence also records the specimen, protocol, instrument calibration, results, date, approver and scope. Planned and unknown are never a pass, and waived stays waived",
+  "type": "object", "additionalProperties": false, "required": ["entries"],
+  "properties": {
+    "entries": {"type": "array", "items": {"$ref": "#/$defs/entry"}}
+  },
+  "$defs": {
+    "fingerprint_domain": {"enum": ["material", "lot", "condition", "process", "route", "orientation", "setup", "capability", "finish",
+                                    "load", "environment", "interface", "criterion", "source", "geometry", "use_case"]},
+    "entry": {
+      "type": "object", "additionalProperties": false, "required": ["id", "subject", "level", "result", "method"],
+      "properties": {
+        "id": {"$ref": "manufacturing.schema.json#/$defs/evidence_id"},
+        "requirement": {"$ref": "manufacturing.schema.json#/$defs/requirement_id"},
+        "obligation": {"$ref": "manufacturing.schema.json#/$defs/obligation_id"},
+        "subject": {"$ref": "manufacturing.schema.json#/$defs/subject"},
+        "level": {"$ref": "manufacturing.schema.json#/$defs/evidence_level"},
+        "result": {"enum": ["unknown", "planned", "pass", "fail", "waived"]},
+        "method": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "criterion": {"$ref": "manufacturing.schema.json#/$defs/criterion"},
+        "source": {"$ref": "manufacturing.schema.json#/$defs/source"},
+        "configuration": {
+          "type": "object", "additionalProperties": false, "required": ["version", "manifest_sha256"],
+          "properties": {
+            "version": {"$ref": "product.schema.json#/$defs/version"},
+            "manifest_sha256": {"$ref": "manufacturing.schema.json#/$defs/sha256"},
+            "part_rev": {"type": "string", "pattern": "^(X[1-9][0-9]*|[A-HJ-NPRTUVWY])$"},
+            "geometry_sha256": {"$ref": "manufacturing.schema.json#/$defs/sha256"}
+          }
+        },
+        "fingerprints": {
+          "description": "sha256 of each normalized dependency the evidence relied on, by domain; a changed fingerprint makes the evidence stale until an impact assessment carries it forward",
+          "type": "object", "minProperties": 1,
+          "propertyNames": {"$ref": "#/$defs/fingerprint_domain"},
+          "additionalProperties": {"$ref": "manufacturing.schema.json#/$defs/sha256"}
+        },
+        "artifacts": {"type": "array", "minItems": 1, "items": {"$ref": "manufacturing.schema.json#/$defs/file_hash"}},
+        "bundle": {
+          "type": "object", "additionalProperties": false, "required": ["path", "manifest_sha256"],
+          "properties": {
+            "path": {"type": "string", "pattern": "^hw/(?!(.*/)?\\.{1,2}(/|$))[^\\\\]+$"},
+            "manifest_sha256": {"$ref": "manufacturing.schema.json#/$defs/sha256"}
+          }
+        },
+        "tool": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "producer": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "uncertainty": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "coverage": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "physical": {
+          "type": "object", "additionalProperties": false,
+          "required": ["specimen", "configuration", "material", "process", "protocol", "instrument", "results", "date", "approver", "scope"],
+          "properties": {
+            "specimen": {"description": "the actual item tested: coupon, part or assembly, with its identity", "$ref": "manufacturing.schema.json#/$defs/text"},
+            "configuration": {"description": "the as-built configuration and revision", "$ref": "manufacturing.schema.json#/$defs/text"},
+            "material": {"description": "the material and lot as used", "$ref": "manufacturing.schema.json#/$defs/text"},
+            "process": {"description": "the route and settings as used", "$ref": "manufacturing.schema.json#/$defs/text"},
+            "protocol": {"$ref": "manufacturing.schema.json#/$defs/text"},
+            "setup": {"$ref": "manufacturing.schema.json#/$defs/text"},
+            "instrument": {"description": "the instrument and its calibration", "$ref": "manufacturing.schema.json#/$defs/text"},
+            "results": {"$ref": "manufacturing.schema.json#/$defs/text"},
+            "date": {"$ref": "manufacturing.schema.json#/$defs/date"},
+            "approver": {"$ref": "manufacturing.schema.json#/$defs/text"},
+            "scope": {"description": "what the result covers: a coupon covers its coupon scope, not assembly or end-use life", "$ref": "manufacturing.schema.json#/$defs/text"}
+          }
+        },
+        "waiver": {"$ref": "manufacturing.schema.json#/$defs/waiver"},
+        "decisions": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "manufacturing.schema.json#/$defs/decision"}},
+        "note": {"$ref": "manufacturing.schema.json#/$defs/text"}
+      },
+      "anyOf": [{"required": ["requirement"]}, {"required": ["obligation"]}],
+      "allOf": [
+        {"if": {"properties": {"result": {"enum": ["pass", "fail"]}}},
+         "then": {"required": ["configuration", "criterion"], "anyOf": [{"required": ["artifacts"]}, {"required": ["bundle"]}]}},
+        {"if": {"properties": {"result": {"enum": ["pass", "fail"]}, "level": {"const": "physically_validated"}}}, "then": {"required": ["physical"]}},
+        {"if": {"properties": {"result": {"const": "waived"}}}, "then": {"required": ["waiver"]}, "else": {"not": {"required": ["waiver"]}}}
+      ]
+    }
+  }
+}

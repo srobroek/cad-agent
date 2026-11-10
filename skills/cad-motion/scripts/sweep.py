@@ -1006,10 +1006,11 @@ def declared_policy(hw: Path, assembly: Any) -> tuple[set[tuple[str, str]], set[
     try:
         interfaces = pair_policy.read_interfaces(hw)
         press_fits = pair_policy.declared_press_fits(hw, interfaces, assembly)
+        locating_fits = pair_policy.declared_locating_fits(hw, interfaces, assembly)
         heat_sets = pair_policy.declared_heat_sets(hw, interfaces, assembly)
         fitted = pair_policy.fitted_pairs(press_fits, pair_policy.declared_running_fits(hw, interfaces, assembly),
-                                          heat_sets)
-        return (pair_policy.allowed_pairs(press_fits, heat_sets), fitted,
+                                          locating_fits, heat_sets)
+        return (pair_policy.allowed_pairs(press_fits, heat_sets, locating_fits), fitted,
                 pair_policy.declared_clearances(hw, interfaces, assembly))
     except pair_policy.PolicyError as error:
         raise pose.MotionError(str(error)) from error

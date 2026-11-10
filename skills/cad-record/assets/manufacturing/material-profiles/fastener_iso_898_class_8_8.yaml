@@ -1,0 +1,267 @@
+profiles:
+- id: fastener_iso_898_class_8_8
+  revision: 1
+  title: ISO 898-1 property class 8.8 (coarse-thread bolts, screws and studs)
+  level: grade
+  family: Fastener / carbon or alloy steel property class
+  grade:
+    status: known
+    value: ISO 898-1 property class 8.8 (coarse-thread bolts, screws and studs)
+    sources:
+    - kind: standard
+      reference: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+      revision: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+      url: https://preview.sist.si/sist-preview/60610/e211f7b6697643f192d041ceceb1f2be/ISO-898-1-2013.pdf
+      accessed: '2026-11-02'
+      conditions: 'test_standard: ISO 898-1:2013, Table 3; source_condition: ambient
+        10–35 °C; property class 8.8; size/loadability rules apply; statistic: minimum;
+        quoted_source_value: Tensile strength, Rm, MPa ... 8.8 ... min. ... 800'
+    basis: supplier_typical
+  manufacturer:
+    status: known
+    value: Not grade-specific; ISO 898-1 compliant fastener manufacturers (standard-defined
+      class)
+    sources:
+    - kind: standard
+      reference: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+      revision: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+      url: https://preview.sist.si/sist-preview/60610/e211f7b6697643f192d041ceceb1f2be/ISO-898-1-2013.pdf
+      accessed: '2026-11-02'
+      conditions: 'test_standard: ISO 898-1:2013, Table 3; source_condition: ambient
+        10–35 °C; property class 8.8; size/loadability rules apply; statistic: minimum;
+        quoted_source_value: Tensile strength, Rm, MPa ... 8.8 ... min. ... 800'
+    basis: supplier_typical
+  form: purchased
+  process_state:
+    process: purchased
+    conditioning: unknown
+    notes: Carbon or alloy steel, quenched and tempered where required by the standard.
+      Standard test ambient range 10–35 °C. Tensile/yield minima vary by size and
+      fastener/loadability; values below state those qualifications explicitly.
+  typical_not_allowable: true
+  properties:
+  - name: tensile_strength
+    value:
+      status: known
+      value:
+        value: 800
+        units: MPa
+      sources:
+      - kind: standard
+        reference: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+        revision: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+        url: https://preview.sist.si/sist-preview/60610/e211f7b6697643f192d041ceceb1f2be/ISO-898-1-2013.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 898-1:2013, Table 3; source_condition: ambient
+          10–35 °C; property class 8.8; size/loadability rules apply; statistic: minimum;
+          quoted_source_value: Tensile strength, Rm, MPa ... 8.8 ... min. ... 800'
+      basis: standard
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 898-1:2013, Table 3
+        sources:
+        - kind: standard
+          reference: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+          revision: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+          url: https://preview.sist.si/sist-preview/60610/e211f7b6697643f192d041ceceb1f2be/ISO-898-1-2013.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 898-1:2013, Table 3; source_condition: ambient
+            10–35 °C; property class 8.8; size/loadability rules apply; statistic:
+            minimum; quoted_source_value: Tensile strength, Rm, MPa ... 8.8 ... min.
+            ... 800'
+        basis: standard
+      temperature:
+        status: known
+        value:
+          lower: 10.0
+          upper: 35.0
+          units: deg_C
+        sources:
+        - kind: standard
+          reference: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+          revision: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+          url: https://preview.sist.si/sist-preview/60610/e211f7b6697643f192d041ceceb1f2be/ISO-898-1-2013.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 898-1:2013, Table 3; source_condition: ambient
+            10–35 °C; property class 8.8; size/loadability rules apply; statistic:
+            minimum; quoted_source_value: Tensile strength, Rm, MPa ... 8.8 ... min.
+            ... 800'
+        basis: standard
+      conditioning: unknown
+      notes: 'Research property tensile_strength_minimum; source condition: ambient
+        10–35 °C; property class 8.8; size/loadability rules apply; reported statistic:
+        minimum'
+  - name: yield_strength
+    value:
+      status: known
+      value:
+        value: 640
+        units: MPa
+      sources:
+      - kind: standard
+        reference: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+        revision: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+        url: https://preview.sist.si/sist-preview/60610/e211f7b6697643f192d041ceceb1f2be/ISO-898-1-2013.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 898-1:2013, Table 3; source_condition: full-size
+          fastener; nominal thread diameter d ≤16 mm; ambient 10–35 °C; statistic:
+          minimum; quoted_source_value: Stress at 0,2 % non-proportional elongation,
+          Rp0,2 ... 8.8 ... min. ... 640'
+      basis: standard
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 898-1:2013, Table 3
+        sources:
+        - kind: standard
+          reference: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+          revision: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+          url: https://preview.sist.si/sist-preview/60610/e211f7b6697643f192d041ceceb1f2be/ISO-898-1-2013.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 898-1:2013, Table 3; source_condition: full-size
+            fastener; nominal thread diameter d ≤16 mm; ambient 10–35 °C; statistic:
+            minimum; quoted_source_value: Stress at 0,2 % non-proportional elongation,
+            Rp0,2 ... 8.8 ... min. ... 640'
+        basis: standard
+      temperature:
+        status: known
+        value:
+          lower: 10.0
+          upper: 35.0
+          units: deg_C
+        sources:
+        - kind: standard
+          reference: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+          revision: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+          url: https://preview.sist.si/sist-preview/60610/e211f7b6697643f192d041ceceb1f2be/ISO-898-1-2013.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 898-1:2013, Table 3; source_condition: full-size
+            fastener; nominal thread diameter d ≤16 mm; ambient 10–35 °C; statistic:
+            minimum; quoted_source_value: Stress at 0,2 % non-proportional elongation,
+            Rp0,2 ... 8.8 ... min. ... 640'
+        basis: standard
+      conditioning: unknown
+      notes: 'Research property stress_at_0_2_percent_minimum_d_le_16mm; source condition:
+        full-size fastener; nominal thread diameter d ≤16 mm; ambient 10–35 °C; reported
+        statistic: minimum'
+  - name: yield_strength
+    value:
+      status: known
+      value:
+        value: 660
+        units: MPa
+      sources:
+      - kind: standard
+        reference: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+        revision: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+        url: https://preview.sist.si/sist-preview/60610/e211f7b6697643f192d041ceceb1f2be/ISO-898-1-2013.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 898-1:2013, Table 3; source_condition: full-size
+          fastener; nominal thread diameter d >16 mm; ambient 10–35 °C; statistic:
+          minimum; quoted_source_value: Stress at 0,2 % non-proportional elongation,
+          Rp0,2 ... 8.8 ... min. ... 660'
+      basis: standard
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 898-1:2013, Table 3
+        sources:
+        - kind: standard
+          reference: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+          revision: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+          url: https://preview.sist.si/sist-preview/60610/e211f7b6697643f192d041ceceb1f2be/ISO-898-1-2013.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 898-1:2013, Table 3; source_condition: full-size
+            fastener; nominal thread diameter d >16 mm; ambient 10–35 °C; statistic:
+            minimum; quoted_source_value: Stress at 0,2 % non-proportional elongation,
+            Rp0,2 ... 8.8 ... min. ... 660'
+        basis: standard
+      temperature:
+        status: known
+        value:
+          lower: 10.0
+          upper: 35.0
+          units: deg_C
+        sources:
+        - kind: standard
+          reference: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+          revision: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+          url: https://preview.sist.si/sist-preview/60610/e211f7b6697643f192d041ceceb1f2be/ISO-898-1-2013.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 898-1:2013, Table 3; source_condition: full-size
+            fastener; nominal thread diameter d >16 mm; ambient 10–35 °C; statistic:
+            minimum; quoted_source_value: Stress at 0,2 % non-proportional elongation,
+            Rp0,2 ... 8.8 ... min. ... 660'
+        basis: standard
+      conditioning: unknown
+      notes: 'Research property stress_at_0_2_percent_minimum_d_gt_16mm; source condition:
+        full-size fastener; nominal thread diameter d >16 mm; ambient 10–35 °C; reported
+        statistic: minimum'
+  - name: elongation_at_break
+    value:
+      status: known
+      value:
+        value: 12
+        units: percent
+      sources:
+      - kind: standard
+        reference: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+        revision: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+        url: https://preview.sist.si/sist-preview/60610/e211f7b6697643f192d041ceceb1f2be/ISO-898-1-2013.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 898-1:2013, Table 3; source_condition: machined
+          test piece; ambient 10–35 °C; statistic: minimum; quoted_source_value: Percentage
+          elongation after fracture for machined test pieces, A, % ... 8.8 ... min.
+          ... 12'
+      basis: standard
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 898-1:2013, Table 3
+        sources:
+        - kind: standard
+          reference: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+          revision: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+          url: https://preview.sist.si/sist-preview/60610/e211f7b6697643f192d041ceceb1f2be/ISO-898-1-2013.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 898-1:2013, Table 3; source_condition: machined
+            test piece; ambient 10–35 °C; statistic: minimum; quoted_source_value:
+            Percentage elongation after fracture for machined test pieces, A, % ...
+            8.8 ... min. ... 12'
+        basis: standard
+      temperature:
+        status: known
+        value:
+          lower: 10.0
+          upper: 35.0
+          units: deg_C
+        sources:
+        - kind: standard
+          reference: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+          revision: ISO 898-1:2013(E), Fifth edition, 2013-01-15
+          url: https://preview.sist.si/sist-preview/60610/e211f7b6697643f192d041ceceb1f2be/ISO-898-1-2013.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 898-1:2013, Table 3; source_condition: machined
+            test piece; ambient 10–35 °C; statistic: minimum; quoted_source_value:
+            Percentage elongation after fracture for machined test pieces, A, % ...
+            8.8 ... min. ... 12'
+        basis: standard
+      conditioning: unknown
+      notes: 'Research property elongation_after_fracture_machined_test_piece_minimum;
+        source condition: machined test piece; ambient 10–35 °C; reported statistic:
+        minimum'
+  note: Every numeric research property represented as sourced typed data. Profile-specific
+    unknowns and source cautions are explicit in guidance.
+  guidance:
+  - 'Unknown (not established by the cited research; not zero or absent): density'
+  - 'Unknown (not established by the cited research; not zero or absent): elastic
+    modulus'
+  - 'Unknown (not established by the cited research; not zero or absent): flexural/impact
+    properties for class 8.8 (impact requirements vary/apply by size and are not provided
+    as a single class value)'
+  - 'Unknown (not established by the cited research; not zero or absent): temperature-independent
+    service allowable'
+  - The ISO text was accessed through a third-party-hosted standards preview, not
+    an authorized standards-body copy. Verify edition and table scope from an authorized
+    copy before regulated or procurement use.

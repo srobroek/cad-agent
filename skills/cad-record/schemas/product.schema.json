@@ -5,12 +5,19 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["id", "rigor", "units", "regime", "general_tolerance", "flow"],
+  "if": {"required": ["record_version"]},
+  "then": {"required": ["use_case"]},
+  "else": {"not": {"required": ["use_case"]}},
   "properties": {
+    "record_version": {"$ref": "manufacturing.schema.json#/$defs/record_version"},
     "id": {"type": "string", "minLength": 1, "pattern": "^[a-z0-9][a-z0-9-]*$"},
     "rigor": {"type": "string", "enum": ["maker", "pro", "regulated"], "default": "pro"},
     "units": {"const": "mm"},
     "regime": {"type": "string", "enum": ["iso", "asme"]},
-    "general_tolerance": {"oneOf": [{"type": "number", "exclusiveMinimum": 0}, {"type": "string", "minLength": 1}]},
+    "general_tolerance": {
+      "description": "The general tolerance a drawing states for dimensions without their own: a linear value in mm or a standard label such as ISO 2768-m, chosen by the user; never defaulted. Unknown, with the open question that would settle it, until recorded; validate.py refuses a drawing while it is unknown",
+      "oneOf": [{"type": "number", "exclusiveMinimum": 0}, {"type": "string", "minLength": 1},
+                {"$ref": "manufacturing.schema.json#/$defs/fact_unknown"}]},
     "license": {
       "description": "Explicit SPDX license expressions approved for the product's hardware and documentation, such as CERN-OHL-S-2.0 or (MIT OR Apache-2.0); omitted means not recorded. validate.py checks the expression's shape (identifiers, LicenseRef-, +, WITH, AND, OR, parentheses) but bundles no SPDX license list, so an unlisted identifier such as CERN-OHL-S passes",
       "type": "object", "additionalProperties": false, "minProperties": 1,
@@ -31,6 +38,7 @@
       "dependentRequired": {"change": ["frozen"]}
     },
     "build_volume": {
+      "description": "A printer envelope for cad-model's legacy build-volume diagnostic. Fitting it is not printability; a capability profile's envelope and an approved orientation govern manufacturability",
       "type": "object", "additionalProperties": false,
       "required": ["x_mm", "y_mm", "z_mm"],
       "properties": {
@@ -63,7 +71,7 @@
           "type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/process"}
         },
         "min_wall_mm": {
-          "description": "Minimum wall per made-part process, overriding the cad-design form check's built-in defaults",
+          "description": "Minimum wall per made-part process, overriding the cad-design form check's built-in defaults. A diagnostic heuristic, never a calibrated capability",
           "type": "object", "additionalProperties": false, "minProperties": 1,
           "properties": {
             "fdm": {"type": "number", "exclusiveMinimum": 0},
@@ -79,22 +87,24 @@
         "results_in_git": {"description": "Whether generated results (STEP, GLB, renders, check bundles) are tracked in git; absent means the user has not been asked", "type": "boolean"}
       }
     },
-    "drawing": {"$ref": "drawing.schema.json#/$defs/product_drawing"}
+    "drawing": {"$ref": "drawing.schema.json#/$defs/product_drawing"},
+    "use_case": {"$ref": "#/$defs/use_case"}
   },
   "$defs": {
     "stage": {"type": "string", "enum": ["ground", "intent", "specify", "concept", "layout", "parts", "detail", "bom", "analysis", "critique", "reconcile", "design_freeze", "release"]},
-    "process": {"type": "string", "enum": ["fdm", "cnc", "purchased"]},
+    "process": {"$ref": "manufacturing.schema.json#/$defs/primary_process"},
     "version": {"type": "string", "pattern": "^v[1-9][0-9]*$"},
     "decision": {"type": "string", "pattern": "^DR-[0-9]{3}$"},
     "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "frozen": {
-      "description": "The frozen configuration: the built version the design_freeze gate approved, its manifest sha256 and the approving decision. Once set, layout findings stay blocking at every stage.",
+      "description": "The frozen configuration: the built version the design_freeze gate approved, its manifest sha256 and the approving decision. Once set, layout findings stay blocking at every stage. A record version 2 freeze also anchors evidence_sha256, the canonical digest of its acceptance inventory (verification, evidence and finding dispositions, relied-on bundle manifests and source bytes); a freeze made before migration has none, so a release refuses it until a new freeze records one.",
       "type": "object", "additionalProperties": false,
       "required": ["version", "manifest_sha256", "decision"],
       "properties": {
         "version": {"$ref": "#/$defs/version"},
         "manifest_sha256": {"$ref": "#/$defs/sha256"},
-        "decision": {"$ref": "#/$defs/decision"}
+        "decision": {"$ref": "#/$defs/decision"},
+        "evidence_sha256": {"$ref": "#/$defs/sha256"}
       }
     },
     "change": {
@@ -106,6 +116,120 @@
         "baseline_version": {"$ref": "#/$defs/version"},
         "affected_parts": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^[A-Z]{2,5}-[0-9]{4}$"}}
       }
+    },
+    "use_case": {
+      "description": "What the product must actually do, recorded before any process or material is chosen. Every field is a fact: known with its sources, unknown with the open question that would answer it, or not applicable. confirmed needs the approving decision; a service class never replaces governing safety or regulatory policy",
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "service_class", "purpose", "users", "environment", "loads", "motion", "accuracy", "consequences",
+                   "logistics", "capability", "release_scope", "evidence_policy"],
+      "properties": {
+        "status": {"enum": ["unknown", "draft", "confirmed"]},
+        "decision": {"$ref": "#/$defs/decision"},
+        "service_class": {"oneOf": [
+          {"allOf": [{"$ref": "manufacturing.schema.json#/$defs/fact_known"},
+                     {"properties": {"value": {"$ref": "manufacturing.schema.json#/$defs/service_class"}}}]},
+          {"$ref": "manufacturing.schema.json#/$defs/fact_unknown"}]},
+        "purpose": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+        "users": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+        "environment": {
+          "type": "object", "additionalProperties": false,
+          "required": ["temperature", "heat_sources", "moisture", "chemicals", "uv", "corrosion"],
+          "properties": {
+            "temperature": {"description": "the operating temperature range, deg_C", "$ref": "manufacturing.schema.json#/$defs/quantity_fact"},
+            "heat_sources": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "moisture": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "chemicals": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "uv": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "corrosion": {"$ref": "manufacturing.schema.json#/$defs/text_fact"}
+          }
+        },
+        "loads": {"oneOf": [{"type": "array", "minItems": 1, "items": {"$ref": "manufacturing.schema.json#/$defs/load"}},
+                            {"$ref": "manufacturing.schema.json#/$defs/fact_open"}]},
+        "motion": {
+          "type": "object", "additionalProperties": false,
+          "required": ["speed", "range", "duty_cycle", "friction", "wear", "service_life"],
+          "properties": {
+            "speed": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"},
+            "range": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"},
+            "duty_cycle": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "friction": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "wear": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "service_life": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"}
+          }
+        },
+        "accuracy": {
+          "description": "Required accuracy: these are requirements, never manufacturing capability",
+          "type": "object", "additionalProperties": false,
+          "required": ["tolerance", "repeatability", "surface_finish", "dimensional_stability"],
+          "properties": {
+            "tolerance": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "repeatability": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "surface_finish": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "dimensional_stability": {"$ref": "manufacturing.schema.json#/$defs/text_fact"}
+          }
+        },
+        "consequences": {
+          "type": "object", "additionalProperties": false,
+          "required": ["failure", "severity", "forbidden_outcomes", "standards", "supervision", "approval_authority"],
+          "properties": {
+            "failure": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "severity": {"oneOf": [
+              {"allOf": [{"$ref": "manufacturing.schema.json#/$defs/fact_known"},
+                         {"properties": {"value": {"$ref": "manufacturing.schema.json#/$defs/consequence_severity"}}}]},
+              {"$ref": "manufacturing.schema.json#/$defs/fact_unknown"}]},
+            "forbidden_outcomes": {"$ref": "manufacturing.schema.json#/$defs/texts_fact"},
+            "standards": {"$ref": "manufacturing.schema.json#/$defs/texts_fact"},
+            "supervision": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "approval_authority": {"$ref": "manufacturing.schema.json#/$defs/text_fact"}
+          }
+        },
+        "logistics": {
+          "type": "object", "additionalProperties": false,
+          "required": ["quantity", "budget", "lead_time", "maintenance", "repair"],
+          "properties": {
+            "quantity": {"description": "how many, in count", "$ref": "manufacturing.schema.json#/$defs/quantity_fact"},
+            "budget": {"$ref": "manufacturing.schema.json#/$defs/money_fact"},
+            "lead_time": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"},
+            "maintenance": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "repair": {"$ref": "manufacturing.schema.json#/$defs/text_fact"}
+          }
+        },
+        "capability": {
+          "description": "What is available to make it. Availability is not a requirement",
+          "type": "object", "additionalProperties": false, "required": ["equipment", "operator", "outsourcing"],
+          "properties": {
+            "equipment": {"oneOf": [
+              {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "manufacturing.schema.json#/$defs/profile_id"}},
+              {"$ref": "manufacturing.schema.json#/$defs/fact_open"}]},
+            "operator": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "outsourcing": {"$ref": "manufacturing.schema.json#/$defs/text_fact"}
+          }
+        },
+        "release_scope": {
+          "type": "object", "additionalProperties": false, "required": ["purpose", "operating_limits", "exclusions"],
+          "properties": {
+            "purpose": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "operating_limits": {"$ref": "manufacturing.schema.json#/$defs/texts_fact"},
+            "exclusions": {"$ref": "manufacturing.schema.json#/$defs/texts_fact"}
+          }
+        },
+        "evidence_policy": {"oneOf": [
+          {"$ref": "manufacturing.schema.json#/$defs/fact_unknown"},
+          {"type": "object", "additionalProperties": false, "required": ["obligations", "decision"],
+           "properties": {
+             "obligations": {"type": "array", "minItems": 1, "items": {
+               "type": "object", "additionalProperties": false, "required": ["level"],
+               "anyOf": [{"required": ["requirement"]}, {"required": ["subject"]}],
+               "properties": {
+                 "requirement": {"$ref": "manufacturing.schema.json#/$defs/requirement_id"},
+                 "subject": {"$ref": "manufacturing.schema.json#/$defs/subject"},
+                 "level": {"$ref": "manufacturing.schema.json#/$defs/evidence_level"},
+                 "note": {"$ref": "manufacturing.schema.json#/$defs/text"}
+               }}},
+             "decision": {"$ref": "#/$defs/decision"}
+           }}]}
+      },
+      "if": {"properties": {"status": {"const": "confirmed"}}}, "then": {"required": ["decision"]}
     }
   }
 }

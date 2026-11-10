@@ -1,14 +1,22 @@
 """`run`: build every part model into hw/versions/<label>/ and point hw/versions/latest.json at it.
 
-A version holds the installed definitions, the assembly, its record snapshot (record/) and the
-manufacturing outputs of every custom-made part (manufacturing/<PN>/, cadmodel.manufacture). It is
-sealed only when every part builds and every manufacturing output passes its blocking checks.
+A version holds the installed definitions, the assembly, its record snapshot (record/: the records,
+the manufacturing design records and their source bytes, cadmodel.record) and the manufacturing
+outputs of every custom-made part (manufacturing/<PN>/, cadmodel.manufacture). It is sealed only when
+every part builds and every manufacturing output passes its blocking checks.
 
 Only parts whose build inputs changed are built: the part folder's files (model.py, sources/), the
 request fields from part.yaml, the kernel environment (`provenance.runtime`) and the plugin and
 project sources the runner loaded. Every other part reuses its earlier output from the store
 (`cadmodel.store`) byte for byte, once that output still hashes to its record; the version holds a
-hard link to it where the filesystem allows, else a copy.
+hard link to it where the filesystem allows, else a copy. Profile, route and evidence changes never
+rebuild a B-rep; the manufacturing outputs carry their own complete key (cadmodel.manufacture).
+
+Mass comes from the part's material profile (record version 2: hw/manufacturing/materials.yaml,
+`manufacturing_intent.resolve_property` of `density`), never from a default; a profile without a
+resolvable density leaves mass and centre of mass unknown. A record version 1 part keeps its labelled
+legacy estimate from the density-only table assets/materials.yaml, which never supplies any other
+property.
 """
 
 from __future__ import annotations
@@ -30,19 +38,22 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from cadmodel import holes, manufacture, mesh, occ, orientation, provenance, record, scriptenv, store
+from cadmodel import holes, manufacture, mesh, occ, provenance, record, scriptenv, store
 from cadmodel.motion import load_pose
+from cadmodel.runner import MANUFACTURE_FRAME
 
 SCRIPTS = Path(__file__).resolve().parents[1]
-MATERIALS = SCRIPTS.parent / "assets" / "materials.yaml"
+LEGACY_DENSITIES = SCRIPTS.parent / "assets" / "materials.yaml"  # record version 1 mass estimates only
 KERNELS = ("cadquery", "build123d")
 RUNNERS = {kernel: SCRIPTS / f"run_{kernel}.py" for kernel in KERNELS}
 ORCHESTRATOR_DISTS = ("cadquery-ocp-novtk", "trimesh", "numpy", "pyyaml")
 FEATURES_FILE = "drawing-features.json"  # the drawing_features hook results of one version
+MANUFACTURING_FEATURES_FILE = "manufacturing-features.json"  # the manufacture_features hook results
 # part-map.json, metrics.json and manifest.json format: 2 adds occurrences; files without the key are version 1
 SCHEMA_VERSION = 2
-CACHE_FORMAT = 1  # bump when what a runner writes for a part changes without any keyed input changing
+CACHE_FORMAT = 2  # bump when what a runner writes for a part changes without any keyed input changing
 REQUEST_FIELDS = ("pn", "name", "model_frame", "manufacture")  # the request fields a part build depends on
+MASS_METHOD = "volume x density: every solid uniform and fully dense, so infill and porosity are not modelled"
 
 
 class UsageError(RuntimeError):
@@ -106,21 +117,13 @@ def part_folders(hw: Path) -> list[str]:
     return sorted(p.name for p in root.iterdir() if p.is_dir() and is_pn(p.name) and (p / "part.yaml").is_file())
 
 
-def parse_records(files: Mapping[str, bytes]) -> dict[str, dict[str, Any]]:
-    """The part records of a record snapshot (`record.snapshot`), parsed from its bytes, keyed by PN."""
-    import yaml
-
-    records = {}
-    for name, data in files.items():
-        if name.startswith("parts/") and name.endswith("/part.yaml"):
-            try:
-                parsed = yaml.safe_load(data.decode("utf-8"))
-            except (UnicodeDecodeError, yaml.YAMLError) as error:
-                raise UsageError(f"hw/{name}: {error}") from error
-            if not isinstance(parsed, dict):
-                raise UsageError(f"hw/{name} is not a mapping")
-            records[name.split("/")[1]] = parsed
-    return records
+def read_snapshot(files: Mapping[str, bytes]) -> tuple[record.Snapshot, dict[str, dict[str, Any]]]:
+    """The record snapshot a version is built from, parsed and normalized once, and its part records by PN."""
+    try:
+        snapshot = record.read_snapshot(files)
+        return snapshot, snapshot.parts
+    except record.RecordError as error:
+        raise UsageError(str(error)) from error
 
 
 def discover(hw: Path, records: Mapping[str, Mapping[str, Any]]) -> tuple[list[PartSource], list[dict[str, Any]]]:
@@ -148,9 +151,10 @@ def discover(hw: Path, records: Mapping[str, Mapping[str, Any]]) -> tuple[list[P
 
 
 def load_densities() -> dict[str, float]:
+    """The density-only legacy table: record version 1 mass estimates, never a property source."""
     import yaml
 
-    data = yaml.safe_load(MATERIALS.read_text(encoding="utf-8"))
+    data = yaml.safe_load(LEGACY_DENSITIES.read_text(encoding="utf-8"))
     return {" ".join(name.lower().split()): float(value) for name, value in data["densities_g_cm3"].items()}
 
 
@@ -318,21 +322,118 @@ def orchestrator_tools() -> dict[str, str]:
     return versions
 
 
-def part_metrics(shape: Any, source: PartSource, table: dict[str, float]) -> dict[str, Any]:
-    """Definition-level metrics of one PN, in its model frame."""
+def legacy_mass(material: str | None, volume: float, centre: Iterable[float], table: Mapping[str, float]) -> dict[str, Any]:
+    """A record version 1 part's labelled mass estimate: the installed volume at the legacy table's
+    nominal fully dense bulk density of its `material` string; unknown when the table has none."""
+    density = density_for(material, dict(table))
+    known = density is not None
+    return {"density_g_cm3": density, "mass_g": volume * density / 1000.0 if density is not None else None,
+            "centre_of_mass_mm": list(centre) if known else None,
+            "mass": {"status": "known" if known else "unknown", "source": "legacy_density_table", "basis": "estimate",
+                     "method": MASS_METHOD, "table": LEGACY_DENSITIES.relative_to(SCRIPTS.parent).as_posix(),
+                     "material": material,
+                     "note": "a record version 1 estimate from a nominal bulk density; the table is never a material "
+                             "profile and never supplies strength or any other property",
+                     "reasons": [] if known else [f"material {material!r} is not in the legacy density table"]}}
+
+
+def _density(snapshot: record.Snapshot, reference: Any) -> tuple[dict[str, Any], Any]:
+    """(how one material reference's density resolves, its Quantity in g_cm3 or None)."""
+    intent = record.load_intent()
+    if not isinstance(reference, str):
+        status = reference.get("status") if isinstance(reference, Mapping) else None
+        why = reference.get("reason") if isinstance(reference, Mapping) else None
+        return {"profile": None, "status": "unknown",
+                "reasons": [f"the material profile is {status or 'not recorded'}" + (f": {why}" if why else "")]}, None
+    profile = snapshot.intent.materials.get(reference)
+    if profile is None:
+        return {"profile": reference, "status": "unknown",
+                "reasons": [f"{reference} is not a profile of hw/manufacturing/materials.yaml"]}, None
+    found = intent.resolve_property(profile, "density")
+    row: dict[str, Any] = {"profile": reference, "status": found.status, "reasons": list(found.reasons)}
+    if not found.resolved:
+        return row, None
+    value = found.value.to("g_cm3")
+    row.update(value=value.as_dict(), basis=found.basis,
+               sources=[{key: item for key, item in vars(source).items() if item is not None} for source in found.sources],
+               conditions={key: item.as_dict() if isinstance(item, intent.Quantity) else item
+                           for key, item in (found.conditions or {}).items()})
+    return row, value
+
+
+def profile_mass(snapshot: record.Snapshot, pn: str, volume: float, centre: Iterable[float],
+                 entry: Mapping[str, Any] | None) -> dict[str, Any]:
+    """A record version 2 part's mass and centre of mass from the density its material profiles resolve:
+    the part's profile, or each component's when its manufacturing entry binds several. Any unresolved
+    density leaves both unknown; an interval density gives mass bounds and no centre of mass; components
+    of a different manufacturing state have no installed correspondence, so their centre of mass is unknown."""
+    part = snapshot.intent.parts.get(pn)
+    made: Mapping[str, Any] = entry if isinstance(entry, Mapping) else {}
+    bound = made.get("components")
+    if bound and len(bound) > 1:
+        groups = []
+        for ident, facts in sorted(bound.items()):
+            members = facts["members"]
+            weight = sum(m["volume_mm3"] for m in members)
+            middle = [sum(m["volume_mm3"] * m["centre_of_volume_mm"][i] for m in members) / weight for i in range(3)]
+            groups.append((ident, facts["material_profile"], facts["volume_mm3"], middle))
+        same_state = (made.get("state") or {}).get("relationship") == "same"
+    else:
+        reference = (manufacture.reference(part.intent.material_profile) if part is not None
+                     else {"status": "unknown", "reason": f"{pn} has no part record"})
+        groups, same_state = [(None, reference, volume, list(centre))], True
+    rows, values = [], []
+    for ident, reference, _, _ in groups:
+        row, value = _density(snapshot, reference)
+        rows.append({"component": ident, **row})
+        values.append(value)
+    block: dict[str, Any] = {"source": "material_profiles", "basis": "calculated", "method": MASS_METHOD,
+                             "densities": rows}
+    if any(value is None for value in values):
+        return {"density_g_cm3": None, "mass_g": None, "centre_of_mass_mm": None,
+                "mass": {**block, "status": "unknown", "reasons": [why for row in rows for why in row["reasons"]]}}
+    bounds = [value.bounds for value in values]
+    uniform = len({b for b in bounds}) == 1
+    com: list[float] | None
+    if uniform:  # one density for the whole part: the installed volume and centroid hold
+        low, high = bounds[0][0] * volume / 1000.0, bounds[0][1] * volume / 1000.0
+        com = list(centre)
+    else:
+        low = sum(b[0] * g[2] for b, g in zip(bounds, groups)) / 1000.0
+        high = sum(b[1] * g[2] for b, g in zip(bounds, groups)) / 1000.0
+        com = ([sum(b[0] * g[2] * g[3][i] for b, g in zip(bounds, groups)) / (low * 1000.0) for i in range(3)]
+               if same_state and low > 0 else None)
+    if low != high:
+        return {"density_g_cm3": None, "mass_g": None, "centre_of_mass_mm": None,
+                "mass": {**block, "status": "known", "value_g": {"lower": low, "upper": high},
+                         "reasons": ["a density is an interval: mass is bounded and the centre of mass unknown"]}}
+    reasons: list[str] = [] if com is not None else [
+        "the components are bound in a different manufacturing state with no installed correspondence, so the "
+        "installed centre of mass is unknown"]
+    return {"density_g_cm3": bounds[0][0] if uniform else None, "mass_g": low, "centre_of_mass_mm": com,
+            "mass": {**block, "status": "known", "value_g": low, "reasons": reasons}}
+
+
+def part_metrics(shape: Any, source: PartSource, snapshot: record.Snapshot, entry: Mapping[str, Any] | None,
+                 table: Mapping[str, float]) -> dict[str, Any]:
+    """Definition-level metrics of one PN, in its model frame; `entry` is its manufacturing entry, if any."""
     vol, centre = occ.mass_properties(shape)
     low, high = occ.bbox(shape)
-    density = density_for(source.material, table)
+    mass = (legacy_mass(source.material, vol, centre, table)
+            if snapshot.version == record.load_intent().LEGACY_RECORD_VERSION
+            else profile_mass(snapshot, source.pn, vol, centre, entry))
     return {
         "product": source.product,
         "model_frame": source.model_frame,
         "material": source.material,
-        "density_g_cm3": density,
+        "density_g_cm3": mass["density_g_cm3"],
         "volume_mm3": vol,
         "area_mm2": occ.area(shape),
-        "mass_g": vol * density / 1000.0 if density is not None else None,
+        "mass_g": mass["mass_g"],
         "mass_target_g": source.mass_target_g,
         "centre_of_volume_mm": list(centre),
+        "centre_of_mass_mm": mass["centre_of_mass_mm"],
+        "mass": mass["mass"],
         "bbox_mm": {"min": list(low), "max": list(high), "size": [high[i] - low[i] for i in range(3)]},
         "solids": occ.count(shape, "SOLID"),
         "shells": occ.count(shape, "SHELL"),
@@ -343,19 +444,36 @@ def part_metrics(shape: Any, source: PartSource, table: dict[str, float]) -> dic
 
 def occurrence_metrics(pn: str, shape: Any, rigid: Any, part: Mapping[str, Any]) -> dict[str, Any]:
     """One occurrence at the built pose: its placement, the box of its placed geometry (not a rotated
-    definition box) and its centre and holes carried by the placement."""
+    definition box) and its centres and holes carried by the placement."""
     pose = load_pose()
     low, high = occ.bbox(pose.placed(shape, rigid))
     turn = pose.Rigid(rigid.rot, (0.0, 0.0, 0.0))
+    com = part["centre_of_mass_mm"]
     return {
         "PN": pn,
         "transform": rigid.rows(9),
         "centre_of_volume_mm": list(rigid.apply(tuple(part["centre_of_volume_mm"]))),
+        "centre_of_mass_mm": list(rigid.apply(tuple(com))) if com is not None else None,
         "bbox_mm": {"min": list(low), "max": list(high), "size": [high[i] - low[i] for i in range(3)]},
         "holes": [{**hole, "axis": [round(c, 9) + 0.0 for c in turn.apply(tuple(hole["axis"]))],
                    "position": [round(c, 6) + 0.0 for c in rigid.apply(tuple(hole["position"]))]}
                   for hole in part["holes"]],
     }
+
+
+def totals(metrics: Mapping[str, Any], placed: Mapping[str, Any], quantity: Mapping[str, int]) -> dict[str, Any]:
+    """Quantity-weighted totals over the occurrences: the known masses summed, and the assembly centre of
+    mass only when every occurrence's mass and centre of mass are known."""
+    known = [o for o in placed.values() if metrics[o["PN"]]["mass_g"] is not None and o["centre_of_mass_mm"] is not None]
+    mass = sum(metrics[o["PN"]]["mass_g"] for o in placed.values() if metrics[o["PN"]]["mass_g"] is not None)
+    complete = bool(placed) and len(known) == len(placed) and mass > 0
+    return {"volume_mm3": sum(metrics[o["PN"]]["volume_mm3"] for o in placed.values()),
+            "mass_g": mass,
+            "centre_of_mass_mm": ([sum(metrics[o["PN"]]["mass_g"] * o["centre_of_mass_mm"][i] for o in known) / mass
+                                   for i in range(3)] if complete else None),
+            "quantity": dict(quantity),
+            "parts_without_density": sorted(pn for pn, m in metrics.items() if m["mass_g"] is None),
+            "occurrences_without_density": sorted(oid for oid, o in placed.items() if metrics[o["PN"]]["mass_g"] is None)}
 
 
 def write_json(path: Path, data: Any) -> None:
@@ -372,15 +490,23 @@ def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def build_volume_of(files: Mapping[str, bytes]) -> orientation.BuildVolume | None:
-    """The printer volume product.yaml declares in a record snapshot, or None."""
-    import yaml
-
-    try:
-        product = yaml.safe_load(files["product.yaml"].decode("utf-8")) if "product.yaml" in files else {}
-        return orientation.BuildVolume.declared(product)
-    except (UnicodeDecodeError, yaml.YAMLError, ValueError) as error:
-        raise UsageError(f"hw/product.yaml: {error}") from error
+def manufacturing_features(label: str, plans: Mapping[str, Any], state_features: Mapping[str, Any],
+                           installed: Mapping[str, Any], state_shas: Mapping[str, str]) -> dict[str, Any]:
+    """manufacturing-features.json: each different state's manufacture_features locators in its native
+    frame, bound to the state STEP they locate, with their semantic correspondence to the installed
+    drawing_features: a shared semantic id is the model author's correspondence, which the part.yaml
+    manufacture decision reviews; an installed feature without a manufacture locator stays unmapped."""
+    parts = {}
+    for pn, located in sorted(state_features.items()):
+        policy = plans[pn].policy
+        shared = set(located) & set(installed.get(pn) or {})
+        parts[pn] = {"state": policy.state, "decision": policy.decision, "frame": MANUFACTURE_FRAME,
+                     "step_sha256": state_shas.get(pn), "features": located,
+                     "correspondence": {"basis": "shared semantic id, reviewed by part.yaml manufacture.decision",
+                                        "shared": sorted(shared),
+                                        "manufacture_only": sorted(set(located) - shared),
+                                        "installed_unmapped": sorted(set(installed.get(pn) or {}) - shared)}}
+    return {"label": label, "units": {"length": "mm"}, "parts": parts}
 
 
 def run(hw: Path, label: str, kernel: str, attach: Iterable[str]) -> tuple[int, dict[str, Any]]:
@@ -397,18 +523,21 @@ def run(hw: Path, label: str, kernel: str, attach: Iterable[str]) -> tuple[int, 
     if number <= newest:
         raise UsageError(f"{label} is not after the newest version v{newest}; labels increase, pick v{newest + 1}")
     files = record.snapshot(hw, part_folders(hw))  # the record this version is built from, read once
-    records = parse_records(files)
+    snapshot, records = read_snapshot(files)
     sources, findings = discover(hw, records)
     model_sha = {p.pn: sha256(p.model) for p in sources}
     by_pn = {p.pn: p for p in sources}
     assembly = pose.load_assembly(hw)
     attached = pose.attach_joints(attach, assembly)
     groups, kernel_findings = select_kernels(sources, kernel)
-    plans, refused = manufacture.plan(records)
+    try:
+        plans, refused, uncovered = manufacture.plan(snapshot)
+    except ValueError as error:  # a malformed product.yaml build_volume
+        raise UsageError(f"hw/product.yaml: {error}") from error
     findings += kernel_findings + [finding(pn, "manufacture", message) for pn, message in refused]
-    volume = build_volume_of(files)
     if findings:
         return 1, {"status": "fail", "label": label, "findings": findings}
+    migration = record.load_intent().migration_problem(snapshot.documents.get("product.yaml"))
 
     layout = record.load_layout()
     record_dir = layout.resolve(hw, "version.record", V=label).relative_to(layout.version_dir(hw, label)).as_posix()
@@ -477,9 +606,13 @@ def run(hw: Path, label: str, kernel: str, attach: Iterable[str]) -> tuple[int, 
                                    + "; ".join(f["message"] for f in limits))
         transforms, motions = chain.transforms(values), chain.motions(values)
         mark = time.perf_counter()
-        made, rows, made_reused = manufacture.make(work, hw, label, plans, {pn: p.product for pn, p in by_pn.items()},
-                                                   parts, {pn: res for pn, (_, res) in built.items()},
-                                                   pose.load_definitions(hw, states), volume, parts_store, state_shas)
+        # each state's feature locators: a different state's manufacture_features, else the installed drawing_features
+        located = {pn: res.get("manufacture_features") if states_of.get(pn) == "different" else res.get("drawing_features")
+                   for pn, (_, res) in built.items()}
+        made, rows, made_reused = manufacture.make(work, hw, label, plans, uncovered,
+                                                   {pn: p.product for pn, p in by_pn.items()}, parts,
+                                                   {pn: res for pn, (_, res) in built.items()},
+                                                   pose.load_definitions(hw, states), parts_store, state_shas, located)
         timings["manufacturing_s"] = round(time.perf_counter() - mark, 3)
         unmade = {pn: row for pn, row in rows.items() if row["status"] == "fail"}
         if unmade:
@@ -496,25 +629,21 @@ def run(hw: Path, label: str, kernel: str, attach: Iterable[str]) -> tuple[int, 
         write_json(work / "part-map.json", {"schema_version": SCHEMA_VERSION, **mapping})
 
         table = load_densities()
-        metrics = {pn: part_metrics(parts[pn].shape, by_pn[pn], table) for pn in sorted(parts)}
+        metrics = {pn: part_metrics(parts[pn].shape, by_pn[pn], snapshot, made.get(pn), table) for pn in sorted(parts)}
         placed = {oid: occurrence_metrics(chain.pn(oid), parts[chain.pn(oid)].shape, transforms[oid],
                                           metrics[chain.pn(oid)]) for oid in chain.ids}
         quantity = {pn: sum(1 for oid in chain.ids if chain.pn(oid) == pn) for pn in parts}
+        legacy = snapshot.version == record.load_intent().LEGACY_RECORD_VERSION
         write_json(work / "metrics.json", {
             "schema_version": SCHEMA_VERSION, "label": label,
             "frame": ("parts: each PN's model_frame (assembly_zero: assembly coordinates at the zero pose); "
                       "occurrences: assembly coordinates at the built (nominal) pose"),
             "units": {"length": "mm", "mass": "g"},
-            "density_table": str(MATERIALS.relative_to(SCRIPTS.parent)),
+            "mass_source": "legacy_density_table" if legacy else "material_profiles",
+            "density_table": LEGACY_DENSITIES.relative_to(SCRIPTS.parent).as_posix() if legacy else None,
             "parts": metrics,
             "occurrences": placed,
-            "totals": {"volume_mm3": sum(metrics[o["PN"]]["volume_mm3"] for o in placed.values()),
-                       "mass_g": sum(metrics[o["PN"]]["mass_g"] for o in placed.values()
-                                     if metrics[o["PN"]]["mass_g"] is not None),
-                       "quantity": quantity,
-                       "parts_without_density": sorted(pn for pn, m in metrics.items() if m["mass_g"] is None),
-                       "occurrences_without_density": sorted(oid for oid, o in placed.items()
-                                                             if metrics[o["PN"]]["mass_g"] is None)},
+            "totals": totals(metrics, placed, quantity),
         })
         features = {pn: built[pn][1]["drawing_features"] for pn in sorted(parts)
                     if built[pn][1]["drawing_features"] is not None}
@@ -522,10 +651,16 @@ def run(hw: Path, label: str, kernel: str, attach: Iterable[str]) -> tuple[int, 
             write_json(work / FEATURES_FILE, {"label": label, "units": {"length": "mm"},
                                               "frames": {pn: by_pn[pn].model_frame for pn in features},
                                               "parts": features})
+        state_features = {pn: built[pn][1].get("manufacture_features") for pn in sorted(parts)
+                          if built[pn][1].get("manufacture_features") is not None}
+        if state_features:
+            write_json(work / MANUFACTURING_FEATURES_FILE, manufacturing_features(label, plans, state_features,
+                                                                                 features, state_shas))
 
         group_of = {member: group.id for group in assembly.groups for member in group.members}
         manifest = {
             "schema_version": SCHEMA_VERSION,
+            "record_version": snapshot.version,  # its snapshot holds every layout version.record file present
             "label": label,
             "number": number,
             "created_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -568,6 +703,8 @@ def run(hw: Path, label: str, kernel: str, attach: Iterable[str]) -> tuple[int, 
         }
         if features:
             manifest["drawing_features"] = FEATURES_FILE
+        if state_features:
+            manifest["manufacturing_features"] = MANUFACTURING_FEATURES_FILE
         manifest["record"] = {f"{record_dir}/{name}": sha
                               for name, sha in record.write_snapshot(work / record_dir, files).items()}
         manifest["manufacturing"] = made
@@ -594,11 +731,16 @@ def run(hw: Path, label: str, kernel: str, attach: Iterable[str]) -> tuple[int, 
     made_paths = {pn for pn, entry in made.items() if entry["path"] is not None}
     return 0, {
         "status": "pass", "label": label, "version_dir": str(final),
+        "record": {"version": snapshot.version, "problems": [migration.finding()] if migration is not None else []},
         "parts": {pn: {"kernel": built[pn][0], "build": "reused" if pn in reused else "built",
                        "volume_mm3": metrics[pn]["volume_mm3"], "solids": metrics[pn]["solids"],
-                       "mass_g": metrics[pn]["mass_g"], "quantity": quantity[pn]} for pn in sorted(parts)},
+                       "mass_g": metrics[pn]["mass_g"], "mass": metrics[pn]["mass"]["status"],
+                       "quantity": quantity[pn]} for pn in sorted(parts)},
         "manufacturing": {pn: {"status": entry["status"], "complete": entry["complete"], "path": entry["path"],
                                "process": entry.get("process"), "state": entry.get("state", {}).get("relationship"),
+                               "components": sorted(entry.get("components") or {}),
+                               "orientation": (entry.get("placement") or {}).get("pose"),
+                               **({"coverage": entry["coverage"]} if "coverage" in entry else {}),
                                "build": None if pn not in made_paths else "reused" if pn in made_reused else "built"}
                           for pn, entry in made.items()},
         "cache": {"parts": {"built": len(parts) - len(reused), "reused": len(reused)},
@@ -618,8 +760,9 @@ def latest_pointer(label: str, manifest: Mapping[str, Any]) -> dict[str, Any]:
               "parts": {pn: f"{rel}/{info['step']}" for pn, info in sorted(manifest["parts"].items())},
               "glb": f"{rel}/assembly.glb", "metrics": f"{rel}/metrics.json",
               "part_map": f"{rel}/part-map.json", "manifest": f"{rel}/manifest.json"}
-    if manifest.get("drawing_features"):
-        latest["drawing_features"] = f"{rel}/{manifest['drawing_features']}"
+    for key in ("drawing_features", "manufacturing_features"):
+        if manifest.get(key):
+            latest[key] = f"{rel}/{manifest[key]}"
     made = {pn: f"{rel}/{entry['path']}" for pn, entry in sorted((manifest.get("manufacturing") or {}).items())
             if entry.get("path")}
     if made:

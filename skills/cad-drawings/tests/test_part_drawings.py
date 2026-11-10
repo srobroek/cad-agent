@@ -8,6 +8,7 @@ a cold OCP import can take minutes) and draw the LMP-0005 pin and the catalogue 
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import re
@@ -43,6 +44,54 @@ ENV = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "PAGER": "cat"}
 REGIONS = SheetRegions(frame=Box(10, 10, 190, 140), title_block=Box(100, 110, 190, 140), symbol_cell=Box(170, 110, 190, 120))
 SYMBOL = '<g id="projection-symbol"><circle cx="180" cy="115" r="3"/></g>'
 VIEW = '<g id="view-front"><path d="M 40 40 L 80 40 L 80 70 L 40 70 Z"/></g>'
+
+# The fixture copy's routes for the drawn made parts (never examples/), each drawn fit inspected in the state
+# its route leaves it. LMP-0005 is turned, then its press band and journal are ground: the groove is inspected
+# as turned, the band and journal after grinding. LMP-0002 is machined, then its elbow bore is reamed through
+# both cheeks (its process note): the hub bore is inspected as machined, the elbow bore after reaming. The
+# capabilities stay unknown; the drawing gate judges the finished state only.
+FINISHED_ROUTES = {
+    "LMP-0005": """\
+  route:
+    - id: turn
+      kind: cnc
+      provider: outsourced
+      capability: {status: unknown, reason: the supplier's turning capability is not recorded in this fixture}
+      inspection:
+        - {id: groove_check, feature: groove, method: groove width and diameter gauges, state: as_manufactured}
+    - id: grind
+      kind: finishing
+      provider: outsourced
+      capability: {status: unknown, reason: the supplier's grinding capability is not recorded in this fixture}
+      targets: [{feature: press_band}, {feature: journal}]
+      inspection:
+        - {id: press_band_check, feature: press_band, method: micrometer, state: after_finish}
+        - {id: journal_check, feature: journal, method: micrometer, state: after_finish}
+""",
+    "LMP-0002": """\
+  route:
+    - id: machine
+      kind: cnc
+      provider: outsourced
+      capability: {status: unknown, reason: the supplier's machining capability is not recorded in this fixture}
+      inspection:
+        - {id: hub_bore_check, feature: hub_bore, method: plug gauge, state: as_manufactured}
+    - id: ream
+      kind: reaming
+      provider: outsourced
+      capability: {status: unknown, reason: the supplier's reaming capability is not recorded in this fixture}
+      targets: [{feature: elbow_bore}]
+      inspection:
+        - {id: elbow_bore_check, feature: elbow_bore, method: plug gauge, state: after_finish}
+""",
+}
+
+
+def with_finished_route(text: str, route: str) -> str:
+    """A migrated part.yaml whose unknown route is replaced by `route`, the rest unchanged."""
+    lines = text.splitlines(keepends=True)
+    index = next(i for i, line in enumerate(lines) if line.startswith("  route: {status: unknown"))
+    return "".join(lines[:index]) + route + "".join(lines[index + 1:])
 
 
 def sheet(*annotations: str) -> str:
@@ -188,10 +237,25 @@ class PinDrawingGate(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.tmp = tempfile.TemporaryDirectory(prefix="cad-part-drawing-")
         cls.hw = Path(cls.tmp.name) / "hw"
-        shutil.copytree(TEMPLATE, cls.hw)
+        cls.fx().migrated_copy(TEMPLATE, cls.hw)  # the example migrated to record version 2 (the current record)
+        for pn, route in FINISHED_ROUTES.items():
+            part = cls.hw / "parts" / pn / "part.yaml"
+            part.write_text(with_finished_route(part.read_text(encoding="utf-8"), route), encoding="utf-8")
         build = run(UV, "run", "--script", str(CAD_MODEL), "run", str(cls.hw), "--label", "v1", "--kernel", "auto")
         if build.returncode != 0:
             raise AssertionError(f"lamp template build failed: {build.stdout[-2000:]} {build.stderr[-2000:]}")
+
+    @staticmethod
+    def fx() -> object:
+        """cad-record's manufacturing-intent fixture builder (migrated_copy)."""
+        name = "cad_record_mi_fixtures"
+        if name not in sys.modules:
+            spec = importlib.util.spec_from_file_location(
+                name, SKILLS / "cad-record" / "tests" / "fixtures" / "manufacturing_intent.py")
+            assert spec and spec.loader
+            sys.modules[name] = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(sys.modules[name])
+        return sys.modules[name]
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -274,7 +338,7 @@ class PinDrawingGate(unittest.TestCase):
         self.assertEqual(proc.returncode, 1)
         results = json.loads(proc.stdout)["parts"]
         self.assertEqual([result["pn"] for result in results], ["LMP-0005", "LMP-0002"])
-        self.assertEqual([result["status"] for result in results], ["fail", "pass"])
+        self.assertEqual([result["status"] for result in results], ["fail", "pass"], results[1].get("findings"))
         retained = Path(self.tmp.name) / ".cad-work" / "rejected-drawings"
         self.assertTrue(any(path.is_dir() for path in retained.iterdir()))
         passed = Path(results[1]["output_dir"])
@@ -295,6 +359,26 @@ class PinDrawingGate(unittest.TestCase):
         self.assertIn("dimension_coverage_incomplete", codes)   # press_step and the band/journal ends it located
         self.assertIn("tolerance_missing", codes)               # a 0.4 chamfer is below ISO 2768-1's range
         self.assertFalse((Path(result["output_dir"]) / "package.json").exists())
+
+    def test_a_drawn_fit_without_an_inspection_of_its_finished_state_is_refused(self) -> None:
+        """A fit on the drawing is a desired limit: with the journal's inspection gone and the press band's
+        inspection of the turned rather than the ground state, the gate refuses both fits."""
+        part = self.hw / "parts" / "LMP-0005" / "part.yaml"
+        original = part.read_text(encoding="utf-8")
+        journal = "        - {id: journal_check, feature: journal, method: micrometer, state: after_finish}\n"
+        band = "{id: press_band_check, feature: press_band, method: micrometer, state: after_finish}"
+        changed = original.replace(journal, "").replace(band, band.replace("after_finish", "as_manufactured"))
+        try:
+            part.write_text(changed, encoding="utf-8")
+            self.assertNotEqual(changed, original)
+            code, result = self.draw("v1", "unverified-fit")
+        finally:
+            part.write_text(original, encoding="utf-8")
+        found = {(f["code"], f.get("feature")) for f in result["findings"]}
+        self.assertEqual((code, result["status"]), (1, "fail"))
+        self.assertIn(("fit_unverified", "journal"), found)
+        self.assertIn(("fit_state_mismatch", "press_band"), found)
+        self.assertNotIn(("fit_unverified", "groove"), found)
 
     def test_changing_a_model_parameter_changes_the_dimension_without_yaml(self) -> None:
         model = self.hw / "parts" / "LMP-0005" / "model.py"

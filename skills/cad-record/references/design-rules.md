@@ -32,23 +32,11 @@ Run `validate.py` with the product at stage `parts`. Each `retention.*` finding'
 3. For each remaining finding on a fixed joint, set `torque: transmitted` with its `torque_path`, or `torque: none`.
 4. Model any set screw, key, pin or circlip that a path or retainer names but the assembly lacks.
 
-## Process feasibility
+## Optical and transparency requirements
 
-FDM prints translucent, not see-through. Only structured data raises an error; prose only ever prompts.
+Transparency is a hard functional requirement in manufacturing selection, not a prose warning or an FDM exception. Opaque routes are ineligible. Consider only a traceably identified purchased transparent part or identified transparent stock made by an appropriate evidenced process; criteria include material identity/grade, optical grade, thickness, supplier evidence and interface compatibility. Unknown clear plastic is not a substitute; translucency is not transparent. See `manufacturing-intent.md` and `cad-flow/references/manufacturing-selection.md`.
 
-- `feasibility.transparent_fdm` covers an FDM part declared `transparency: transparent`. It is a warning before stage `parts` and an error from `parts` on.
-- `feasibility.transparency_claim` is always a warning. It covers:
-  - an FDM part with no `transparency` whose `material` or `finish` reads as see-through;
-  - a requirement whose text or verification criteria read that way, when FDM is planned (`manufacturing.processes` or any part) and no purchased or CNC part declares `transparency: transparent`. This one shows from INTENT on, before any part exists.
-- The prose match is `design_rules.transparency_claimed`.
-  - It counts: "transparent", "see-through", "visible through", "glass cover", "clear PETG", "clear-material", and "the covers are clear".
-  - It skips a negated mention ("not transparent", "non-transparent", "never see-through"), "clear of", "clear coat", "a clear window for", "clear silicone" and "glass-filled".
-
-Resolve each with a decision record and a record change:
-
-- a bought or machined part declared `transparency: transparent`;
-- an explicit `transparency` (`translucent` or `opaque`) on the FDM part;
-- or a reworded requirement.
+U7 removes legacy `feasibility.transparent_fdm`, `feasibility.transparency_claim` and prose-matcher `design_rules.transparency_claimed` behaviors. Their removal does not turn transparency into a PASS: the v2 record's selection hard constraint and `optical.route`/`optical.transmission` obligations are the authority. On a historical record, absence of an assessed selection is unknown, never retroactive certification.
 
 ## Visibility bindings
 

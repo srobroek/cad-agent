@@ -1,10 +1,61 @@
+record_version: 2
 id: example-product
 rigor: pro
 units: mm
 regime: iso
 # Optional; enter user-approved SPDX identifiers. Never infer from LICENSE.
 # license: {hardware: CERN-OHL-S-2.0, documentation: CC-BY-4.0}
-general_tolerance: "ISO 2768-m"
+# The general tolerance drawings state is the user's choice: never default one; record it when Q-013 is answered.
+general_tolerance: {status: unknown, reason: not recorded yet, question: Q-013}
 flow:
   stage: ground
   recheck_from: ground
+# The use case comes first. Every field stays unknown until the open questions in requirements.yaml are
+# answered with their sources; never infer it from illustrative geometry. No process, material or printer is chosen.
+use_case:
+  status: unknown
+  service_class: {status: unknown, reason: not recorded yet, question: Q-001}
+  purpose: {status: unknown, reason: not recorded yet, question: Q-002}
+  users: {status: unknown, reason: not recorded yet, question: Q-002}
+  environment:
+    temperature: {status: unknown, reason: not recorded yet, question: Q-003}
+    heat_sources: {status: unknown, reason: not recorded yet, question: Q-003}
+    moisture: {status: unknown, reason: not recorded yet, question: Q-004}
+    chemicals: {status: unknown, reason: not recorded yet, question: Q-004}
+    uv: {status: unknown, reason: not recorded yet, question: Q-004}
+    corrosion: {status: unknown, reason: not recorded yet, question: Q-004}
+  loads: {status: unknown, reason: not recorded yet, question: Q-005}
+  motion:
+    speed: {status: unknown, reason: not recorded yet, question: Q-006}
+    range: {status: unknown, reason: not recorded yet, question: Q-006}
+    duty_cycle: {status: unknown, reason: not recorded yet, question: Q-006}
+    friction: {status: unknown, reason: not recorded yet, question: Q-006}
+    wear: {status: unknown, reason: not recorded yet, question: Q-006}
+    service_life: {status: unknown, reason: not recorded yet, question: Q-006}
+  accuracy:
+    tolerance: {status: unknown, reason: not recorded yet, question: Q-007}
+    repeatability: {status: unknown, reason: not recorded yet, question: Q-007}
+    surface_finish: {status: unknown, reason: not recorded yet, question: Q-007}
+    dimensional_stability: {status: unknown, reason: not recorded yet, question: Q-007}
+  consequences:
+    failure: {status: unknown, reason: not recorded yet, question: Q-008}
+    severity: {status: unknown, reason: not recorded yet, question: Q-008}
+    forbidden_outcomes: {status: unknown, reason: not recorded yet, question: Q-008}
+    standards: {status: unknown, reason: not recorded yet, question: Q-008}
+    supervision: {status: unknown, reason: not recorded yet, question: Q-008}
+    approval_authority: {status: unknown, reason: not recorded yet, question: Q-008}
+  logistics:
+    quantity: {status: unknown, reason: not recorded yet, question: Q-009}
+    budget: {status: unknown, reason: not recorded yet, question: Q-009}
+    lead_time: {status: unknown, reason: not recorded yet, question: Q-009}
+    maintenance: {status: unknown, reason: not recorded yet, question: Q-009}
+    repair: {status: unknown, reason: not recorded yet, question: Q-009}
+  capability:
+    equipment: {status: unknown, reason: not recorded yet, question: Q-010}
+    operator: {status: unknown, reason: not recorded yet, question: Q-010}
+    outsourcing: {status: unknown, reason: not recorded yet, question: Q-010}
+  release_scope:
+    purpose: {status: unknown, reason: not recorded yet, question: Q-011}
+    operating_limits: {status: unknown, reason: not recorded yet, question: Q-011}
+    exclusions: {status: unknown, reason: not recorded yet, question: Q-011}
+  evidence_policy: {status: unknown, reason: not recorded yet, question: Q-011}

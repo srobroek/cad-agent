@@ -5,7 +5,14 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["subassemblies", "joints"],
+  "not": {"description": "one authority for installation operations: top-level operations or the legacy drawing.operations, never both",
+          "required": ["operations", "drawing"], "properties": {"drawing": {"required": ["operations"]}}},
   "properties": {
+    "operations": {
+      "description": "Record version 2 installation, closure, fastening, adjustment, inspection and service operations, independent of drawings; unknown until recorded. Record version 1 kept them in drawing.operations",
+      "oneOf": [{"type": "array", "items": {"$ref": "#/$defs/assembly_operation"}},
+                {"$ref": "manufacturing.schema.json#/$defs/fact_unknown"}]
+    },
     "occurrences": {
       "description": "Explicit placements of part definitions; a PN listed in a subassembly's parts is one implicit occurrence at the identity placement instead",
       "type": "array", "minItems": 1,
@@ -216,12 +223,12 @@
       }
     },
     "assembly_operation": {
-      "description": "One installation step: `part` goes into `into` along `direction` (in the receiving part's model frame) until the acceptance holds; the fit, insert or ring comes from the interface limit of the same kind",
+      "description": "One assembly operation. An installation step puts `part` into `into` along `direction` (in the receiving part's model frame) until the acceptance holds; the fit, insert or ring comes from the interface limit of the same kind. predecessors name the operations that must come first, closes the parts it encloses, and tool_access the tools that must reach. A tool name alone is display text: its reach stays unknown. path, when given, is the part's insertion path; without it the part travels in a straight line along direction, and checks report that default. edge_distance is a fastener, insert or heat-set joint's distance from its hole to the nearest edge against its sourced criterion",
       "type": "object", "additionalProperties": false,
-      "required": ["id", "kind", "part", "into", "interface", "direction", "acceptance"],
+      "required": ["id", "kind", "part"],
       "properties": {
         "id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
-        "kind": {"enum": ["press_fit", "heat_set", "retaining_ring"]},
+        "kind": {"enum": ["press_fit", "heat_set", "retaining_ring", "insert", "fasten", "join", "close", "adjust", "inspect", "disassemble"]},
         "part": {"$ref": "#/$defs/part_ref"},
         "into": {"$ref": "#/$defs/part_ref"},
         "interface": {"type": "string", "pattern": "^IF-[0-9]{3}$"},
@@ -229,14 +236,61 @@
         "acceptance": {
           "type": "object", "additionalProperties": false, "required": ["kind", "features"],
           "properties": {
-            "kind": {"enum": ["seated", "standoff", "flush", "engaged"]},
+            "kind": {"enum": ["seated", "standoff", "flush", "engaged", "torqued", "adjusted", "inspected"]},
             "features": {"type": "array", "minItems": 1, "maxItems": 2, "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}}
           }
         },
         "tools": {"type": "array", "items": {"type": "string", "minLength": 1}},
         "consumables": {"type": "array", "items": {"type": "string", "minLength": 1}},
-        "verify_joint": {"type": "string", "pattern": "^J-[0-9]{3}$"}
-      }
+        "verify_joint": {"type": "string", "pattern": "^J-[0-9]{3}$"},
+        "predecessors": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"}},
+        "closes": {"description": "parts this operation encloses: no later operation reaches them", "type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/part_ref"}},
+        "tool_access": {"type": "array", "minItems": 1, "items": {
+          "type": "object", "additionalProperties": false, "required": ["tool"],
+          "properties": {
+            "tool": {"type": "string", "minLength": 1},
+            "capability": {"$ref": "manufacturing.schema.json#/$defs/profile_id"},
+            "approach": {"$ref": "#/$defs/vector"},
+            "reach": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"},
+            "envelope": {"$ref": "manufacturing.schema.json#/$defs/text_fact"}
+          }}},
+        "engagement": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"},
+        "torque": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"},
+        "retention": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+        "service_access": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+        "edge_distance": {
+          "description": "The joint's edge distance: the criterion it must meet (property edge_distance, a length bound with its source) and the distance the design gives, a known length (an interval's lower end governs) or an unknown with its reason",
+          "type": "object", "additionalProperties": false, "required": ["criterion", "distance"],
+          "properties": {
+            "criterion": {"allOf": [{"$ref": "manufacturing.schema.json#/$defs/criterion"},
+                                    {"required": ["units"], "properties": {"property": {"const": "edge_distance"},
+                                                                           "operator": {"enum": [">=", "between"]},
+                                                                           "units": {"enum": ["mm", "um", "m"]}}}]},
+            "distance": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"}
+          }
+        },
+        "path": {
+          "description": "The insertion path of `part`: its offsets in mm from the installed pose, in the receiving part's model frame, keeping the installed orientation. The part starts at start, passes via in order and arrives installed; the last leg runs along direction",
+          "type": "object", "additionalProperties": false, "required": ["start"],
+          "properties": {
+            "start": {"$ref": "#/$defs/vector"},
+            "via": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/vector"}}
+          }
+        },
+        "inspection": {"type": "string", "minLength": 1}
+      },
+      "allOf": [
+        {"if": {"properties": {"kind": {"enum": ["press_fit", "heat_set", "retaining_ring"]}}},
+         "then": {"required": ["into", "interface", "direction", "acceptance"]}},
+        {"if": {"properties": {"kind": {"enum": ["insert", "fasten", "join"]}}}, "then": {"required": ["into", "direction", "acceptance"]}},
+        {"if": {"properties": {"kind": {"const": "close"}}}, "then": {"required": ["into", "closes"]}},
+        {"if": {"properties": {"kind": {"enum": ["adjust", "inspect"]}}}, "then": {"required": ["acceptance"]}},
+        {"if": {"properties": {"kind": {"const": "disassemble"}}}, "then": {"required": ["into", "direction"]}},
+        {"if": {"properties": {"kind": {"enum": ["close", "adjust", "inspect", "disassemble"]}}},
+         "then": {"not": {"required": ["edge_distance"]}}},
+        {"if": {"required": ["path"]}, "then": {"required": ["direction"],
+                                                "properties": {"kind": {"enum": ["press_fit", "heat_set", "retaining_ring", "insert", "fasten", "join", "close"]}}}}
+      ]
     }
   }
 }

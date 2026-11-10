@@ -48,6 +48,11 @@ class PublishConflict(LayoutError):
     """The bundle directory exists with another recipe, or another writer claimed it first."""
 
 
+class UnsupportedProcess(LayoutError):
+    """A custom-made part whose primary process has no manufacturing output contract (`other`): its
+    installed definition still builds, but its manufacturing coverage is unknown and freeze and release refuse it."""
+
+
 @dataclass(frozen=True)
 class FileSpec:
     name: str
@@ -363,6 +368,42 @@ def manufacturing_dir(hw: Path, version: str, pn: str) -> Path:
     return resolve(hw, "version.manufacturing", V=version, PN=pn)
 
 
+def manufacturing_component_dir(hw: Path, version: str, pn: str, component: str) -> Path:
+    """`hw/versions/<V>/manufacturing/<PN>/components/<COMP>`: the outputs of one solid of a multi-solid part."""
+    grammar = load().tokens["COMP"]["pattern"]
+    if not isinstance(component, str) or not re.fullmatch(f"(?:{grammar})", component):
+        raise LayoutError(f"COMP {component!r} does not match {grammar}")
+    return manufacturing_dir(hw, version, pn) / "components" / component
+
+
+def snapshot_names(hw: Path, pns: Iterable[str]) -> list[str]:
+    """The record files below `hw` a version built from part numbers `pns` snapshots, named as the
+    version.record entry names them: each listed file that exists, `{PN}` set to every PN, and `**`
+    every regular file below its folder (symlinks are never followed). Sorted; a bad PN raises LayoutError."""
+    lay, hw = load(), Path(hw)
+    pn_grammar = f"(?:{lay.tokens['PN']['pattern']})"
+    numbers = sorted(set(pns))
+    for pn in numbers:
+        if not isinstance(pn, str) or not re.fullmatch(pn_grammar, pn):
+            raise LayoutError(f"PN {pn!r} does not match {lay.tokens['PN']['pattern']}")
+    names: set[str] = set()
+    for spec in lay.entry("version.record").files:
+        if spec.name.endswith("/**"):
+            root = hw / spec.name[:-3]
+            for directory, folders, files in os.walk(root, followlinks=False):
+                folders.sort()
+                for name in files:
+                    path = Path(directory) / name
+                    if path.is_file() and not path.is_symlink():
+                        names.add(path.relative_to(hw).as_posix())
+            continue
+        for name in ([Layout.fill(spec.name, {"PN": pn}) for pn in numbers] if "{PN}" in spec.name else [spec.name]):
+            path = hw / name
+            if path.is_file() and not path.is_symlink():
+                names.add(name)
+    return sorted(names)
+
+
 def bundle_kinds() -> tuple[str, ...]:
     """The version-bound bundle roots: checks, drawings, renders, captures, motion, analysis."""
     return tuple(entry.id.split(".", 1)[1] for entry in load().entries if entry.id.startswith("bundle."))
@@ -380,6 +421,19 @@ def classify(path: Path | str, hw: Path | None = None) -> Match | None:
     without it `path` is project-relative (`hw/...`)."""
     rel = relative(hw, path) if hw is not None else PurePosixPath(path).as_posix()
     return load().classify(rel)
+
+
+def analysis_case(hw: Path, path: Path | str) -> str | None:
+    """The case id of `path` when it is a layout-valid `hw/analysis/cases/<ID>/case.yaml`, else None. Every
+    producer of a case (FEA, stack-up) publishes its result as bundle.analysis subject S = that id, which is
+    the bundle release.py requires for the case."""
+    try:
+        found = classify(path, hw)
+    except LayoutError:
+        return None
+    if found is None or found.entry.id != "record.analysis_case" or found.name != "case.yaml":
+        return None
+    return found.params["ID"]
 
 
 def _version_number(label: str) -> int:
@@ -450,7 +504,8 @@ def manufacture_policy(part: Mapping[str, Any]) -> ManufacturePolicy:
     rules = load().manufacturing
     outputs = rules["outputs"].get(part.get("process"))
     if outputs is None:
-        raise LayoutError(f"{part.get('PN')}: no manufacturing outputs for process {part.get('process')!r}")
+        raise UnsupportedProcess(f"{part.get('PN')}: process {part.get('process')!r} has no manufacturing output contract; "
+                                 "its manufacturing coverage is unknown")
     declared = part.get("manufacture") or {}
     mesh = {**rules["mesh"], **(declared.get("mesh") or {})}
     if declared.get("relationship") == "different":
@@ -985,6 +1040,12 @@ def _code(text: str) -> str:
     return f"`{_cell(text)}`"
 
 
+def _primary_processes() -> tuple[str, ...]:
+    """The primary-process labels schemas/manufacturing.schema.json defines, in its order."""
+    schema = json.loads((LAYOUT_JSON.parent / "schemas" / "manufacturing.schema.json").read_text(encoding="utf-8"))
+    return tuple(schema["$defs"]["primary_process"]["enum"])
+
+
 def markdown() -> str:
     """references/layout.md, rendered from layout.json."""
     lay = load()
@@ -1058,6 +1119,14 @@ def markdown() -> str:
               "`hw/versions/{V}/manufacturing/{PN}/` with these files, by process:", "",
               "| Process | Files |", "|---|---|"]
     lines += [f"| {process} | {', '.join(f'`{name}`' for name in names)} |" for process, names in rules["outputs"].items()]
+    uncovered = [process for process in _primary_processes() if process not in rules["outputs"]]
+    lines += ["",
+              "A part with several disconnected solids (part.yaml `intent.components`) also gets",
+              "`components/{COMP}/part.step` per component, and `components/{COMP}/part.stl` where its process has",
+              "`part.stl`; its `manufacturing.json` inventories them. "
+              f"{' and '.join(f'`{p}`' for p in uncovered) or 'No process'} has no output contract: cad-model still builds",
+              "the installed definition, the manufacturing coverage stays unknown, and `manufacture_policy` raises",
+              "`UnsupportedProcess`, so freeze and release refuse the part rather than inventing its files."]
     lines += ["", "| File | Format |", "|---|---|"]
     lines += [f"| `{name}` | {_cell(text)} |" for name, text in rules["formats"].items()]
     mesh = rules["mesh"]

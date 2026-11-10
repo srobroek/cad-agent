@@ -12,7 +12,7 @@
     "qty": {"type": "integer", "minimum": 1},
     "title": {"type": ["string", "null"]},
     "material": {"type": ["string", "null"]},
-    "process": {"type": ["string", "null"], "enum": ["fdm", "cnc", "purchased", null]},
+    "process": {"anyOf": [{"$ref": "manufacturing.schema.json#/$defs/primary_process"}, {"type": "null"}]},
     "make_buy": {"type": ["string", "null"], "enum": ["make", "buy", null]},
     "supplier": {"type": ["string", "null"]},
     "mass": {"type": ["number", "null"], "exclusiveMinimum": 0},

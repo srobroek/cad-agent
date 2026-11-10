@@ -3,3 +3,4 @@ subassemblies:
     title: Main assembly
     parts: [PRT-0001]
 joints: []
+operations: {status: unknown, reason: not recorded yet, question: Q-012}

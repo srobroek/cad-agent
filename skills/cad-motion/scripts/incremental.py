@@ -10,8 +10,8 @@ What a pair check depends on is a version's state (`version_state`):
   - each occurrence's PN and its nominal placement (the manifest's pose transforms);
   - the kinematic chain of the version's record snapshot, rebuilt without geometry;
   - each occurrence pair's policy, read from the snapshot: the joints between the pair, its
-    declared press and running fits and heat-set inserts, and its clearance requirement with
-    that requirement's margin.
+    declared press, running and locating fits and heat-set inserts, and its clearance requirement
+    with that requirement's margin.
 
 `select_pairs` selects a pair that is new, whose definition geometry changed on either side, whose
 relative nominal placement T_a^-1 T_b has other bits, or whose policy changed. No tolerance hides a
@@ -113,6 +113,7 @@ def pair_policies(record: Path, assembly: Any, joint_pairs: Iterable[Mapping[str
         interfaces = pair_policy.read_interfaces(record)
         declared = {"press_fit": pair_policy.declared_press_fits(record, interfaces, assembly),
                     "running_fit": pair_policy.declared_running_fits(record, interfaces, assembly),
+                    "locating_fit": pair_policy.declared_locating_fits(record, interfaces, assembly),
                     "heat_set": pair_policy.declared_heat_sets(record, interfaces, assembly),
                     "clearance": pair_policy.declared_clearances(record, interfaces, assembly)}
     except pair_policy.PolicyError as error:

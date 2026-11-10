@@ -62,10 +62,10 @@
           }
         },
         "outputs": {
-          "type": "object", "additionalProperties": false, "required": ["fdm", "cnc", "purchased"],
-          "properties": {
-            "fdm": {"$ref": "#/$defs/output_files"}, "cnc": {"$ref": "#/$defs/output_files"}, "purchased": {"$ref": "#/$defs/output_files"}
-          }
+          "description": "Output files per primary process that has an output contract; a process without an entry, such as other, has none, so its manufacturing coverage stays unknown",
+          "type": "object", "required": ["fdm", "cnc", "purchased"],
+          "propertyNames": {"$ref": "manufacturing.schema.json#/$defs/primary_process", "not": {"const": "other"}},
+          "additionalProperties": {"$ref": "#/$defs/output_files"}
         },
         "formats": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "string", "minLength": 1}},
         "mesh": {

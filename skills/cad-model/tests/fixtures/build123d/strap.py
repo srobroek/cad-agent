@@ -1,7 +1,8 @@
 """Test fixture: a TPU strap, build123d. Installed, it is bent round a quarter arc on the base block's top
-face; it is printed flat (build_manufacture). PARAMS["flat"] picks the flat state: `flat` keeps the
-developed length (equal volume); `long` is 10 % longer; `split` is two separate pieces; `open` is
-the flat blank as an open shell, an invalid B-rep.
+face; it is printed flat (build_manufacture), whose outer face manufacture_features locates in the
+blank's own frame. PARAMS["flat"] picks the flat state: `flat` keeps the developed length (equal
+volume); `long` is 10 % longer; `split` is two separate pieces; `open` is the flat blank as an open
+shell, an invalid B-rep.
 """
 
 import math
@@ -47,3 +48,12 @@ def build_manufacture(params: dict):
         return occ.compound([piece.wrapped for piece in pieces])
     box = Solid.make_box(length, t, w, Plane((0, 0, z0)))
     return open_shell(box) if kind == "open" else box
+
+
+def manufacture_features(params: dict, shape) -> dict:
+    """The flat blank's outer face (y = thickness), a quarter along it so it lies on every flat variant."""
+    r, t, w, z0 = params["inner_radius"], params["thickness"], params["width"], params["z0"]
+    length = math.radians(params["angle"]) * (r + t / 2)
+    return {"outer_face": {"kind": "plane_face", "frame": "manufacture",
+                           "patches": [{"support_type": "plane", "point_mm": [length / 4, t, z0 + w / 2],
+                                        "normal": [0.0, 1.0, 0.0]}]}}

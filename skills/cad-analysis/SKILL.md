@@ -13,83 +13,65 @@ TRIGGER
 
 ## Workflow
 
-1. Prepare a case YAML with a STEP path, an optional `part` PN or `occurrence` for an assembly STEP,
-   material properties, fixed-face selector, face loads, mesh size, and optional `pose`; see the input
-   shape below.
-2. Run `scripts/fea_static.py <case.yaml>` with FreeCAD 1.1.4, Gmsh, and CalculiX available. For a versioned case,
-   pass `--hw hw --version vN` (and optional `--case-id ID --replace`) to publish `results.json`, the retained solver files
-   under `evidence/`, and a manifest under `hw/analysis/vN/<case-id>/`. The source case belongs under
-   `hw/analysis/cases/<case-id>/`. A matching rerun reuses its immutable bundle; changed case, input, solver versions,
-   or options require `--replace`. Explicit `--out` is only allowed under `.cad-work`; solver scratch remains there.
-3. For a versioned assembly sweep, set `step` and `evidence` to `hw/motion/vN/<case>/worst.step` and
-   its `worst.step.json`; the analysis checks the STEP hash and complete pose, never re-poses it.
-   Face selectors use the assembly coordinates of that STEP.
-4. Review warnings, solver versions, and `worst_case_pose` (analysed STEP, pose, and evidence hash).
-5. Record accepted checks in the hardware project's `verification.csv`.
+1. LOAD `references/material-evidence.md`. Prepare a version-bound case with a checked STEP, intended part or occurrence, load/support model, mesh parameters and material conditions matched to the real part and requirement. Unknown or mismatched properties cannot support acceptance.
+2. Store each authored case at `hw/analysis/cases/<case>/case.yaml`; include `step`, `fixed_faces`, non-empty `loads`, `mesh_size` and a record-bound `material` profile plus `conditions`. A face selector is exactly `{indices: [<1-based-face-index>, ...]}` or `{plane: {axis: x|y|z, value: <mm>, tolerance: <mm>}}`. Each load is `{selector: <face selector>, force: [Fx, Fy, Fz]}` in N, optionally with `load: <use-case-load-id>`.
+3. Run from the project root:
+
+   ```sh
+   uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-analysis/scripts/fea_static.py hw/analysis/cases/<case>/case.yaml --hw hw --version vN [--case-id <case>] [--replace]
+   ```
+
+   The case YAML is positional. For a sweep worst pose, set `step` and `evidence` to the exact versioned `worst.step` and sibling `worst.step.json`; the solver verifies the STEP hash and full pose and never re-poses it. An intent case publishes analysis under `hw/analysis/vN/<case>/` and its engineering packet at `hw/checks/vN/fea-<case>/`. A standalone run's `--out` must be a new `.cad-work/` path.
+4. Inspect warnings, solver versions and `worst_case_pose` (STEP, pose, evidence hash). Record accepted checks in `verification.csv` only with scoped evidence. Static simulation is never physical validation.
 
 ## Inputs
 
-- `step`: STEP file path, relative to the case YAML or absolute.
-- `part`: optional PN-first product/label identifier, for a part placed once. It is required when the
-  STEP contains multiple solids, unless `occurrence` or `solid_index` selects one. `part` may be
-  omitted for a STEP containing exactly one solid. A requested PN must match exactly one solid by a
-  PN-first product or label name. Unknown or ambiguous PNs list the available PNs. A PN placed more
-  than once is ambiguous: select one of its occurrences.
-- `occurrence`: optional quoted `"@id"`, one occurrence of a part placed more than once in an assembly
-  STEP written by cad-model or cad-motion (component name `<PN> <title> [@id]`). The analysis uses that
-  instance at its placement in the STEP, applied once. An unknown id lists the occurrences of the STEP,
-  and the analysis refuses an occurrence with more than one solid.
-- `pose`: optional mapping of joint IDs to values, copied from cad-motion's `worst_case.pose`.
-- `evidence`: optional path, relative to the case YAML, of a cad-motion sweep's `worst.step.json`.
-  A STEP whose SHA-256 differs, a `pose` other than the recorded one, or an `occurrence` the evidence
-  does not list is an input error (exit 2).
-- `loads`: list of `{selector: <face selector>, force: [Fx, Fy, Fz]}` in N; selector uses the same
-  `indices` or `plane` form.
-
+- `step`: STEP path, relative to the case YAML or absolute.
+- `part`: optional PN-first identifier; required for ambiguous multi-solid STEP except when `occurrence` or `solid_index` selects one. Omit only for a single-solid STEP; a repeated PN needs an occurrence.
+- `occurrence`: quoted `"@id"` for a repeated part in a versioned assembly STEP.
+- `solid_index`: optional 1-based solid index; mutually exclusive with `part` and `occurrence`, and refused for record v2.
+- `pose`: optional joint-value map copied from `worst_case.pose`.
+- `evidence`: optional path to sweep `worst.step.json`; it binds STEP hash, full pose and occurrence.
+- `fixed_faces`: required selector for constrained faces, using the same `indices` or `plane` forms as each `loads[].selector`.
+- `loads`: non-empty list of `{selector, force: [Fx, Fy, Fz]}` in N; `load` optionally identifies its use-case load.
 - `mesh_size`: positive maximum element size in mm.
+- `required_safety_factor`: optional positive check threshold; a completed solve below it fails.
+- `timeout_seconds`: optional positive whole-job limit, default 600.
 
-- `required_safety_factor`: optional positive yield-safety-factor threshold; a completed solve below
-  it is a check failure.
-- `solid_index`: optional 1-based index into all STEP solids, for selecting one solid when labels or
-  product names are ambiguous. `part`, `occurrence` and `solid_index` are mutually exclusive.
-- `timeout_seconds`: optional positive limit for the whole FreeCAD job (STEP import, Gmsh meshing and
-  the ccx solve), default 600. Gmsh's high-order pass on a thin, curved part can need far longer.
+## Record-bound material and evidence
 
-## Reproducibility
-Completed results include `mesh_settings`: one Gmsh thread, random seed 1, zero 3D random
-perturbation, standard and Netgen mesh optimizers disabled, the fixed elastic-plus-optimization
-high-order pass, and the CalculiX SPOOLES matrix solver. `mesh_input_hashes` identify the normalized
-`.geo` input and BRep used. Repeats with identical hashes still differ slightly: Gmsh's high-order
-optimiser groups its distorted elements into patches differently from run to run, moving some nodes.
-Without that pass the mesh repeats bit for bit, as does the ccx solve of one `.inp`. Safety factor
-differed by 0.20% on a lamp (13,634 nodes) and 0.39% on a clamp (200,087 nodes); treat differences
-under 0.5% between such repeats as this noise.
+For v2, use `material: {profile?, conditions: {conditioning, temperature, orientation?}, effective_isotropic?: {decision, justification}}` with `--hw hw --version vN`. A v2 case selects `part` or an `occurrence`; do not pass numeric material properties or `solid_index`. Legacy explicit `{E, nu, density, yield}` is accepted only for standalone/record-v1 exploratory cases and is never service evidence.
+
+Optional case keys: `acceptance: {strength: REQ-###, stiffness: REQ-###}`, `mesh_convergence: {decision: DR-###}`, and `loads[].load`. The referenced requirement needs a structured criterion; convergence needs the approved mesh-study decision. Result blocks include material, evidence, mesh, binding and engineering packet.
+
+Completed results record reproducibility settings in `mesh_settings`: one Gmsh thread, random seed 1, zero 3D random factor, standard and Netgen mesh optimizers disabled, fixed elastic-plus-optimization high-order pass, and CalculiX SPOOLES solver. `mesh_input_hashes` name the normalized `.geo` and BRep inputs. High-order Gmsh optimization can perturb nodes across identical runs; repeat safety factors within 0.5% are this mesh noise, not evidence of a design difference.
+
+`fea_static.py` publishes a v2 engineering packet at `hw/checks/<V>/fea-<case>/`; `stdout.check_bundle` names it. Only `engineering.strength`, `engineering.stiffness` and `engineering.anisotropy` are in static solver scope. Creep, fatigue, impact and life remain physical-validation obligations.
+
 ## Exit codes
 
 - `0`: analysis completed and any requested safety-factor threshold passed.
 - `1`: analysis completed, but the required safety factor was not met.
-- `2`: no result; invalid input, unavailable or failed FreeCAD job, timeout, malformed result, or
-  other infrastructure failure.
+- `2`: no result; invalid input, unavailable or failed FreeCAD job, timeout, malformed result, or infrastructure error.
 
 ## Solver failures
 
-The job runs the ccx it records in `solver_versions`: beside FreeCAD first, then on PATH. A failed
-solve names its cause in `error.code`, with the evidence in `error.details`:
+The job runs the ccx it records in `solver_versions`: beside FreeCAD first, then on PATH. A failed solve names its cause in `error.code`, with evidence in `error.details`:
 
-- `solver_crashed`: ccx died from a signal. `details` gives the signal, the `stage`
-  (`spooles_factorisation` or `before_equation_solver`), and the degrees of freedom. The SPOOLES in
-  FreeCAD's ccx overflows a 32-bit index once its factorisation has more than 46,340 fronts, near
-  1,000,000 degrees of freedom (some 350,000 nodes), so a finer mesh than that cannot solve; raise
-  `mesh_size`.
-- `solver_failed`: ccx stopped with `*ERROR` messages, quoted in the message and `details.errors`.
-  A nonpositive Jacobian lists the distorted second-order elements; lower `mesh_size`.
-- `freecad_timeout`: `details.phase` is `import`, `mesh`, `solve` or `results`, and the message names
-  the knob: raise `timeout_seconds`, or for `mesh` change `mesh_size`. The timeout stops the whole
-  job, Gmsh and ccx included.
+- `solver_crashed`: ccx died from a signal; details give signal, stage and degrees of freedom. The bundled SPOOLES index limit can fail on very large models; raise `mesh_size`.
+- `solver_failed`: ccx stopped with `*ERROR` messages. A nonpositive Jacobian lists distorted second-order elements; lower `mesh_size`.
+- `freecad_timeout`: details identify `import`, `mesh`, `solve` or `results`; raise `timeout_seconds` or adjust `mesh_size` for meshing.
 
 ## Rules
 
-MUST Check that face selection, units, material, constraints, and solver warnings match the case before relying on results.
+MUST Match material properties to sourced grade, form, process state, orientation, conditioning and service temperature. Density or an unsourced name never supplies strength or another material's properties. See `references/material-evidence.md`.
+MUST Check face selection, units, loads, constraints, contact assumptions, material evidence, mesh/convergence and solver warnings before relying on results.
+MUST Treat results as static linear isotropic simulation, not physical validation or evidence of fatigue, creep, wear, thermal behavior, buckling, life or regulatory compliance.
+NOT A yield safety factor is not a fatigue, buckling, physical test or certification margin.
 
-MUST Treat results as static linear estimates; they do not cover dynamics or replace physical validation.
-NOT A yield safety factor is not a fatigue, buckling, or certification margin.
+```text
+L1 ANALYSIS {case}: {PASS|FAIL|NO-RESULT}; {peak stress} MPa, {displacement} mm, {yield safety factor}
+   Evidence -- {analysis bundle and engineering check packet paths}
+```
+CAP 120w clean · 220w with failures
+

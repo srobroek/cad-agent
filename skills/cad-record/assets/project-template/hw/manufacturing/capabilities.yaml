@@ -1,0 +1,4 @@
+# Capability profiles of the actual machines, operators and suppliers (schemas/manufacturing-capabilities.schema.json).
+# None is recorded, so every capability is unknown. Start from cad-record assets/manufacturing/capability-templates.yaml
+# and record your own machine's values and calibrations; a template is never a capability.
+profiles: []

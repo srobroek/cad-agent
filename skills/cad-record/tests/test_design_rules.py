@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Design rules: the clearance margin, retention, process feasibility and visibility bindings, through the
-record validator on a copy of the lamp example and through design_rules.py's public functions."""
+"""Design rules: the clearance margin, retention and visibility bindings, through the record validator on
+a copy of the lamp example migrated to record version 2, and through design_rules.py's public functions."""
 
 from __future__ import annotations
 
 import importlib.util
 import math
-import shutil
 import sys
 import tempfile
 import unittest
@@ -31,16 +30,18 @@ def load(name: str, path: Path) -> Any:
 
 rules = load("cad_record_design_rules", SCRIPTS / "design_rules.py")
 validate = load("cad_record_validate", SCRIPTS / "validate.py")
+fx = load("cad_record_mi_fixtures", SKILL / "tests" / "fixtures" / "manufacturing_intent.py")
 
 
 class LampRecord(unittest.TestCase):
-    """A copy of the lamp example, edited one document at a time and validated in process."""
+    """A copy of the lamp example migrated to record version 2, edited one document at a time and
+    validated in process."""
 
     def setUp(self) -> None:
         temporary = tempfile.TemporaryDirectory(prefix="cad-record-rules-")
         self.addCleanup(temporary.cleanup)
         self.hw = Path(temporary.name) / "project" / "hw"
-        shutil.copytree(LAMP, self.hw)
+        fx.migrated_copy(LAMP, self.hw)
 
     def edit(self, name: str, change: Callable[[Any], None]) -> None:
         path = self.hw / name
@@ -211,7 +212,8 @@ class Schemas(LampRecord):
         self.part("LMP-0001", form_class="frame", transparency="opaque")
         self.edit("interfaces.yaml", lambda document: document["interfaces"].append({
             "id": "IF-006", "from": "base", "to": "head", "type": "clearance", "description": "Head clears the base",
-            "pair": ["LMP-0001", "LMP-0004"], "min_clearance_mm": 0.5, "margin_mm": 0.0}))
+            "pair": ["LMP-0001", "LMP-0004"], "min_clearance_mm": 0.5, "margin_mm": 0.0,
+            "functional": {"critical": fx.unknown(), "functions": fx.unknown()}}))
         self.joint("J-004", torque="transmitted", torque_path={"type": "press_fit", "decision": "DR-004"})
         self.edit("requirements.yaml", lambda document: document["requirements"][0].update(visibility=[
             {"view": "dir-p1-m1d5-p0", "window": ["LMP-0004"], "targets": ["LMP-0009"], "min_visible_fraction": 1},
@@ -259,7 +261,7 @@ class Schemas(LampRecord):
         for name, (change, location) in cases.items():
             with self.subTest(name), tempfile.TemporaryDirectory() as tmp:
                 self.hw = Path(tmp) / "project" / "hw"
-                shutil.copytree(LAMP, self.hw)
+                fx.migrated_copy(LAMP, self.hw)
                 change()
                 messages = [item["message"] for item in validate.blocking(self.findings())]
                 self.assertTrue(any(message.startswith(location) for message in messages), messages)
@@ -307,77 +309,20 @@ class ClearanceMargin(unittest.TestCase):
                 rules.load_clearance_margins(record)
 
 
-class ProcessFeasibility(LampRecord):
-    SEE_THROUGH = ("As printed, clear PETG; 0.2 mm layers", "Transparent PETG", "The cam covers are clear",
-                   "Pistons visible through the bore window", "Glass cover over the dial", "clear-material parts",
-                   "PETG (clear)")
-    NOT_SEE_THROUGH = ("Not transparent; black PETG", "Non-transparent smoke PETG", "never see-through",
-                       "Keep 3 mm clear of the hinge", "The cover is clear of the belt", "Clear coat over black PETG",
-                       "A clear window for the cable", "Bond the lens with clear silicone",
-                       "Glass-filled nylon")
+class Transparency(LampRecord):
+    """Transparency is no design rule: see-through FDM is not a thing. An optical requirement is a hard
+    selection constraint (manufacturing_intent optical.route): a purchased transparent part or identified
+    transparent stock on a suitable route; opaque processes are eliminated there, never warned about here."""
 
-    def test_prose_that_reads_as_see_through_is_recognised(self) -> None:
-        for text in self.SEE_THROUGH:
-            with self.subTest(text):
-                self.assertTrue(rules.transparency_claimed(text))
-        for text in self.NOT_SEE_THROUGH:
-            with self.subTest(text):
-                self.assertFalse(rules.transparency_claimed(text))
-
-    def test_clear_fdm_prose_only_ever_warns(self) -> None:
-        # The engine's rev A cam cover: "As printed, clear PETG" on an FDM part.
-        self.part("LMP-0001", finish="As printed, clear PETG; 0.2 mm layers")
-        location = "parts/LMP-0001/part.yaml#/finish"
-        for stage in ("layout", "parts", "release"):
-            with self.subTest(stage):
-                self.stage(stage)
-                self.assertEqual({path: (item["code"], item["severity"])
-                                  for path, item in self.coded("feasibility.").items()},
-                                 {location: ("feasibility.transparency_claim", "warning")})
-        self.part("LMP-0001", transparency="translucent")
-        self.assertEqual(self.coded("feasibility."), {}, "a declared transparency resolves it")
-
-    def test_a_transparent_fdm_part_warns_before_parts_and_fails_from_parts_on(self) -> None:
-        self.part("LMP-0001", transparency="transparent")
-        location = "parts/LMP-0001/part.yaml#/transparency"
-        self.assertEqual({path: (item["code"], item["severity"]) for path, item in self.coded("feasibility.").items()},
-                         {location: ("feasibility.transparent_fdm", "warning")})
+    def test_a_transparent_fdm_part_is_no_design_rule_finding_but_an_optical_route_obligation(self) -> None:
         self.stage("parts")
-        self.assertEqual({path: (item["code"], item["severity"]) for path, item in self.coded("feasibility.").items()},
-                         {location: ("feasibility.transparent_fdm", "error")})
-
-    def test_non_fdm_parts_are_never_flagged(self) -> None:
-        self.stage("parts")
-        self.part("LMP-0002", material="Clear acrylic (PMMA)", transparency="transparent")
-        self.part("LMP-0008", finish="Clear PETG sleeve, as supplied")
-        self.assertEqual(self.coded("feasibility."), {})
-
-    def test_a_see_through_requirement_warns_until_a_non_fdm_part_is_transparent(self) -> None:
+        self.part("LMP-0001", transparency="transparent", finish="As printed, clear PETG")
         self.edit("requirements.yaml", lambda document: document["requirements"][1].update(
             text="The head carries a transparent window over the bulb."))
-        self.stage("parts")
-        self.assertEqual({path: (item["code"], item["severity"]) for path, item in self.coded("feasibility.").items()},
-                         {"requirements.yaml#/requirements/1": ("feasibility.transparency_claim", "warning")})
-        self.part("LMP-0004", transparency="transparent")
-        self.assertEqual(self.coded("feasibility.")["parts/LMP-0004/part.yaml#/transparency"]["severity"], "error",
-                         "an FDM part cannot be that transparent part")
-        self.part("LMP-0004", transparency="translucent")
-        self.part("LMP-0010", transparency="transparent")
         self.assertEqual(self.coded("feasibility."), {})
-
-    def test_feasibility_flags_at_intent_from_the_planned_processes(self) -> None:
-        # The engine's rev A REQ-010: the covers "are clear", verified as "clear-material parts".
-        requirements = {"requirements": [{
-            "id": "REQ-010", "text": "The cam covers and front timing cover are clear and removable by M3 screws.",
-            "verification": {"method": "I", "criteria": "The cam covers and timing cover are clear-material parts."}}]}
-        flagged = rules.requirement_feasibility_findings(
-            requirements, {"manufacturing": {"processes": ["fdm", "purchased"]}}, [])
-        self.assertEqual([(item.code, item.location) for item in flagged],
-                         [("feasibility.transparency_claim", "requirements/0")])
-        self.assertEqual(rules.requirement_feasibility_findings(
-            requirements, {"manufacturing": {"processes": ["cnc", "purchased"]}}, []), [])
-        self.assertEqual(rules.requirement_feasibility_findings(requirements, {}, []), [],
-                         "no planned process and no part: nothing to contradict yet")
+        self.assertFalse(hasattr(rules, "transparency_claimed"))
+        obligations = {o.id for o in validate.intent.required_checks(validate.intent.load_record(self.hw))}
+        self.assertTrue({"optical.route@LMP-0001", "optical.transmission@LMP-0001"} <= obligations)
 
 
 class VisibilityBindings(LampRecord):

@@ -1,0 +1,349 @@
+profiles:
+- id: stainless_304_outokumpu_core
+  revision: 1
+  title: Core 304/4301 (EN 1.4301 / ASTM Type 304 / UNS S30400)
+  level: grade
+  family: Stainless steel / 304 sheet
+  grade:
+    status: known
+    value: Core 304/4301 (EN 1.4301 / ASTM Type 304 / UNS S30400)
+    sources:
+    - kind: datasheet
+      reference: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+        metadata)
+      revision: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+        metadata)
+      url: https://www.outokumpu.com/-/media/files/products/core/outokumpu-core-range-datasheet.pdf?modified=20251117111909&revision=025e9931-a1d5-4c8f-8ff5-f881d38916da
+      accessed: '2026-11-02'
+      conditions: 'test_standard: EN 10088-2; source_condition: 20 °C; cold-rolled
+        product form C; statistic: minimum per referenced standard; quoted_source_value:
+        Mechanical properties at 20 °C, values according to EN 10088-2 ... Core 304/4301
+        ... C ... Yield strength Rp0.2 (MPa) 230; ... H ... 210'
+    basis: supplier_typical
+  manufacturer:
+    status: known
+    value: Outokumpu
+    sources:
+    - kind: datasheet
+      reference: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+        metadata)
+      revision: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+        metadata)
+      url: https://www.outokumpu.com/-/media/files/products/core/outokumpu-core-range-datasheet.pdf?modified=20251117111909&revision=025e9931-a1d5-4c8f-8ff5-f881d38916da
+      accessed: '2026-11-02'
+      conditions: 'test_standard: EN 10088-2; source_condition: 20 °C; cold-rolled
+        product form C; statistic: minimum per referenced standard; quoted_source_value:
+        Mechanical properties at 20 °C, values according to EN 10088-2 ... Core 304/4301
+        ... C ... Yield strength Rp0.2 (MPa) 230; ... H ... 210'
+    basis: supplier_typical
+  form: sheet
+  process_state:
+    process: sheet_forming
+    conditioning: unknown
+    notes: Mechanical properties at 20 °C according to EN 10088-2. Sheet/coil product
+      forms C (cold rolled), H (hot rolled); cold rolled values selected below. Strength
+      range and elongation apply as reported in source. Solution-annealed product
+      condition is not specified for each property table row.
+  typical_not_allowable: true
+  properties:
+  - name: yield_strength
+    value:
+      status: known
+      value:
+        value: 210
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+          metadata)
+        revision: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+          metadata)
+        url: https://www.outokumpu.com/-/media/files/products/core/outokumpu-core-range-datasheet.pdf?modified=20251117111909&revision=025e9931-a1d5-4c8f-8ff5-f881d38916da
+        accessed: '2026-11-02'
+        conditions: 'test_standard: EN 10088-2; source_condition: 20 °C; cold-rolled
+          product form C; statistic: minimum per referenced standard; quoted_source_value:
+          Mechanical properties at 20 °C, values according to EN 10088-2 ... Core
+          304/4301 ... C ... Yield strength Rp0.2 (MPa) 230; ... H ... 210'
+      basis: standard
+    conditions:
+      test_standard:
+        status: known
+        value: EN 10088-2
+        sources:
+        - kind: datasheet
+          reference: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+            metadata)
+          revision: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+            metadata)
+          url: https://www.outokumpu.com/-/media/files/products/core/outokumpu-core-range-datasheet.pdf?modified=20251117111909&revision=025e9931-a1d5-4c8f-8ff5-f881d38916da
+          accessed: '2026-11-02'
+          conditions: 'test_standard: EN 10088-2; source_condition: 20 °C; cold-rolled
+            product form C; statistic: minimum per referenced standard; quoted_source_value:
+            Mechanical properties at 20 °C, values according to EN 10088-2 ... Core
+            304/4301 ... C ... Yield strength Rp0.2 (MPa) 230; ... H ... 210'
+        basis: standard
+      temperature:
+        status: known
+        value:
+          value: 20.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+            metadata)
+          revision: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+            metadata)
+          url: https://www.outokumpu.com/-/media/files/products/core/outokumpu-core-range-datasheet.pdf?modified=20251117111909&revision=025e9931-a1d5-4c8f-8ff5-f881d38916da
+          accessed: '2026-11-02'
+          conditions: 'test_standard: EN 10088-2; source_condition: 20 °C; cold-rolled
+            product form C; statistic: minimum per referenced standard; quoted_source_value:
+            Mechanical properties at 20 °C, values according to EN 10088-2 ... Core
+            304/4301 ... C ... Yield strength Rp0.2 (MPa) 230; ... H ... 210'
+        basis: standard
+      conditioning: unknown
+      notes: 'Research property yield_strength_rp02_cold_rolled; source condition:
+        20 °C; cold-rolled product form C; reported statistic: minimum per referenced
+        standard'
+  - name: tensile_strength
+    value:
+      status: known
+      value:
+        lower: 520
+        upper: 720
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+          metadata)
+        revision: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+          metadata)
+        url: https://www.outokumpu.com/-/media/files/products/core/outokumpu-core-range-datasheet.pdf?modified=20251117111909&revision=025e9931-a1d5-4c8f-8ff5-f881d38916da
+        accessed: '2026-11-02'
+        conditions: 'test_standard: EN 10088-2; source_condition: 20 °C; cold-rolled
+          product form C; statistic: minimum range per referenced standard; quoted_source_value:
+          Core 304/4301 ... H ... Tensile strength Rm (MPa) 520–720'
+      basis: standard
+    conditions:
+      test_standard:
+        status: known
+        value: EN 10088-2
+        sources:
+        - kind: datasheet
+          reference: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+            metadata)
+          revision: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+            metadata)
+          url: https://www.outokumpu.com/-/media/files/products/core/outokumpu-core-range-datasheet.pdf?modified=20251117111909&revision=025e9931-a1d5-4c8f-8ff5-f881d38916da
+          accessed: '2026-11-02'
+          conditions: 'test_standard: EN 10088-2; source_condition: 20 °C; cold-rolled
+            product form C; statistic: minimum range per referenced standard; quoted_source_value:
+            Core 304/4301 ... H ... Tensile strength Rm (MPa) 520–720'
+        basis: standard
+      temperature:
+        status: known
+        value:
+          value: 20.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+            metadata)
+          revision: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+            metadata)
+          url: https://www.outokumpu.com/-/media/files/products/core/outokumpu-core-range-datasheet.pdf?modified=20251117111909&revision=025e9931-a1d5-4c8f-8ff5-f881d38916da
+          accessed: '2026-11-02'
+          conditions: 'test_standard: EN 10088-2; source_condition: 20 °C; cold-rolled
+            product form C; statistic: minimum range per referenced standard; quoted_source_value:
+            Core 304/4301 ... H ... Tensile strength Rm (MPa) 520–720'
+        basis: standard
+      conditioning: unknown
+      notes: 'Research property tensile_strength_cold_rolled; source condition: 20
+        °C; cold-rolled product form C; reported statistic: minimum range per referenced
+        standard'
+  - name: elongation_at_break
+    value:
+      status: known
+      value:
+        value: 45
+        units: percent
+      sources:
+      - kind: datasheet
+        reference: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+          metadata)
+        revision: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+          metadata)
+        url: https://www.outokumpu.com/-/media/files/products/core/outokumpu-core-range-datasheet.pdf?modified=20251117111909&revision=025e9931-a1d5-4c8f-8ff5-f881d38916da
+        accessed: '2026-11-02'
+        conditions: 'test_standard: EN 10088-2; source_condition: 20 °C; cold-rolled
+          product form C; elongation gauge designation A as defined by applicable
+          product standard; statistic: minimum per referenced standard; quoted_source_value:
+          Core 304/4301 ... H ... Elongation A (%) 45'
+      basis: standard
+    conditions:
+      test_standard:
+        status: known
+        value: EN 10088-2
+        sources:
+        - kind: datasheet
+          reference: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+            metadata)
+          revision: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+            metadata)
+          url: https://www.outokumpu.com/-/media/files/products/core/outokumpu-core-range-datasheet.pdf?modified=20251117111909&revision=025e9931-a1d5-4c8f-8ff5-f881d38916da
+          accessed: '2026-11-02'
+          conditions: 'test_standard: EN 10088-2; source_condition: 20 °C; cold-rolled
+            product form C; elongation gauge designation A as defined by applicable
+            product standard; statistic: minimum per referenced standard; quoted_source_value:
+            Core 304/4301 ... H ... Elongation A (%) 45'
+        basis: standard
+      temperature:
+        status: known
+        value:
+          value: 20.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+            metadata)
+          revision: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+            metadata)
+          url: https://www.outokumpu.com/-/media/files/products/core/outokumpu-core-range-datasheet.pdf?modified=20251117111909&revision=025e9931-a1d5-4c8f-8ff5-f881d38916da
+          accessed: '2026-11-02'
+          conditions: 'test_standard: EN 10088-2; source_condition: 20 °C; cold-rolled
+            product form C; elongation gauge designation A as defined by applicable
+            product standard; statistic: minimum per referenced standard; quoted_source_value:
+            Core 304/4301 ... H ... Elongation A (%) 45'
+        basis: standard
+      conditioning: unknown
+      notes: 'Research property elongation_a_cold_rolled; source condition: 20 °C;
+        cold-rolled product form C; elongation gauge designation A as defined by applicable
+        product standard; reported statistic: minimum per referenced standard'
+  - name: youngs_modulus
+    value:
+      status: known
+      value:
+        value: 200
+        units: GPa
+      sources:
+      - kind: datasheet
+        reference: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+          metadata)
+        revision: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+          metadata)
+        url: https://www.outokumpu.com/-/media/files/products/core/outokumpu-core-range-datasheet.pdf?modified=20251117111909&revision=025e9931-a1d5-4c8f-8ff5-f881d38916da
+        accessed: '2026-11-02'
+        conditions: 'test_standard: EN 10088-1; source_condition: 20 °C; physical
+          property table, grade Core 304/4301; statistic: typical/standard physical
+          value; quoted_source_value: Core 304/4301 | Density 7.9 kg/dm³ | Modulus
+          of elasticity at 20 °C 200 GPa'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: EN 10088-1
+        sources:
+        - kind: datasheet
+          reference: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+            metadata)
+          revision: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+            metadata)
+          url: https://www.outokumpu.com/-/media/files/products/core/outokumpu-core-range-datasheet.pdf?modified=20251117111909&revision=025e9931-a1d5-4c8f-8ff5-f881d38916da
+          accessed: '2026-11-02'
+          conditions: 'test_standard: EN 10088-1; source_condition: 20 °C; physical
+            property table, grade Core 304/4301; statistic: typical/standard physical
+            value; quoted_source_value: Core 304/4301 | Density 7.9 kg/dm³ | Modulus
+            of elasticity at 20 °C 200 GPa'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          value: 20.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+            metadata)
+          revision: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+            metadata)
+          url: https://www.outokumpu.com/-/media/files/products/core/outokumpu-core-range-datasheet.pdf?modified=20251117111909&revision=025e9931-a1d5-4c8f-8ff5-f881d38916da
+          accessed: '2026-11-02'
+          conditions: 'test_standard: EN 10088-1; source_condition: 20 °C; physical
+            property table, grade Core 304/4301; statistic: typical/standard physical
+            value; quoted_source_value: Core 304/4301 | Density 7.9 kg/dm³ | Modulus
+            of elasticity at 20 °C 200 GPa'
+        basis: supplier_typical
+      conditioning: unknown
+      notes: 'Research property modulus_of_elasticity; source condition: 20 °C; physical
+        property table, grade Core 304/4301; reported statistic: typical/standard
+        physical value'
+  - name: thermal_expansion
+    value:
+      status: known
+      value:
+        value: 16
+        units: um_m_K
+      sources:
+      - kind: datasheet
+        reference: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+          metadata)
+        revision: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+          metadata)
+        url: https://www.outokumpu.com/-/media/files/products/core/outokumpu-core-range-datasheet.pdf?modified=20251117111909&revision=025e9931-a1d5-4c8f-8ff5-f881d38916da
+        accessed: '2026-11-02'
+        conditions: 'test_standard: EN 10088-1; source_condition: 20–100 °C; source_statistic:
+          typical physical value; quoted_source_value: Core 304/4301 ... Coefficient
+          of thermal expansion 20–100 °C [10⁻⁶/K] 16.0; Unit mapping: source 10^-6/K
+          with value 16 is numerically 16 um_m_K.'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: EN 10088-1
+        sources:
+        - kind: datasheet
+          reference: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+            metadata)
+          revision: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+            metadata)
+          url: https://www.outokumpu.com/-/media/files/products/core/outokumpu-core-range-datasheet.pdf?modified=20251117111909&revision=025e9931-a1d5-4c8f-8ff5-f881d38916da
+          accessed: '2026-11-02'
+          conditions: 'test_standard: EN 10088-1; source_condition: 20–100 °C; source_statistic:
+            typical physical value; quoted_source_value: Core 304/4301 ... Coefficient
+            of thermal expansion 20–100 °C [10⁻⁶/K] 16.0; Unit mapping: source 10^-6/K
+            with value 16 is numerically 16 um_m_K.'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          lower: 20.0
+          upper: 100.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+            metadata)
+          revision: Outokumpu Core Range Datasheet, current web PDF (2025-11-17 revision
+            metadata)
+          url: https://www.outokumpu.com/-/media/files/products/core/outokumpu-core-range-datasheet.pdf?modified=20251117111909&revision=025e9931-a1d5-4c8f-8ff5-f881d38916da
+          accessed: '2026-11-02'
+          conditions: 'test_standard: EN 10088-1; source_condition: 20–100 °C; source_statistic:
+            typical physical value; quoted_source_value: Core 304/4301 ... Coefficient
+            of thermal expansion 20–100 °C [10⁻⁶/K] 16.0; Unit mapping: source 10^-6/K
+            with value 16 is numerically 16 um_m_K.'
+        basis: supplier_typical
+      conditioning: unknown
+      notes: 'Research property coefficient_thermal_expansion; exact source condition:
+        20–100 °C; reported statistic: typical physical value'
+  note: Every numeric research property represented as sourced typed data. Profile-specific
+    unknowns and source cautions are explicit in guidance.
+  guidance:
+  - 'Unknown (not established by the cited research; not zero or absent): flexural
+    properties'
+  - 'Unknown (not established by the cited research; not zero or absent): impact test
+    value in this grade/product-form table'
+  - 'Unknown (not established by the cited research; not zero or absent): HDT/Vicat'
+  - 'Unknown (not established by the cited research; not zero or absent): moisture
+    absorption'
+  - 'Source-table discrepancy retained without correction: research value for cold-rolled
+    yield is 210 MPa, while the preserved source quote associates 230 MPa with C and
+    210 MPa with H. Verify against the cited datasheet before use.'

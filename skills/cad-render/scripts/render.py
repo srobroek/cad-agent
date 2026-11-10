@@ -26,13 +26,17 @@ PN placed once; a bare PN placed several times is ambiguous and refused.
 Each frame is graded from its pixels and subject mask. BLANK, CLIPPED, and close-up OCCLUDED (less than 25% of the subject's isolated visible pixels remain visible) make a view unusable; NO_SHADOW and INVERTED_SHADOW are cosmetic warnings, with NO_SHADOW considered only when the camera frustum intersects the ground plane.
 A custom view uses `dir-pX-mY-Z`, with signed decimal components encoded as p/m and d for the decimal point; its direction is normalized, and `-closeup-REF` or `-part-REF` optionally names a subject.
 
-Requirement visibility: every `visibility` binding of the current HW/requirements.yaml (read through
-cad-record design_rules.py) is checked on the selected version at its built (nominal) pose. From the
-binding's view, framed on its window and target parts with every other part hidden, each target's
+Requirement visibility: every `visibility` binding of the selected version's requirements (read through
+cad-record design_rules.py) is checked on that version at its built (nominal) pose. A version built by
+this cad-model (its manifest names its `record_version`) reads record/requirements.yaml from its own
+record snapshot, so a later edit of hw/requirements.yaml never changes what it is checked against; a
+version whose snapshot predates requirements falls back to the current HW/requirements.yaml, labelled
+`requirements_source: current_unbound`: a check of today's text, not evidence bound to that version.
+From the binding's view, framed on its window and target parts with every other part hidden, each target's
 visible fraction is the share of its own silhouette where it is the nearest surface; a part whose
 part.yaml declares `transparency: transparent` is see-through, opaque and translucent ones occlude. A
 target below the binding's min_visible_fraction fails the check. render.json `visibility` holds the
-pixel counts and fractions; `inputs.requirements_yaml_sha256` records the file.
+pixel counts and fractions; `inputs.requirements_yaml_sha256` and `inputs.requirements_source` record the file.
 
 Reuse across versions: every view records the inputs its pixels depend on (`render_inputs`). A part view
 depends on its subject's GLB mesh data and world placement and its PN's material; every other view on the
@@ -672,7 +676,7 @@ def build_scene(hw: Path, version: Version, views: list[str], size: tuple[int, i
     Scene parts are occurrences, keyed by occurrence id; materials are per PN. The key's source
     hash covers every version file the scene reads (GLB, part map, manifest pose, joints and
     ground, metrics bboxes) and assembly.yaml, whose joints shape a version 1 explode; part.yaml
-    enters through the resolved materials. With `requirements` (the current hw/requirements.yaml),
+    enters through the resolved materials. With `requirements` (the file `requirements_input` names),
     the key also holds the visibility checks its bindings resolve to in this version."""
     occurrences = {oid: version.occurrences[oid] for oid in sorted(version.occurrences)}
     pns = sorted({o.pn for o in occurrences.values()})
@@ -932,10 +936,23 @@ def reusable_views(hw: Path, version: Version, subject: str,
 VISIBILITY_VIEWS = {"iso", "front", "side"}  # and dir-X-Y-Z; exploded, close-up and part views move or hide parts
 
 
+def requirements_input(hw: Path, version: Version) -> tuple[Path, str]:
+    """The requirements file a version's visibility is checked against, and where it comes from.
+
+    `version_snapshot`: the version's own record/requirements.yaml; a version whose manifest names its
+    `record_version` snapshotted every record file present when it was built, so a missing snapshot
+    file means the project had none. `current_unbound`: an older version, whose snapshot never held
+    requirements, gets the current HW/requirements.yaml, a check of today's text and not evidence
+    bound to that version."""
+    if "record_version" in version.manifest:
+        return version.record / "requirements.yaml", "version_snapshot"
+    return hw / "requirements.yaml", "current_unbound"
+
+
 def visibility_checks(path: Path, occurrences: dict[str, str],
                       records: dict[str, dict[str, Any]]) -> tuple[list[dict[str, Any]], str | None]:
-    """The visibility bindings of the current requirements file `path`, resolved against this version's
-    occurrences (id -> PN) and part records, and the file's sha256; ([], None) without the file.
+    """The visibility bindings of the requirements file `path` (`requirements_input`), resolved against
+    this version's occurrences (id -> PN) and part records, and the file's sha256; ([], None) without the file.
 
     A check carries its camera direction and up in the GLB frame, its window and target occurrences,
     and `see_through`: the drawn occurrences whose part.yaml declares `transparency: transparent`.
@@ -1502,7 +1519,8 @@ def run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         table = material_rules.MaterialTable.load()
     except material_rules.MaterialsError as exc:
         raise InfraError(str(exc)) from exc
-    scene, materials, keyed = build_scene(hw, version, views, size, table, hw / "requirements.yaml")
+    requirements, requirements_source = requirements_input(hw, version)
+    scene, materials, keyed = build_scene(hw, version, views, size, table, requirements)
     checks = keyed["visibility"]
     recipe = {"views": views, "size": [*size], "renderer": {"name": "cad-render", "version": renderer_sha256()},
               "inputs": {"version_manifest_sha256": sha256(version.files["manifest"].read_bytes()),
@@ -1560,7 +1578,8 @@ def run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                    "version_manifest_sha256": recipe["inputs"]["version_manifest_sha256"],
                    "assembly_yaml_sha256": keyed["assembly_yaml_sha256"],
                    "assembly_yaml_matches_version": keyed["assembly_yaml_matches_version"],
-                   "requirements_yaml_sha256": keyed["requirements_yaml_sha256"]},
+                   "requirements_yaml_sha256": keyed["requirements_yaml_sha256"],
+                   "requirements_source": requirements_source if keyed["requirements_yaml_sha256"] else None},
         "explode_offsets_mm": keyed["explode_offsets_mm"],
         "wall_s": {**{k: v for k, v in timings.items() if k.endswith("_s")},
                    "total_s": round(time.monotonic() - wall, 3)}}

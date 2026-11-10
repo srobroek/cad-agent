@@ -1,0 +1,330 @@
+profiles:
+- id: resin_standard_clear_v4_formlabs
+  revision: 1
+  title: Formlabs Standard Resin Clear V4 (FLGPCL04)
+  level: grade
+  family: Vat photopolymer resin / standard
+  grade:
+    status: known
+    value: Formlabs Standard Resin Clear V4 (FLGPCL04)
+    sources:
+    - kind: datasheet
+      reference: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02 (14
+        Aug 2023)
+      revision: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02 (14
+        Aug 2023)
+      url: https://formlabs-media.formlabs.com/datasheets/1801089-TDS-ENUS-0.pdf
+      accessed: '2026-11-02'
+      conditions: 'test_standard: ASTM D638-14; source_condition: green Form 2 part;
+        100 μm Clear settings; orientation not stated; statistic: typical; quoted_source_value:
+        Ultimate Tensile Strength | 38 MPa | Green ... ASTM D638-14'
+    basis: supplier_typical
+  manufacturer:
+    status: known
+    value: Formlabs
+    sources:
+    - kind: datasheet
+      reference: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02 (14
+        Aug 2023)
+      revision: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02 (14
+        Aug 2023)
+      url: https://formlabs-media.formlabs.com/datasheets/1801089-TDS-ENUS-0.pdf
+      accessed: '2026-11-02'
+      conditions: 'test_standard: ASTM D638-14; source_condition: green Form 2 part;
+        100 μm Clear settings; orientation not stated; statistic: typical; quoted_source_value:
+        Ultimate Tensile Strength | 38 MPa | Green ... ASTM D638-14'
+    basis: supplier_typical
+  form: printed
+  process_state:
+    process: resin
+    conditioning: unknown
+    notes: SLA, Form 2, 100 μm, Clear settings. Green = no additional treatment. Post-cured
+      properties use 405 nm LED at 1.25 mW/cm² for 60 min at 60 °C. Print orientation
+      not stated.
+  typical_not_allowable: true
+  properties:
+  - name: tensile_strength
+    value:
+      status: known
+      value:
+        value: 38
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02 (14
+          Aug 2023)
+        revision: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02 (14
+          Aug 2023)
+        url: https://formlabs-media.formlabs.com/datasheets/1801089-TDS-ENUS-0.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ASTM D638-14; source_condition: green Form 2 part;
+          100 μm Clear settings; orientation not stated; statistic: typical; quoted_source_value:
+          Ultimate Tensile Strength | 38 MPa | Green ... ASTM D638-14'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ASTM D638-14
+        sources:
+        - kind: datasheet
+          reference: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02
+            (14 Aug 2023)
+          revision: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02
+            (14 Aug 2023)
+          url: https://formlabs-media.formlabs.com/datasheets/1801089-TDS-ENUS-0.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D638-14; source_condition: green Form 2
+            part; 100 μm Clear settings; orientation not stated; statistic: typical;
+            quoted_source_value: Ultimate Tensile Strength | 38 MPa | Green ... ASTM
+            D638-14'
+        basis: supplier_typical
+      temperature:
+        status: unknown
+        reason: The source does not state one numeric test temperature; retain the
+          exact test condition in the cited source conditions.
+      conditioning: unknown
+      notes: 'Research property tensile_strength_green; source condition: green Form
+        2 part; 100 μm Clear settings; orientation not stated; reported statistic:
+        typical'
+      orientation:
+        status: unknown
+        reason: Source does not state specimen orientation; it remains unknown.
+  - name: tensile_strength
+    value:
+      status: known
+      value:
+        value: 65
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02 (14
+          Aug 2023)
+        revision: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02 (14
+          Aug 2023)
+        url: https://formlabs-media.formlabs.com/datasheets/1801089-TDS-ENUS-0.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ASTM D638-14; source_condition: Form 2, 100 μm
+          Clear settings; post-cured 60 min at 60 °C under 405 nm LED, 1.25 mW/cm²;
+          orientation not stated; statistic: typical; quoted_source_value: Ultimate
+          Tensile Strength | 65 MPa | Post-Cured ... ASTM D638-14'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ASTM D638-14
+        sources:
+        - kind: datasheet
+          reference: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02
+            (14 Aug 2023)
+          revision: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02
+            (14 Aug 2023)
+          url: https://formlabs-media.formlabs.com/datasheets/1801089-TDS-ENUS-0.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D638-14; source_condition: Form 2, 100
+            μm Clear settings; post-cured 60 min at 60 °C under 405 nm LED, 1.25 mW/cm²;
+            orientation not stated; statistic: typical; quoted_source_value: Ultimate
+            Tensile Strength | 65 MPa | Post-Cured ... ASTM D638-14'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          value: 60.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02
+            (14 Aug 2023)
+          revision: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02
+            (14 Aug 2023)
+          url: https://formlabs-media.formlabs.com/datasheets/1801089-TDS-ENUS-0.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D638-14; source_condition: Form 2, 100
+            μm Clear settings; post-cured 60 min at 60 °C under 405 nm LED, 1.25 mW/cm²;
+            orientation not stated; statistic: typical; quoted_source_value: Ultimate
+            Tensile Strength | 65 MPa | Post-Cured ... ASTM D638-14'
+        basis: supplier_typical
+      conditioning: conditioned
+      notes: 'Research property tensile_strength_post_cured; source condition: Form
+        2, 100 μm Clear settings; post-cured 60 min at 60 °C under 405 nm LED, 1.25
+        mW/cm²; orientation not stated; reported statistic: typical'
+      orientation:
+        status: unknown
+        reason: Source does not state specimen orientation; it remains unknown.
+  - name: youngs_modulus
+    value:
+      status: known
+      value:
+        value: 2.8
+        units: GPa
+      sources:
+      - kind: datasheet
+        reference: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02 (14
+          Aug 2023)
+        revision: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02 (14
+          Aug 2023)
+        url: https://formlabs-media.formlabs.com/datasheets/1801089-TDS-ENUS-0.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ASTM D638-14; source_condition: Form 2, 100 μm
+          Clear settings; post-cured 60 min at 60 °C under 405 nm LED, 1.25 mW/cm²;
+          orientation not stated; statistic: typical; quoted_source_value: Tensile
+          Modulus | 2.8 GPa | Post-Cured ... ASTM D638-14'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ASTM D638-14
+        sources:
+        - kind: datasheet
+          reference: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02
+            (14 Aug 2023)
+          revision: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02
+            (14 Aug 2023)
+          url: https://formlabs-media.formlabs.com/datasheets/1801089-TDS-ENUS-0.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D638-14; source_condition: Form 2, 100
+            μm Clear settings; post-cured 60 min at 60 °C under 405 nm LED, 1.25 mW/cm²;
+            orientation not stated; statistic: typical; quoted_source_value: Tensile
+            Modulus | 2.8 GPa | Post-Cured ... ASTM D638-14'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          value: 60.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02
+            (14 Aug 2023)
+          revision: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02
+            (14 Aug 2023)
+          url: https://formlabs-media.formlabs.com/datasheets/1801089-TDS-ENUS-0.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D638-14; source_condition: Form 2, 100
+            μm Clear settings; post-cured 60 min at 60 °C under 405 nm LED, 1.25 mW/cm²;
+            orientation not stated; statistic: typical; quoted_source_value: Tensile
+            Modulus | 2.8 GPa | Post-Cured ... ASTM D638-14'
+        basis: supplier_typical
+      conditioning: conditioned
+      notes: 'Research property tensile_modulus_post_cured; source condition: Form
+        2, 100 μm Clear settings; post-cured 60 min at 60 °C under 405 nm LED, 1.25
+        mW/cm²; orientation not stated; reported statistic: typical'
+      orientation:
+        status: unknown
+        reason: Source does not state specimen orientation; it remains unknown.
+  - name: elongation_at_break
+    value:
+      status: known
+      value:
+        value: 6
+        units: percent
+      sources:
+      - kind: datasheet
+        reference: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02 (14
+          Aug 2023)
+        revision: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02 (14
+          Aug 2023)
+        url: https://formlabs-media.formlabs.com/datasheets/1801089-TDS-ENUS-0.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ASTM D638-14; source_condition: Form 2, 100 μm
+          Clear settings; post-cured 60 min at 60 °C under 405 nm LED, 1.25 mW/cm²;
+          orientation not stated; statistic: typical; quoted_source_value: Elongation
+          at Break | 6% | Post-Cured ... ASTM D638-14'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ASTM D638-14
+        sources:
+        - kind: datasheet
+          reference: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02
+            (14 Aug 2023)
+          revision: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02
+            (14 Aug 2023)
+          url: https://formlabs-media.formlabs.com/datasheets/1801089-TDS-ENUS-0.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D638-14; source_condition: Form 2, 100
+            μm Clear settings; post-cured 60 min at 60 °C under 405 nm LED, 1.25 mW/cm²;
+            orientation not stated; statistic: typical; quoted_source_value: Elongation
+            at Break | 6% | Post-Cured ... ASTM D638-14'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          value: 60.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02
+            (14 Aug 2023)
+          revision: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02
+            (14 Aug 2023)
+          url: https://formlabs-media.formlabs.com/datasheets/1801089-TDS-ENUS-0.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D638-14; source_condition: Form 2, 100
+            μm Clear settings; post-cured 60 min at 60 °C under 405 nm LED, 1.25 mW/cm²;
+            orientation not stated; statistic: typical; quoted_source_value: Elongation
+            at Break | 6% | Post-Cured ... ASTM D638-14'
+        basis: supplier_typical
+      conditioning: conditioned
+      notes: 'Research property elongation_at_break_post_cured; source condition:
+        Form 2, 100 μm Clear settings; post-cured 60 min at 60 °C under 405 nm LED,
+        1.25 mW/cm²; orientation not stated; reported statistic: typical'
+      orientation:
+        status: unknown
+        reason: Source does not state specimen orientation; it remains unknown.
+  - name: heat_deflection_temperature
+    value:
+      status: known
+      value:
+        value: 58
+        units: deg_C
+      sources:
+      - kind: datasheet
+        reference: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02 (14
+          Aug 2023)
+        revision: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02 (14
+          Aug 2023)
+        url: https://formlabs-media.formlabs.com/datasheets/1801089-TDS-ENUS-0.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ASTM D648-16; source_condition: post-cured; 1.8
+          MPa; statistic: typical; quoted_source_value: Heat Deflection Temp. @ 1.8
+          MPa | 58 °C | Post-Cured | ASTM D648-16'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ASTM D648-16
+        sources:
+        - kind: datasheet
+          reference: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02
+            (14 Aug 2023)
+          revision: Formlabs General Purpose Resins Materials Data Sheet, Rev. 02
+            (14 Aug 2023)
+          url: https://formlabs-media.formlabs.com/datasheets/1801089-TDS-ENUS-0.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D648-16; source_condition: post-cured;
+            1.8 MPa; statistic: typical; quoted_source_value: Heat Deflection Temp.
+            @ 1.8 MPa | 58 °C | Post-Cured | ASTM D648-16'
+        basis: supplier_typical
+      temperature:
+        status: unknown
+        reason: The source does not state one numeric test temperature; retain the
+          exact test condition in the cited source conditions.
+      conditioning: conditioned
+      notes: 'Research property heat_deflection_temperature_post_cured_1_8_mpa; source
+        condition: post-cured; 1.8 MPa; reported statistic: typical'
+      orientation:
+        status: unknown
+        reason: Source does not state specimen orientation; it remains unknown.
+  note: Every numeric research property represented as sourced typed data. Profile-specific
+    unknowns and source cautions are explicit in guidance.
+  guidance:
+  - 'Unknown (not established by the cited research; not zero or absent): density'
+  - 'Unknown (not established by the cited research; not zero or absent): yield strength'
+  - 'Unknown (not established by the cited research; not zero or absent): flexural
+    strength'
+  - 'Unknown (not established by the cited research; not zero or absent): CTE'
+  - 'Unknown (not established by the cited research; not zero or absent): moisture
+    absorption'
+  - 'Unknown (not established by the cited research; not zero or absent): max service
+    temperature'

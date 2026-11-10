@@ -20,15 +20,40 @@ TEMPLATE = SKILL / "assets" / "project-template"
 LAMP_EXAMPLE = SKILL.parent.parent / "examples" / "lamp-arm"
 EXAMPLE = LAMP_EXAMPLE / "hw"
 VALIDATOR = SKILL / "scripts" / "validate.py"
+PLACEHOLDER_INTENT = "".join(f"  {name}: {{status: unknown, reason: not recorded yet}}\n" for name in (
+    "functions", "material_profile", "service", "critical_surfaces", "route"))
+# The functional block a record version 2 interface needs, all unknown (as migrate.py writes it, without questions).
+PLACEHOLDER_FUNCTIONAL = ("functional: {critical: {status: unknown, reason: not recorded yet}, "
+                          "functions: {status: unknown, reason: not recorded yet}}")
+
+
+def _fixtures():
+    name = "cad_record_mi_fixtures"
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, SKILL / "tests" / "fixtures" / "manufacturing_intent.py")
+        assert spec and spec.loader
+        sys.modules[name] = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sys.modules[name])
+    return sys.modules[name]
+
+
+fx = _fixtures()
+
+
+def tree(root: Path) -> dict[str, bytes]:
+    return {p.relative_to(root).as_posix(): p.read_bytes() for p in sorted(root.rglob("*")) if p.is_file()}
 
 
 class ValidateProject(unittest.TestCase):
+    """The lamp example migrated to record version 2 (migrate.py), edited one fact at a time."""
+
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory(prefix="cad-record-test-")
         self.addCleanup(self.temporary.cleanup)
         self.project = Path(self.temporary.name) / "project"
         self.hw = self.project / "hw"
-        shutil.copytree(EXAMPLE, self.hw)
+        fx.migrated_copy(EXAMPLE, self.hw)
+        self.migrated_interfaces = (self.hw / "interfaces.yaml").read_bytes()
         self.part_path = self.hw / "parts" / "LMP-0001" / "part.yaml"
 
     def set_part(self, pn: str = "LMP-0001", rev: str = "X1") -> None:
@@ -64,7 +89,7 @@ class ValidateProject(unittest.TestCase):
         part_dir.mkdir(parents=True)
         (part_dir / "part.yaml").write_text(
             "PN: PRT-0001\nrev: X1\ntitle: Placeholder part\nmaterial: Placeholder material\n"
-            "process: cnc\nfinish: As machined\nmass_target: null\nmake_buy: make\n",
+            "process: cnc\nfinish: As machined\nmass_target: null\nmake_buy: make\nintent:\n" + PLACEHOLDER_INTENT,
             encoding="utf-8",
         )
         result = subprocess.run([sys.executable, str(VALIDATOR), str(project)], capture_output=True,
@@ -120,6 +145,21 @@ class ValidateProject(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("license/hardware 'CC BY 4.0' is not an SPDX license expression: 'BY' follows a complete "
                       "expression", json.dumps(report["findings"]))
+
+    def test_an_unknown_general_tolerance_validates_but_no_drawing_can_state_it(self) -> None:
+        path = self.hw / "product.yaml"
+        product = yaml.safe_load(path.read_text(encoding="utf-8"))
+        product["general_tolerance"] = {"status": "unknown", "reason": "not recorded yet", "question": "Q-013"}
+        path.write_text(yaml.safe_dump(product, sort_keys=False), encoding="utf-8")
+        result, report = self.validate()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        messages = {(Path(item["path"]).name, item["message"]) for item in report["findings"]}
+        self.assertTrue(any(name == "product.yaml" and "general_tolerance is unknown (question Q-013)" in message
+                            for name, message in messages), messages)
+        self.assertTrue(any(name == "part.yaml" and "record it before a drawing states general tolerances" in message
+                            for name, message in messages), messages)
+        for item in report["findings"]:  # nothing else: the schema admits the unknown form
+            self.assertIn("general_tolerance", item["message"], item)
 
     def test_spdx_expression_shape(self) -> None:
         spec = importlib.util.spec_from_file_location("cad_record_validate_spdx", VALIDATOR)
@@ -264,7 +304,13 @@ class ValidateProject(unittest.TestCase):
         self.write_release("A", "A", ["hw/product.yaml", "hw/bom.csv"])
         result, report = self.validate()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(report["findings"], [])
+        # A record version 2 verification pass is a summary of ledger evidence, not evidence: without
+        # hw/manufacturing/evidence.yaml entries each pass row warns (an error from the design freeze on).
+        with (self.hw / "verification.csv").open(newline="", encoding="utf-8") as stream:
+            rows = list(csv.DictReader(stream))
+        self.assertEqual([(item["code"], item["severity"], item["path"].rsplit("/", 1)[-1]) for item in report["findings"]],
+                         [("evidence.csv_unsupported", "warning", f"verification.csv:{line}")
+                          for line in range(2, len(rows) + 2)])
 
     def test_rejects_release_with_mismatched_directory_missing_file_planned_checks_and_prototype(self) -> None:
         self.write_release("B", "A", ["hw/product.yaml", "hw/not-present.step"])
@@ -310,7 +356,8 @@ class ValidateProject(unittest.TestCase):
         validator_copy = self.project / "skill" / "scripts" / "validate.py"
         validator_copy.parent.mkdir(parents=True)
         shutil.copy2(VALIDATOR, validator_copy)
-        for sibling in ("assembly_data.py", "design_rules.py", "layout.py"):
+        for sibling in ("assembly_data.py", "assembly_operations.py", "design_rules.py", "layout.py",
+                        "manufacturing_intent.py", "evidence.py", "impact.py", "selection.py"):
             shutil.copy2(VALIDATOR.with_name(sibling), validator_copy.with_name(sibling))
         shutil.copytree(SKILL / "schemas", self.project / "skill" / "schemas")
         shutil.copy2(SKILL / "layout.json", self.project / "skill" / "layout.json")
@@ -408,7 +455,8 @@ class ValidateProject(unittest.TestCase):
         path = self.hw / "interfaces.yaml"
         with path.open("a", encoding="utf-8") as stream:
             stream.write(f"  - {{id: IF-00{number}, from: head, to: base_plate, type: {kind}, "
-                         f"description: The head clears the base plate., pair: {pair}, min_clearance_mm: {minimum}}}\n")
+                         f"description: The head clears the base plate., pair: {pair}, min_clearance_mm: {minimum}, "
+                         f"{PLACEHOLDER_FUNCTIONAL}}}\n")
 
     def test_a_clearance_requirement_on_two_occurrences_validates(self) -> None:
         self.add_clearance('[LMP-0004, "@ring-base"]')
@@ -430,7 +478,7 @@ class ValidateProject(unittest.TestCase):
                                         (-1.5, "clearance", "less than or equal to the minimum of 0"),
                                         (2.0, "mounting", "'clearance' was expected")):
             with self.subTest(minimum=minimum, kind=kind):
-                shutil.copy2(EXAMPLE / "interfaces.yaml", self.hw / "interfaces.yaml")
+                (self.hw / "interfaces.yaml").write_bytes(self.migrated_interfaces)
                 self.add_clearance("[LMP-0004, LMP-0001]", minimum, kind)
                 found = self.messages()
                 self.assertTrue(any(m.startswith("interfaces/5") and expected in m for m in found), found)
@@ -438,14 +486,15 @@ class ValidateProject(unittest.TestCase):
     def test_a_clearance_pair_without_a_minimum_is_rejected(self) -> None:
         path = self.hw / "interfaces.yaml"
         with path.open("a", encoding="utf-8") as stream:
-            stream.write("  - {id: IF-006, from: head, to: base, type: clearance, description: Gap., pair: [LMP-0004, LMP-0001]}\n")
+            stream.write("  - {id: IF-006, from: head, to: base, type: clearance, description: Gap., "
+                         f"pair: [LMP-0004, LMP-0001], {PLACEHOLDER_FUNCTIONAL}}}\n")
         self.assertTrue(any("'min_clearance_mm' is a dependency of 'pair'" in m for m in self.messages()))
 
     def test_a_clearance_requirement_on_one_occurrence_is_rejected(self) -> None:
         self.add_clearance('["@ring-base", "@ring-base"]')
         self.assertTrue(any(m.startswith("interfaces/5/pair:") and "non-unique" in m for m in self.messages()))
         # A PN placed once and its @id name one occurrence: make @ring-head the one, part-local LMP-0010.
-        shutil.copy2(EXAMPLE / "interfaces.yaml", self.hw / "interfaces.yaml")
+        (self.hw / "interfaces.yaml").write_bytes(self.migrated_interfaces)
         self.edit_assembly("  - id: ring-head\n    PN: LMP-0011", "  - id: ring-head\n    PN: LMP-0010")
         self.edit_assembly("LMP-0009, LMP-0010]", "LMP-0009]")
         with (self.hw / "parts" / "LMP-0010" / "part.yaml").open("a", encoding="utf-8") as part:
@@ -563,6 +612,89 @@ class ValidateProject(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertNotIn("Traceback", result.stderr)
         self.assertTrue(any(item["message"].startswith("joints/1: ") for item in report["findings"]))
+
+
+class RecordVersion(unittest.TestCase):
+    """Row 19: a version 1 record stays readable and is never certified; gated actions name the migration."""
+
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory(prefix="cad-record-version-")
+        self.addCleanup(temporary.cleanup)
+        self.project = Path(temporary.name) / "project"
+        self.hw = self.project / "hw"
+
+    def validate(self) -> tuple[int, list[dict[str, object]]]:
+        result = subprocess.run([sys.executable, str(VALIDATOR), str(self.project)], capture_output=True, text=True,
+                                timeout=120)
+        return result.returncode, json.loads(result.stdout)["findings"]
+
+    def test_the_unmigrated_lamp_reads_whole_changes_nothing_and_names_the_migration(self) -> None:
+        shutil.copytree(EXAMPLE, self.hw)
+        before = tree(self.hw)
+        code, findings = self.validate()
+        self.assertEqual(code, 1)
+        blocking = [item for item in findings if item["severity"] == "error"]
+        self.assertEqual([item["code"] for item in blocking], ["record.migration_required"])
+        self.assertIn("migrate.py <project> --dry-run", blocking[0]["action"])
+        self.assertEqual(tree(self.hw), before, "reading a version 1 record rewrites nothing")
+
+    def test_a_version_1_record_still_reports_its_other_findings(self) -> None:
+        shutil.copytree(EXAMPLE, self.hw)
+        part = self.hw / "parts" / "LMP-0001" / "part.yaml"
+        part.write_text(part.read_text(encoding="utf-8").replace("decisions: [DR-002, DR-004]", "decisions: [DR-999]"),
+                        encoding="utf-8")
+        code, findings = self.validate()
+        messages = json.dumps(findings)
+        self.assertIn("record.migration_required", messages)
+        self.assertIn("decision DR-999 does not exist", messages)
+
+    def test_an_unsupported_record_version_is_named_not_guessed(self) -> None:
+        fx.migrated_copy(EXAMPLE, self.hw)
+        product = self.hw / "product.yaml"
+        product.write_text(product.read_text(encoding="utf-8").replace("record_version: 2", "record_version: 3"),
+                           encoding="utf-8")
+        code, findings = self.validate()
+        self.assertEqual(code, 1)
+        self.assertIn("record.version_unsupported", [item.get("code") for item in findings])
+
+
+class LedgerEvidence(unittest.TestCase):
+    """The record's own evidence checks: waivers must stand, and a CSV result is never evidence."""
+
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory(prefix="cad-record-evidence-")
+        self.addCleanup(temporary.cleanup)
+        self.project = Path(temporary.name) / "project"
+        self.hw = fx.migrated_copy(EXAMPLE, self.project / "hw")
+
+    def findings(self) -> list[dict[str, object]]:
+        result = subprocess.run([sys.executable, str(VALIDATOR), str(self.project)], capture_output=True, text=True,
+                                timeout=120)
+        return json.loads(result.stdout)["findings"]
+
+    def test_an_unapproved_waiver_is_an_error(self) -> None:
+        subject = {"PN": "LMP-0001"}
+        entry = {"id": "EV-001", "requirement": "REQ-001", "subject": subject, "level": "physically_validated",
+                 "result": "waived", "method": "TST",
+                 "waiver": {"decision": "DR-099", "subject": subject, "criterion": "TST", "operating_envelope": "TST",
+                            "reason": "TST", "consequence": "TST", "authority": "TST", "until_change": "TST"}}
+        (self.hw / "manufacturing" / "evidence.yaml").write_text(yaml.safe_dump({"entries": [entry]}), encoding="utf-8")
+        found = [item for item in self.findings() if str(item.get("code", "")).startswith("waiver.")]
+        self.assertEqual([(item["code"], item["severity"]) for item in found], [("waiver.unapproved", "error")])
+        self.assertTrue(found[0]["path"].endswith("evidence.yaml#/entries/0/waiver"))
+
+    def test_a_csv_pass_without_ledger_evidence_warns_and_blocks_from_the_freeze(self) -> None:
+        path = self.hw / "verification.csv"
+        path.write_text(path.read_text(encoding="utf-8").replace(",planned,", ",pass,", 1), encoding="utf-8")
+        found = [item for item in self.findings() if item.get("code") == "evidence.csv_unsupported"]
+        self.assertEqual([item["severity"] for item in found], ["warning"])
+        product = self.hw / "product.yaml"
+        data = yaml.safe_load(product.read_text(encoding="utf-8"))
+        data["flow"]["stage"] = "design_freeze"
+        product.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+        found = [item for item in self.findings() if item.get("code") == "evidence.csv_unsupported"]
+        self.assertEqual([item["severity"] for item in found], ["error"])
+
 
 
 if __name__ == "__main__":

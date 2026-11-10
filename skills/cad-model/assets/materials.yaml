@@ -1,8 +1,13 @@
-# Material densities for cad-model metrics.json mass (mass_g = volume_mm3 * density / 1000).
+# Legacy density-only table: the labelled mass estimate of a record version 1 part
+# (metrics.json `mass.source: legacy_density_table`, mass_g = volume_mm3 * density / 1000).
+#
+# A record version 2 part never reads this table: its mass comes from the density of its material
+# profile in hw/manufacturing/materials.yaml, and stays unknown (mass_g: null) when that profile has
+# no resolvable density. Nothing here is a material profile: a density never supplies strength,
+# stiffness or any other property, and no value is inherited by another material.
 #
 # Keys match hw/parts/<PN>/part.yaml `material` case-insensitively, with runs of whitespace
-# collapsed. A material missing here gets mass_g: null and is listed under
-# totals.parts_without_density; add it here with its source rather than guessing in a part record.
+# collapsed. A material missing here gets mass_g: null and is listed under totals.parts_without_density.
 #
 # Values are nominal room-temperature densities of the solid material, in g/cm3, from supplier
 # datasheets and handbook tables (Aluminum Association, EN 10088-1, EN 12164, polymer supplier

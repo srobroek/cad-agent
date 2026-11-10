@@ -14,11 +14,12 @@ admit.
 | `assembly.step` | AP242, top product `"<product id> vN"`, one product per PN and one component per occurrence at T = D P (nominal pose); an explicit occurrence's component is named `"<PN> <title> [@id]"` (cad-motion `pose.write_assembly_step`) |
 | `assembly.glb` | binary glTF 2.0 of `assembly.step`: metres, +Y up, one node per occurrence named by its instance name (`"<PN> <title>"`, or `"<PN> <title> [@id]"`), mesh names = product names |
 | `part-map.json` | `schema_version: 2`; `occurrences.<id>`: `PN`, `ref`, `nodes`, `node_indices`, `meshes`, matched on the exact instance name (authoritative for selection and motion); `parts.<PN>`: `product`, `occurrences`, and the aggregated `nodes`, `node_indices`, `meshes` |
-| `metrics.json` | `schema_version: 2`; `parts.<PN>` (definition level, in its `model_frame`): `model_frame`, `volume_mm3`, `area_mm2`, `bbox_mm` {min, max, size}, `centre_of_volume_mm`, `solids`, `shells`, `faces`, `holes`, `material`, `density_g_cm3`, `mass_g` (unit mass), `mass_target_g`; `occurrences.<id>`: `PN`, `transform`, `bbox_mm` of the placed geometry, `centre_of_volume_mm` and `holes` carried by the placement; `totals` over occurrences (quantity-weighted), with `quantity` per PN, `parts_without_density` and `occurrences_without_density` |
+| `metrics.json` | `schema_version: 2`; `mass_source` (`material_profiles`, record v2, or `legacy_density_table`, record v1) and the density table (v1 only). `parts.<PN>` contains model-frame geometry, solid/shell/face/hole facts and the part material label. The label is never a property source. Mass metrics include `density_g_cm3`, `mass_g`, `mass_target_g` and `mass` detail. Density or COM stays null when unresolved. Per-component profiles may produce mass bounds instead of one value. `occurrences.<id>` contains PN, transform, placed geometry and hole facts. `totals` aggregates occurrences and their known mass and COM.
 | `drawing-features.json` | only when a model defines `drawing_features`: `label`, `units`, `frames.<PN>` (its `model_frame`), and `parts.<PN>` = that model's locators in that frame (semantic ID → locator, `references/contract.md`); parts without the hook are absent |
-| `record/` | byte copies of the records the version was built from: `product.yaml`, `assembly.yaml`, `interfaces.yaml` when present, and `parts/<PN>/part.yaml` of every part record. `run` reads them once, before the kernels, and refuses to seal if any record or `model.py` changed during the run |
-| `manufacturing/<PN>/` | every custom-made PN (below): `part.step`, `part.stl` for an FDM part, and `manufacturing.json` |
-| `manifest.json` | `schema_version: 2`. Per PN, `parts.<PN>`: `kernel`, `model_frame`, `occurrences`, `model`, `source_sha256`, `record_sha256` (part.yaml), `params` and the kernel's volume, solids and validity. Per occurrence, `occurrences.<id>`: `PN`, `ref`, `explicit`, `group` and `rest` (P). `pose` holds `values` (independent joints at nominal, coupled joints derived from them; a derived value outside its limits fails the run) and, per occurrence, `transforms` (T) and `motions` (D). `joints` lists each joint with occurrence-id `parent` and `child` (a coupled joint's `nominal` is null); `joint_pairs` lists their sorted pairs with `joint` id and `type` (an `--attach` joint is fixed, id `attach:<REF>`). `record` maps each snapshot path to its sha256; `manufacturing.<PN>` is each custom-made PN's manufacturing entry (below). Also: `ground`, `tools`, `glb`, `drawing_features` and the `files` sha256 map of every file but itself. |
+| `record/` | byte copies of the records the version was built from, every file cad-record `layout.snapshot_names` names that exists: `product.yaml`, `requirements.yaml`, `interfaces.yaml`, `assembly.yaml`, `parts/<PN>/part.yaml` of every part record, `manufacturing/capabilities.yaml`, `materials.yaml`, `selection.yaml` and every file below `manufacturing/sources/` (exact bytes). Never the findings or evidence ledgers. `run` reads them once, before the kernels, and refuses to seal if any record, source or `model.py` changed during the run |
+| `manufacturing/<PN>/` | every custom-made PN with an output contract (below): `part.step`, `part.stl` for an additive part, `components/<COMP>/` for each component of a part of several, and `manufacturing.json` |
+| `manufacturing-features.json` | only when a model defines `manufacture_features`: `label`, `units`, and `parts.<PN>`: `state`, `decision`, `frame` (`manufacture`), `step_sha256` of the state STEP, `features` (its locators in the native frame of the state) and `correspondence` (`shared`, `manufacture_only` and `installed_unmapped` semantic ids) |
+| `manifest.json` | `schema_version: 2`; `record_version` (the record version of its snapshot; a manifest without it predates snapshots of requirements and manufacturing records). Per PN, `parts.<PN>`: `kernel`, `model_frame`, `occurrences`, `model`, `source_sha256`, `record_sha256` (part.yaml), `params` and the kernel's volume, solids and validity. Per occurrence, `occurrences.<id>`: `PN`, `ref`, `explicit`, `group` and `rest` (P). `pose` holds `values` (independent joints at nominal, coupled joints derived from them; a derived value outside its limits fails the run) and, per occurrence, `transforms` (T) and `motions` (D). `joints` lists each joint with occurrence-id `parent` and `child` (a coupled joint's `nominal` is null); `joint_pairs` lists their sorted pairs with `joint` id and `type` (an `--attach` joint is fixed, id `attach:<REF>`). `record` maps each snapshot path to its sha256; `manufacturing.<PN>` is each custom-made PN's manufacturing entry (below). Also: `ground`, `tools`, `glb`, `drawing_features`, `manufacturing_features` and the `files` sha256 map of every file but itself. |
 
 A file without `schema_version` is a version 1 version, written before occurrences: it reads as one
 occurrence per PN whose id is the PN (cad-render `scripts/versions.py`, `built_occurrences`, the
@@ -27,7 +28,15 @@ Definition metrics and bboxes are in each part's model frame, read back from the
 Every volume is BRepGProp's adaptive integration to 1e-9 relative (cad-motion `pose.VOLUME_EPS`,
 through `pose.volume_properties`, which cad-motion's sweep uses too); the default fixed-order rule
 is off by up to ~6e-6 on revolved and filleted B-spline faces.
-Mass is solid-material mass: `volume_mm3 * density / 1000`, density from `assets/materials.yaml`.
+Mass is solid-material mass at a uniform, fully dense density: `volume_mm3 * density / 1000`. A record
+version 2 part takes the density its material profile resolves (hw/manufacturing/materials.yaml,
+cad-record `resolve_property`), per component when its components name different profiles; `mass`
+holds `status` (known or unknown), `source`, `basis`, `method`, `densities` (per profile: `profile`,
+`status`, `value` g_cm3, `basis`, `sources`, `conditions`, `reasons`), `value_g` (a number, or
+`lower`/`upper` for an interval density) and `reasons`. An unresolved density leaves `mass_g` and the
+centre of mass null; it is never replaced by a default or another material's value. A record version 1
+part keeps the labelled estimate from the density-only table `assets/materials.yaml`
+(`source: legacy_density_table`, `basis: estimate`), which supplies no other property.
 
 `holes` lists the part's cylindrical bores (`cadmodel/holes.py`), sorted by (`diameter_mm`,
 `position`), `[]` when there are none:
@@ -157,33 +166,47 @@ When no permutation fits, it tries the minimum-volume oriented box. Its axes, ea
 its largest component is positive, go to the printer axes in every order under the same
 preference. Every candidate is rotated and its box measured again; only a measured fit counts.
 
-`check.build_volume` fits each FDM part in the state it is printed in: the manufacturing STEP of a
-version with manufacturing outputs (already on the bed, so `xyz` fits), else the definition. It
-reads the printer and the process from the version's record snapshot. Each row reports
-`orientation`, `method`, `size_mm`, `model_frame_size_mm` (the size of the shape fitted),
-`rotation` (rows: the printer axes in part coordinates) and `determinant`; an oriented fit also
-repeats `rotation` as `axes`. If neither box fits, the row names the PN, size, printer volume, and
-both fit failures. An undeclared volume warns without blocking. Non-FDM parts are ignored.
+`check.build_volume` is a diagnostic (`blocking: false`). An envelope fit is geometric evidence only. The part's route, capability profile and approved orientation govern process feasibility.
+For FDM/resin parts, the check uses manufacturing STEP when present; otherwise it uses the definition. The manufacturing STEP is already in the built orientation. If that orientation is approved, the check compares that pose with the recorded envelope fields `approved`, `envelope_source` and `reserved_mm`. It tries no other pose.
+For parts without an approved orientation, the legacy search proposes `pose: auto_fit_proposal`. The row reports orientation, method, size, model-frame size, rotation axes and determinant. It also reports rotated axes when a fit exists. A failed or missing envelope produces a warning.
 
 ## Manufacturing outputs
 
 A part is custom-made when part.yaml has `make_buy: make` or `procurement.mode: made_to_drawing`
 (cad-record `layout.custom_made`); a catalogue buy has no manufacturing output. `run` writes
-`manufacturing/<PN>/` for each custom-made PN, once per PN however many occurrences place it:
+`manufacturing/<PN>/` for each custom-made PN whose primary process has an output contract, once per
+PN however many occurrences place it. A process without one (`other`) gets `path: null`,
+`coverage: unknown` and no file: nothing is invented, and freeze and release refuse it.
 
 | File | Content |
 |---|---|
 | `part.step` | AP242, exact B-rep, millimetres, one product `"<PN> <title>"` (the state is metadata, never a second PN) with its geometry in the bed frame, not placed by a location |
-| `part.stl` | FDM only: binary STL in millimetres, tessellated from `part.step` with absolute deflections, 0.05 mm and 0.1 rad unless part.yaml `manufacture.mesh` declares others. STL carries no units; `manufacturing.json` states them |
-| `manufacturing.json` | the manifest entry below, `files` (sha256 of `part.step` and `part.stl`), and the check rows `run` measured |
+| `part.stl` | additive (fdm, resin) only: binary STL in millimetres, tessellated from `part.step` with absolute deflections, 0.05 mm and 0.1 rad unless part.yaml `manufacture.mesh` declares others. STL carries no units; `manufacturing.json` states them |
+| `components/<COMP>/part.step`, `part.stl` | a part of several components only: each component's own solids, in its own pose, with the part's process outputs |
+| `manufacturing.json` | the manifest entry below, `files` (sha256 of every output), and the check rows `run` measured |
 
 The state is the installed definition, or the `build_manufacture(params)` shape of a part whose
-part.yaml declares `manufacture.relationship: different` (`references/contract.md`). An FDM part is
-placed on the printer bed of `product.yaml` `build_volume` (above): turned by one proper rotation
-from `cadmodel/orientation.py`, its box centred in X and Y, its lowest point at Z 0. The margin
-reserves size; it never lifts the part. Without a declared volume, or without a fit, the part keeps
-its native +Z (with a declared volume it is still centred; without one its box corner sits at the
-origin) and is incomplete. A CNC or made-to-drawing part keeps its model frame (identity).
+part.yaml declares `manufacture.relationship: different` (`references/contract.md`). Every
+disconnected solid of the state is a manufacturing component (`cadmodel/components.py`): a sole solid
+is the implicit `main`; a record version 2 part of several declares them in part.yaml
+`intent.components`, each bound by an interior `witness` (native frame, mm) or a `locator` feature
+whose patch points lie on it, and a `multiplicity` n also takes the n - 1 other solids congruent to it
+(equal volume, area and principal moments: a mirror image counts as congruent, so declare mirrored
+pieces separately). Identity is never guessed: a witness within 1e-3 mm of a surface or inside two
+solids, a feature on several solids, two components on one solid, overlapping solids, a solid no
+component binds, and a group without exactly its count of congruent members fail the run
+(`components`). A record version 1 part of several solids keeps one combined output whose identity is
+unknown, incomplete.
+
+An additive component sits on the bed (its box centred in X and Y on a declared envelope, its lowest
+point at Z 0) in the pose its route fixes: the approved `orientation.rotation` of the first additive
+operation that shapes it (`cadmodel/orientation.py` `rotation_of`; machine = rotation x native). A
+proposed or unknown orientation, or no additive operation shaping it, exports its native frame and is
+incomplete. The envelope is that operation's capability profile `envelope` when x, y and z are known
+lengths, else product.yaml `build_volume`, a declaration. A record version 1 part keeps the legacy
+envelope auto-fit (`pose: unapproved_auto_fit`, or `unapproved_native` without a fit), labelled, never
+approved. Any other part keeps its model frame (identity). Components in different poses leave the
+combined part.step in their native frame on the bed (`pose: per_component`).
 
 The manifest entry `manufacturing.<PN>` holds:
 
@@ -196,31 +219,48 @@ The manifest entry `manufacturing.<PN>` holds:
   relative for a part made as installed, and the declared values otherwise.
 - `installed` (`step`, `sha256`, the kernel volume and solids) and `native` (the manufacturing
   state's kernel volume, solids, validity and errors)
-- `units` mm, `up` +Z, `build_volume` (FDM: size, margin, usable size, orientations) and `mesh`
-  (FDM: format and deflections)
-- `placement`: `method` (axis_aligned, oriented, native or identity), `orientation`, `bed`
-  (centred, origin or null), `transform` (3x4 rows, unrounded) and `determinant`
-- `path`, `outputs`, `files` (sha256 of every output, the sidecar included), `status`, `complete`
-  and `blocking_failures`
+- `intent`: `record_version`; for record version 2 `material_profile`, `route` (per operation `id`,
+  `kind`, `capability`, `provider`, `components`, `depends_on`, `known_kind`), `profiles` (sha256 of
+  each material and capability profile the part names), `sources` (sha256 of each cited source
+  artifact's snapshot bytes) and `inputs_sha256`; for version 1 `status: unknown` and its `reason`
+- `units` mm, `up` +Z, `build_volume` (the envelope used: size, margin, usable size, orientations,
+  `source`) and `mesh` (additive: format and deflections)
+- `placement`: `method` (approved, proposed, native, axis_aligned, oriented or identity),
+  `orientation`, `bed` (centred, origin or null), `frame` (bed or model), `transform` (3x4 rows,
+  unrounded), `determinant`, `pose` (approved, proposed, not_applicable, unknown, unapproved_auto_fit,
+  unapproved_native, model_frame or per_component), `approved`, `operation`, `decision`, `reason`
+  and `build_volume`
+- `components.<COMP>`: `binding` (implicit, witness or locator), `points_mm` (native frame),
+  `locator`, `multiplicity`, `material_profile` (the component's, else the part's), `operations`
+  (the route operations that shape it; `[]` unplanned, null while the route is unknown), `planned`,
+  `files`, `placement` (as above), `volume_mm3` and `members` (per solid, native frame:
+  `volume_mm3`, `area_mm2`, `centre_of_volume_mm`, `bbox_mm`, `principal_moments_mm5`);
+  `component_outputs` (the component files) and `component_identity` (`status` bound or unknown, with
+  the unbound `solids` of a version 1 part)
+- `path`, `outputs` (the process's files), `files` (sha256 of every output, the sidecar included),
+  `status`, `complete` and `blocking_failures`
 
 A custom-made PN without a model.py gets `path: null`, `status: warn`, `complete: false` and a
-`message`.
+`message`. A complete pass claims output integrity in the recorded pose only: never process
+feasibility, a calibrated capability or any physical validation.
 
 Each part row has `status` (pass|warn|fail), `complete`, `blocking_failures` and `checks`; each
 check has `status`, `blocking` and `failed`, the conditions that do not hold:
 
 | Check | Fails when |
 |---|---|
-| `outputs` | a file the layout requires for the process is missing, another file is present, or a file's sha256 differs from the manifest (`check` only) |
+| `outputs` | a file the layout requires for the process or a component is missing, another file is present, or a file's sha256 differs from the manifest (`check` only) |
 | `record` | `PN`, `rev`, `material`, `process` or `finish` differs from the version's part.yaml snapshot |
 | `native` | the manufacturing state is not a valid B-rep (BRepCheck in the kernel), has no solid, or has no positive volume |
 | `identity` | the manufacturing state's kernel volume differs from the installed one by more than `allowed_mm3`, compared unrounded, or their solid counts differ. Equal volume is not proof of the same holes, walls or material |
 | `step` | `part.step` is not AP242 or does not declare millimetres only. It holds anything but one product `"<PN> <title>"` at identity. It is an invalid B-rep, or has another solid count than the state. Its read-back volume differs from the state's kernel volume by more than 1e-6 relative |
-| `mesh` | FDM: `part.stl` is not binary, or holds a non-finite coordinate. After welding by position and dropping collapsed triangles, a triangle has an area of 1e-12 mm^2 or less. It is not watertight, not consistently wound, or has non-positive signed volume (inward). It has another shell count than the STEP. Its volume differs from the STEP's by more than area x (deflection + float32 rounding), or a box face sits farther than the deflection inside the STEP's. Nothing is repaired, so a crack stays open |
-| `placement` | the transform is not a proper rotation (orthonormal, determinant +1 within 1e-9); an FDM part does not touch Z 0 within 1e-6 mm; a CNC part is not at identity. An FDM part outside the reserved extents of the declared volume (X and Y: margin to size - margin; Z: 0 to size - 2 margin), or without a declared volume, warns and is incomplete |
+| `mesh` | additive: `part.stl` is not binary, or holds a non-finite coordinate. After welding by position and dropping collapsed triangles, a triangle has an area of 1e-12 mm^2 or less. It is not watertight, not consistently wound, or has non-positive signed volume (inward). It has another shell count than the STEP. Its volume differs from the STEP's by more than area x (deflection + float32 rounding), or a box face sits farther than the deflection inside the STEP's. Nothing is repaired, so a crack stays open |
+| `placement` | the transform is not a proper rotation (orthonormal, determinant +1 within 1e-9); a part on a bed does not touch Z 0 within 1e-6 mm; a model-frame part is not at identity. A record version 2 part on a bed outside its approved orientation, outside the reserved extents of its envelope (X and Y: margin to size - margin; Z: 0 to size - 2 margin), or without an envelope, warns and is incomplete |
+| `components` | (`run`) the solids cannot be bound to the declared components without guessing. (`run` and `check`) per component: its own `step` (its member count and volume), `mesh` and `placement` as above, and `binding`: its witness, moved by its placement, lies inside exactly one solid of its file (feature points on it) |
 
 Any failed check fails the run (exit 1): no version, no new `latest.json`. A part is `complete` when
-every check passes; incompleteness (no build volume, no fit, no model) warns without blocking.
+every check passes; incompleteness (no approved orientation, no envelope, no fit, no model, unbound
+version 1 solids) warns without blocking.
 cad-model does not resolve `drawing.manufacturing.build_direction` datums; cad-drawings compares the
 declared direction with `placement.transform`.
 
@@ -250,11 +290,11 @@ check: never stamp or release from it.
 | Check | Blocking | Fails when |
 |---|---|---|
 | `step_readback` | yes | The STEP schema is not AP242, a product name differs from `"<PN> <title>"` in the part or assembly STEP, or the top product is missing. The read-back volume differs from the kernel volume by more than 1e-6 relative, or the read-back solid count differs from the kernel's. |
-| `build_volume` | yes | neither the AABB permutations nor the minimum-volume oriented box of the printed shape fit within the printer volume after margin; missing `build_volume` warns without blocking |
+| `build_volume` | no | a diagnostic: an additive part in its approved pose does not fit the envelope its export recorded, or the legacy search finds no permutation or oriented box of the printed shape within the declared envelope, or no envelope is declared; it warns and never blocks (an envelope fit is not process feasibility) |
 | `artifact_integrity` | yes | a file of the version is missing, changed, unlisted in the manifest `files`, a link or special file (`problems`; cad-record `layout.verify`) |
 | `manufacturing` | yes | a custom-made PN of the record snapshot has no manufacturing entry, a manufacturing entry or folder belongs to no custom-made PN, or a part row fails (`parts.<PN>`, the rows above, judged again on the sealed files). `complete` is true when every part is complete; an incomplete part warns. A version built before manufacturing outputs warns, `blocking: false` |
 | `brep_validity` | yes | BRepCheck rejects the kernel's in-memory shape or the STEP read-back |
-| `solid_structure` | yes | a part has no solid, or its solid count differs from `--expect-solids` or else from the previous version; `--expect-solids` naming a PN outside the version fails (`unknown_parts`) |
+| `solid_structure` | yes | a part has no solid, or its solid count differs from `--expect-solids`, else from the count its record snapshot declares (a record version 2 part made as installed: the sum of its part.yaml `intent.components` multiplicities, `baseline: intent.components`), else from the previous version; `--expect-solids` naming a PN outside the version fails (`unknown_parts`) |
 | `interference` | yes | Two parts share more than 1e-3 mm^3 at the nominal pose, unless the pair is a declared interference fit or heat-set insert (below) or `--allow-interference` names an undeclared intentional overlap. A declared interference fit that measures no interference is reported in `declared_fit_findings` and fails. A pair whose measurement failed or whose reading is an unresolved suspect (`method` null, `error`) fails even when allowed. `--pair` or `--allow-interference` naming a PN outside the version fails (`unknown_pairs`, `unknown_allowed`). Joint-connected pairs are listed under `joint_pairs`; others under `pairs`. A measured row has `method: exact` with `clearance_mm` and `interference_mm3`; a far row has `method` box, mesh, `mesh (exact suspect)` or cache-bound, `lower_mm`, `upper_mm` (null: unbounded) and null distance and volume: its bounds prove it does not overlap; `min_clearance` names the closest pair |
 | `pair_clearance` | yes | a clearance requirement of the version's `interfaces.yaml` (`type: clearance`, `pair`, `min_clearance_mm`, resolved by cad-motion's `pair_policy.py`) measures below its `min_clearance_mm` at the nominal pose, compared unrounded; its pair's measurement failed (`error`); or the version has no such occurrence pair. A requirement binds its pair whatever joins it, so it also binds a joint-connected or fitted pair. A clearance at or above the requirement but below it plus `margin_mm` (cad-record's margin: the interface's `margin_mm`, else product.yaml `design.clearance_margin_mm`, default 0.1) is `status: warn`, `warning: margin`, never a failure; the check then warns. Each `requirements` row has `pair` (occurrence ids), `refs`, `required_mm`, `margin_mm`, `clearance_mm`, `method`, `status` (pass/warn/fail), `interface` and YAML `source`; a far pair passes on its `lower_mm`, which its measurement put above requirement plus margin; with no requirement declared the check passes |
 | `connection` | yes | the two parts of a fixed joint or `--attach` are more than 0.01 mm apart (`fixed_joints`: `joint`, `pair`, `distance_mm`, `ok`); or a part is `disconnected` (nearest part > 2.0 mm away), or `floating` (0.01 to 2.0 mm) without a movable joint (revolute, prismatic) linking its rigid body to the nearest part's; `touching` is <= 0.01 mm. Fixed joints weld their parts into one rigid body, so a float to a part of the same body is never a joint clearance. Each `parts` row has `nearest`, `distance_mm` (always measured: a far pair that could be a part's nearest is measured exactly), `joint` (the movable joint between the two bodies, else null), `joint_connected` |
@@ -294,6 +334,11 @@ instead of a `pair` also carries `endpoints`: `hole` and `shaft`, each with `PN`
 optional `region`. `declared_heat_sets` lists each `limits.heat_set` entry with its sorted `pair`,
 `host` PN, `insert` designation, `hole_d`, `interface` and `source`. A heat-set pair passes with or
 without measured overlap, because a model can draw the insert at its bore size.
+`declared_locating_fits` lists each `limits.locating_fit` the same way as a press fit, its
+`classification` the ISO 286 fit type or `unclassified` (a dowel or vendor limit). cad-motion
+`pair_policy` decides which pairs may overlap, for check and the sweep alike: an interference press
+or locating fit, which must then measure an overlap (else `declared_fit_not_realized`), and a heat-set
+insert; a clearance, transition or unclassified locating fit allows none.
 
 A tolerant B-rep fails `step_readback` on purpose: when filleted edges carry tolerances of
 0.01 to 0.1 mm, a STEP round trip rebuilds their face boundaries and moves the volume by about

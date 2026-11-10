@@ -1,0 +1,434 @@
+# cad-record capability templates: fields and guidance only, never machine numbers.
+# A template is never a capability: copy one into hw/manufacturing/capabilities.yaml and record your actual
+# machine, operator or supplier, its parameters with their sources, and its calibrations.
+profiles:
+  - id: fdm_template
+    revision: 1
+    title: FDM printer (template)
+    process: fdm
+    provider: local
+    template: true
+    guidance:
+      - Copy this profile into hw/manufacturing/capabilities.yaml, give it your own id, then remove template and guidance.
+      - Record your actual machine, operator or supplier values with their sources; leave a value unknown, with its reason, until you have one.
+      - 'Parameters describe the machine and are never its achieved accuracy: record achievable dimensions, features and finish only as calibrations from your own coupons, measurements or supplier evidence, each scoped to its material, feature, orientation, setup and tool.'
+      - Record nozzle, filament, layer height, hotend, bed and enclosure limits, filament drying and support materials.
+      - Calibrate walls, small features, holes, bridges, overhangs, warping and layer strength per filament profile, orientation and settings; a slicer preview or a print trial is evidence only for what it shows.
+    machine:
+      identity: {status: unknown, reason: 'template: record the make, model and identity of your machine'}
+    operator: {status: unknown, reason: 'template: record who operates it and their constraints'}
+    envelope:
+      x: {status: unknown, reason: 'template: record the usable working envelope'}
+      y: {status: unknown, reason: 'template: record the usable working envelope'}
+      z: {status: unknown, reason: 'template: record the usable working envelope'}
+    materials: {status: unknown, reason: 'template: list the exact materials and stock it is approved or forbidden for'}
+    parameters:
+      nozzle_diameter: {status: unknown, reason: 'template: record your own value'}
+      nozzle_material: {status: unknown, reason: 'template: record your own value'}
+      filament_diameter: {status: unknown, reason: 'template: record your own value'}
+      layer_height: {status: unknown, reason: 'template: record your own value'}
+      line_width: {status: unknown, reason: 'template: record your own value'}
+      hotend_max_temperature: {status: unknown, reason: 'template: record your own value'}
+      bed_max_temperature: {status: unknown, reason: 'template: record your own value'}
+      enclosure: {status: unknown, reason: 'template: record your own value'}
+      chamber_temperature: {status: unknown, reason: 'template: record your own value'}
+      filament_drying: {status: unknown, reason: 'template: record your own value'}
+      support_materials: {status: unknown, reason: 'template: record your own value'}
+      max_speed: {status: unknown, reason: 'template: record your own value'}
+    calibrations: []
+  - id: resin_template
+    revision: 1
+    title: Resin printer (template)
+    process: resin
+    provider: local
+    template: true
+    guidance:
+      - Copy this profile into hw/manufacturing/capabilities.yaml, give it your own id, then remove template and guidance.
+      - Record your actual machine, operator or supplier values with their sources; leave a value unknown, with its reason, until you have one.
+      - 'Parameters describe the machine and are never its achieved accuracy: record achievable dimensions, features and finish only as calibrations from your own coupons, measurements or supplier evidence, each scoped to its material, feature, orientation, setup and tool.'
+      - Record the resin handling, wash and post-cure practice.
+      - Calibrate dimensional accuracy, distortion, drainage and ageing per resin, orientation and cure.
+    machine:
+      identity: {status: unknown, reason: 'template: record the make, model and identity of your machine'}
+    operator: {status: unknown, reason: 'template: record who operates it and their constraints'}
+    envelope:
+      x: {status: unknown, reason: 'template: record the usable working envelope'}
+      y: {status: unknown, reason: 'template: record the usable working envelope'}
+      z: {status: unknown, reason: 'template: record the usable working envelope'}
+    materials: {status: unknown, reason: 'template: list the exact materials and stock it is approved or forbidden for'}
+    parameters:
+      layer_height: {status: unknown, reason: 'template: record your own value'}
+      xy_resolution: {status: unknown, reason: 'template: record your own value'}
+      light_source: {status: unknown, reason: 'template: record your own value'}
+      wash: {status: unknown, reason: 'template: record your own value'}
+      post_cure: {status: unknown, reason: 'template: record your own value'}
+      resin_heating: {status: unknown, reason: 'template: record your own value'}
+    calibrations: []
+  - id: cnc_template
+    revision: 1
+    title: CNC machine (template)
+    process: cnc
+    provider: local
+    template: true
+    guidance:
+      - Copy this profile into hw/manufacturing/capabilities.yaml, give it your own id, then remove template and guidance.
+      - Record your actual machine, operator or supplier values with their sources; leave a value unknown, with its reason, until you have one.
+      - 'Parameters describe the machine and are never its achieved accuracy: record achievable dimensions, features and finish only as calibrations from your own coupons, measurements or supplier evidence, each scoped to its material, feature, orientation, setup and tool.'
+      - Record axes, travel, spindle, tool holders, workholding and the stock and materials it machines.
+      - Record each cutter's diameter, corner radius, flutes, reach and holder as a tool; calibrate accuracy and finish per material, setup and tool.
+    machine:
+      identity: {status: unknown, reason: 'template: record the make, model and identity of your machine'}
+    operator: {status: unknown, reason: 'template: record who operates it and their constraints'}
+    envelope:
+      x: {status: unknown, reason: 'template: record the usable working envelope'}
+      y: {status: unknown, reason: 'template: record the usable working envelope'}
+      z: {status: unknown, reason: 'template: record the usable working envelope'}
+    materials: {status: unknown, reason: 'template: list the exact materials and stock it is approved or forbidden for'}
+    parameters:
+      axes: {status: unknown, reason: 'template: record your own value'}
+      travel_x: {status: unknown, reason: 'template: record your own value'}
+      travel_y: {status: unknown, reason: 'template: record your own value'}
+      travel_z: {status: unknown, reason: 'template: record your own value'}
+      spindle_max_speed: {status: unknown, reason: 'template: record your own value'}
+      spindle_power: {status: unknown, reason: 'template: record your own value'}
+      tool_holder: {status: unknown, reason: 'template: record your own value'}
+      max_tool_length: {status: unknown, reason: 'template: record your own value'}
+      coolant: {status: unknown, reason: 'template: record your own value'}
+      probing: {status: unknown, reason: 'template: record your own value'}
+    calibrations: []
+  - id: laser_template
+    revision: 1
+    title: Laser cutter (template)
+    process: laser
+    provider: local
+    template: true
+    guidance:
+      - Copy this profile into hw/manufacturing/capabilities.yaml, give it your own id, then remove template and guidance.
+      - Record your actual machine, operator or supplier values with their sources; leave a value unknown, with its reason, until you have one.
+      - 'Parameters describe the machine and are never its achieved accuracy: record achievable dimensions, features and finish only as calibrations from your own coupons, measurements or supplier evidence, each scoped to its material, feature, orientation, setup and tool.'
+      - List every exact material, composition, coating and thickness the machine is approved or forbidden for, with its extraction; never approve PVC or an unidentified plastic or coating.
+      - Record the source type, power, assist gas and operating conditions; calibrate kerf, taper, minimum holes, slots and webs, tolerance and edge quality per material and thickness, and the stock thickness distribution.
+    machine:
+      identity: {status: unknown, reason: 'template: record the make, model and identity of your machine'}
+    operator: {status: unknown, reason: 'template: record who operates it and their constraints'}
+    envelope:
+      x: {status: unknown, reason: 'template: record the usable working envelope'}
+      y: {status: unknown, reason: 'template: record the usable working envelope'}
+      z: {status: unknown, reason: 'template: record the usable working envelope'}
+    materials: {status: unknown, reason: 'template: list the exact materials and stock it is approved or forbidden for'}
+    parameters:
+      laser_type: {status: unknown, reason: 'template: record your own value'}
+      power: {status: unknown, reason: 'template: record your own value'}
+      wavelength: {status: unknown, reason: 'template: record your own value'}
+      assist_gas: {status: unknown, reason: 'template: record your own value'}
+      extraction: {status: unknown, reason: 'template: record your own value'}
+      operations: {status: unknown, reason: 'template: record your own value'}
+      bed_x: {status: unknown, reason: 'template: record your own value'}
+      bed_y: {status: unknown, reason: 'template: record your own value'}
+      max_thickness: {status: unknown, reason: 'template: record your own value'}
+    calibrations: []
+  - id: waterjet_template
+    revision: 1
+    title: Waterjet cutter (template)
+    process: waterjet
+    provider: local
+    template: true
+    guidance:
+      - Copy this profile into hw/manufacturing/capabilities.yaml, give it your own id, then remove template and guidance.
+      - Record your actual machine, operator or supplier values with their sources; leave a value unknown, with its reason, until you have one.
+      - 'Parameters describe the machine and are never its achieved accuracy: record achievable dimensions, features and finish only as calibrations from your own coupons, measurements or supplier evidence, each scoped to its material, feature, orientation, setup and tool.'
+      - 'A separate profile: never inherit laser assumptions.'
+      - Calibrate kerf, taper, minimum features, tolerance and edge finish per material and thickness.
+    machine:
+      identity: {status: unknown, reason: 'template: record the make, model and identity of your machine'}
+    operator: {status: unknown, reason: 'template: record who operates it and their constraints'}
+    envelope:
+      x: {status: unknown, reason: 'template: record the usable working envelope'}
+      y: {status: unknown, reason: 'template: record the usable working envelope'}
+      z: {status: unknown, reason: 'template: record the usable working envelope'}
+    materials: {status: unknown, reason: 'template: list the exact materials and stock it is approved or forbidden for'}
+    parameters:
+      pump_pressure: {status: unknown, reason: 'template: record your own value'}
+      abrasive: {status: unknown, reason: 'template: record your own value'}
+      bed_x: {status: unknown, reason: 'template: record your own value'}
+      bed_y: {status: unknown, reason: 'template: record your own value'}
+      max_thickness: {status: unknown, reason: 'template: record your own value'}
+    calibrations: []
+  - id: plasma_template
+    revision: 1
+    title: Plasma cutter (template)
+    process: plasma
+    provider: local
+    template: true
+    guidance:
+      - Copy this profile into hw/manufacturing/capabilities.yaml, give it your own id, then remove template and guidance.
+      - Record your actual machine, operator or supplier values with their sources; leave a value unknown, with its reason, until you have one.
+      - 'Parameters describe the machine and are never its achieved accuracy: record achievable dimensions, features and finish only as calibrations from your own coupons, measurements or supplier evidence, each scoped to its material, feature, orientation, setup and tool.'
+      - 'A separate profile: never inherit laser or waterjet assumptions.'
+      - Calibrate kerf, bevel, minimum features, tolerance, heat-affected edge and distortion per material and thickness.
+    machine:
+      identity: {status: unknown, reason: 'template: record the make, model and identity of your machine'}
+    operator: {status: unknown, reason: 'template: record who operates it and their constraints'}
+    envelope:
+      x: {status: unknown, reason: 'template: record the usable working envelope'}
+      y: {status: unknown, reason: 'template: record the usable working envelope'}
+      z: {status: unknown, reason: 'template: record the usable working envelope'}
+    materials: {status: unknown, reason: 'template: list the exact materials and stock it is approved or forbidden for'}
+    parameters:
+      source: {status: unknown, reason: 'template: record your own value'}
+      gas: {status: unknown, reason: 'template: record your own value'}
+      bed_x: {status: unknown, reason: 'template: record your own value'}
+      bed_y: {status: unknown, reason: 'template: record your own value'}
+      max_thickness: {status: unknown, reason: 'template: record your own value'}
+    calibrations: []
+  - id: sheet_forming_template
+    revision: 1
+    title: Sheet forming (template)
+    process: sheet_forming
+    provider: local
+    template: true
+    guidance:
+      - Copy this profile into hw/manufacturing/capabilities.yaml, give it your own id, then remove template and guidance.
+      - Record your actual machine, operator or supplier values with their sources; leave a value unknown, with its reason, until you have one.
+      - 'Parameters describe the machine and are never its achieved accuracy: record achievable dimensions, features and finish only as calibrations from your own coupons, measurements or supplier evidence, each scoped to its material, feature, orientation, setup and tool.'
+      - Record the press brake, tooling and the materials and thicknesses it forms.
+      - Calibrate bend radius, bend allowance and springback per material, grain direction, thickness and tool.
+    machine:
+      identity: {status: unknown, reason: 'template: record the make, model and identity of your machine'}
+    operator: {status: unknown, reason: 'template: record who operates it and their constraints'}
+    envelope:
+      x: {status: unknown, reason: 'template: record the usable working envelope'}
+      y: {status: unknown, reason: 'template: record the usable working envelope'}
+      z: {status: unknown, reason: 'template: record the usable working envelope'}
+    materials: {status: unknown, reason: 'template: list the exact materials and stock it is approved or forbidden for'}
+    parameters:
+      press_brake_force: {status: unknown, reason: 'template: record your own value'}
+      max_bend_length: {status: unknown, reason: 'template: record your own value'}
+      tooling: {status: unknown, reason: 'template: record your own value'}
+      max_thickness: {status: unknown, reason: 'template: record your own value'}
+    calibrations: []
+  - id: casting_template
+    revision: 1
+    title: Casting (template)
+    process: casting
+    provider: local
+    template: true
+    guidance:
+      - Copy this profile into hw/manufacturing/capabilities.yaml, give it your own id, then remove template and guidance.
+      - Record your actual machine, operator or supplier values with their sources; leave a value unknown, with its reason, until you have one.
+      - 'Parameters describe the machine and are never its achieved accuracy: record achievable dimensions, features and finish only as calibrations from your own coupons, measurements or supplier evidence, each scoped to its material, feature, orientation, setup and tool.'
+      - Record the casting method, tooling and the materials it casts.
+      - Calibrate shrinkage, draft, minimum wall and typical defects per material and tool, and name the secondary operations.
+    machine:
+      identity: {status: unknown, reason: 'template: record the make, model and identity of your machine'}
+    operator: {status: unknown, reason: 'template: record who operates it and their constraints'}
+    envelope:
+      x: {status: unknown, reason: 'template: record the usable working envelope'}
+      y: {status: unknown, reason: 'template: record the usable working envelope'}
+      z: {status: unknown, reason: 'template: record the usable working envelope'}
+    materials: {status: unknown, reason: 'template: list the exact materials and stock it is approved or forbidden for'}
+    parameters:
+      method: {status: unknown, reason: 'template: record your own value'}
+      max_part_size: {status: unknown, reason: 'template: record your own value'}
+      tooling: {status: unknown, reason: 'template: record your own value'}
+    calibrations: []
+  - id: moulding_template
+    revision: 1
+    title: Moulding (template)
+    process: moulding
+    provider: local
+    template: true
+    guidance:
+      - Copy this profile into hw/manufacturing/capabilities.yaml, give it your own id, then remove template and guidance.
+      - Record your actual machine, operator or supplier values with their sources; leave a value unknown, with its reason, until you have one.
+      - 'Parameters describe the machine and are never its achieved accuracy: record achievable dimensions, features and finish only as calibrations from your own coupons, measurements or supplier evidence, each scoped to its material, feature, orientation, setup and tool.'
+      - Record the moulding method, tooling and the materials it moulds.
+      - Calibrate shrinkage, draft, minimum wall and typical defects per material and tool.
+    machine:
+      identity: {status: unknown, reason: 'template: record the make, model and identity of your machine'}
+    operator: {status: unknown, reason: 'template: record who operates it and their constraints'}
+    envelope:
+      x: {status: unknown, reason: 'template: record the usable working envelope'}
+      y: {status: unknown, reason: 'template: record the usable working envelope'}
+      z: {status: unknown, reason: 'template: record the usable working envelope'}
+    materials: {status: unknown, reason: 'template: list the exact materials and stock it is approved or forbidden for'}
+    parameters:
+      method: {status: unknown, reason: 'template: record your own value'}
+      clamp_force: {status: unknown, reason: 'template: record your own value'}
+      shot_volume: {status: unknown, reason: 'template: record your own value'}
+      tooling: {status: unknown, reason: 'template: record your own value'}
+    calibrations: []
+  - id: extrusion_template
+    revision: 1
+    title: Extrusion (template)
+    process: extrusion
+    provider: local
+    template: true
+    guidance:
+      - Copy this profile into hw/manufacturing/capabilities.yaml, give it your own id, then remove template and guidance.
+      - Record your actual machine, operator or supplier values with their sources; leave a value unknown, with its reason, until you have one.
+      - 'Parameters describe the machine and are never its achieved accuracy: record achievable dimensions, features and finish only as calibrations from your own coupons, measurements or supplier evidence, each scoped to its material, feature, orientation, setup and tool.'
+      - Record the die and the profiles it makes.
+      - Calibrate profile tolerance per material and die.
+    machine:
+      identity: {status: unknown, reason: 'template: record the make, model and identity of your machine'}
+    operator: {status: unknown, reason: 'template: record who operates it and their constraints'}
+    envelope:
+      x: {status: unknown, reason: 'template: record the usable working envelope'}
+      y: {status: unknown, reason: 'template: record the usable working envelope'}
+      z: {status: unknown, reason: 'template: record the usable working envelope'}
+    materials: {status: unknown, reason: 'template: list the exact materials and stock it is approved or forbidden for'}
+    parameters:
+      die: {status: unknown, reason: 'template: record your own value'}
+      max_profile: {status: unknown, reason: 'template: record your own value'}
+    calibrations: []
+  - id: drilling_template
+    revision: 1
+    title: Drilling (template)
+    process: drilling
+    provider: local
+    template: true
+    guidance:
+      - Copy this profile into hw/manufacturing/capabilities.yaml, give it your own id, then remove template and guidance.
+      - Record your actual machine, operator or supplier values with their sources; leave a value unknown, with its reason, until you have one.
+      - 'Parameters describe the machine and are never its achieved accuracy: record achievable dimensions, features and finish only as calibrations from your own coupons, measurements or supplier evidence, each scoped to its material, feature, orientation, setup and tool.'
+      - Record the drills and machines.
+      - Calibrate achieved hole size and position per material and drill.
+    machine:
+      identity: {status: unknown, reason: 'template: record the make, model and identity of your machine'}
+    operator: {status: unknown, reason: 'template: record who operates it and their constraints'}
+    materials: {status: unknown, reason: 'template: list the exact materials and stock it is approved or forbidden for'}
+    parameters:
+      tool_set: {status: unknown, reason: 'template: record your own value'}
+      range: {status: unknown, reason: 'template: record your own value'}
+      resolution: {status: unknown, reason: 'template: record your own value'}
+    calibrations: []
+  - id: reaming_template
+    revision: 1
+    title: Reaming (template)
+    process: reaming
+    provider: local
+    template: true
+    guidance:
+      - Copy this profile into hw/manufacturing/capabilities.yaml, give it your own id, then remove template and guidance.
+      - Record your actual machine, operator or supplier values with their sources; leave a value unknown, with its reason, until you have one.
+      - 'Parameters describe the machine and are never its achieved accuracy: record achievable dimensions, features and finish only as calibrations from your own coupons, measurements or supplier evidence, each scoped to its material, feature, orientation, setup and tool.'
+      - Record the reamers and their sizes.
+      - Calibrate achieved bore size and finish per material and reamer.
+    machine:
+      identity: {status: unknown, reason: 'template: record the make, model and identity of your machine'}
+    operator: {status: unknown, reason: 'template: record who operates it and their constraints'}
+    materials: {status: unknown, reason: 'template: list the exact materials and stock it is approved or forbidden for'}
+    parameters:
+      tool_set: {status: unknown, reason: 'template: record your own value'}
+      range: {status: unknown, reason: 'template: record your own value'}
+      resolution: {status: unknown, reason: 'template: record your own value'}
+    calibrations: []
+  - id: tapping_template
+    revision: 1
+    title: Tapping (template)
+    process: tapping
+    provider: local
+    template: true
+    guidance:
+      - Copy this profile into hw/manufacturing/capabilities.yaml, give it your own id, then remove template and guidance.
+      - Record your actual machine, operator or supplier values with their sources; leave a value unknown, with its reason, until you have one.
+      - 'Parameters describe the machine and are never its achieved accuracy: record achievable dimensions, features and finish only as calibrations from your own coupons, measurements or supplier evidence, each scoped to its material, feature, orientation, setup and tool.'
+      - Record the taps and thread sizes.
+      - Calibrate thread quality and engagement per material.
+    machine:
+      identity: {status: unknown, reason: 'template: record the make, model and identity of your machine'}
+    operator: {status: unknown, reason: 'template: record who operates it and their constraints'}
+    materials: {status: unknown, reason: 'template: list the exact materials and stock it is approved or forbidden for'}
+    parameters:
+      tool_set: {status: unknown, reason: 'template: record your own value'}
+      range: {status: unknown, reason: 'template: record your own value'}
+      resolution: {status: unknown, reason: 'template: record your own value'}
+    calibrations: []
+  - id: finishing_template
+    revision: 1
+    title: Finishing (template)
+    process: finishing
+    provider: local
+    template: true
+    guidance:
+      - Copy this profile into hw/manufacturing/capabilities.yaml, give it your own id, then remove template and guidance.
+      - Record your actual machine, operator or supplier values with their sources; leave a value unknown, with its reason, until you have one.
+      - 'Parameters describe the machine and are never its achieved accuracy: record achievable dimensions, features and finish only as calibrations from your own coupons, measurements or supplier evidence, each scoped to its material, feature, orientation, setup and tool.'
+      - Record the sanding, blasting or polishing tools.
+      - Calibrate removed material and finish per material and method.
+    machine:
+      identity: {status: unknown, reason: 'template: record the make, model and identity of your machine'}
+    operator: {status: unknown, reason: 'template: record who operates it and their constraints'}
+    materials: {status: unknown, reason: 'template: list the exact materials and stock it is approved or forbidden for'}
+    parameters:
+      tool_set: {status: unknown, reason: 'template: record your own value'}
+      range: {status: unknown, reason: 'template: record your own value'}
+      resolution: {status: unknown, reason: 'template: record your own value'}
+    calibrations: []
+  - id: coating_template
+    revision: 1
+    title: Coating (template)
+    process: coating
+    provider: local
+    template: true
+    guidance:
+      - Copy this profile into hw/manufacturing/capabilities.yaml, give it your own id, then remove template and guidance.
+      - Record your actual machine, operator or supplier values with their sources; leave a value unknown, with its reason, until you have one.
+      - 'Parameters describe the machine and are never its achieved accuracy: record achievable dimensions, features and finish only as calibrations from your own coupons, measurements or supplier evidence, each scoped to its material, feature, orientation, setup and tool.'
+      - Record the coating type and method.
+      - Calibrate coating thickness range per material and method; a coating changes fits.
+    machine:
+      identity: {status: unknown, reason: 'template: record the make, model and identity of your machine'}
+    operator: {status: unknown, reason: 'template: record who operates it and their constraints'}
+    envelope:
+      x: {status: unknown, reason: 'template: record the usable working envelope'}
+      y: {status: unknown, reason: 'template: record the usable working envelope'}
+      z: {status: unknown, reason: 'template: record the usable working envelope'}
+    materials: {status: unknown, reason: 'template: list the exact materials and stock it is approved or forbidden for'}
+    parameters:
+      coating_type: {status: unknown, reason: 'template: record your own value'}
+      method: {status: unknown, reason: 'template: record your own value'}
+      max_part_size: {status: unknown, reason: 'template: record your own value'}
+    calibrations: []
+  - id: joining_template
+    revision: 1
+    title: Joining (template)
+    process: joining
+    provider: local
+    template: true
+    guidance:
+      - Copy this profile into hw/manufacturing/capabilities.yaml, give it your own id, then remove template and guidance.
+      - Record your actual machine, operator or supplier values with their sources; leave a value unknown, with its reason, until you have one.
+      - 'Parameters describe the machine and are never its achieved accuracy: record achievable dimensions, features and finish only as calibrations from your own coupons, measurements or supplier evidence, each scoped to its material, feature, orientation, setup and tool.'
+      - Record the joining method and consumables.
+      - Calibrate joint strength and distortion per material and method.
+    machine:
+      identity: {status: unknown, reason: 'template: record the make, model and identity of your machine'}
+    operator: {status: unknown, reason: 'template: record who operates it and their constraints'}
+    materials: {status: unknown, reason: 'template: list the exact materials and stock it is approved or forbidden for'}
+    parameters:
+      method: {status: unknown, reason: 'template: record your own value'}
+      consumables: {status: unknown, reason: 'template: record your own value'}
+    calibrations: []
+  - id: inspection_template
+    revision: 1
+    title: Inspection (template)
+    process: inspection
+    provider: local
+    template: true
+    guidance:
+      - Copy this profile into hw/manufacturing/capabilities.yaml, give it your own id, then remove template and guidance.
+      - Record your actual machine, operator or supplier values with their sources; leave a value unknown, with its reason, until you have one.
+      - 'Parameters describe the machine and are never its achieved accuracy: record achievable dimensions, features and finish only as calibrations from your own coupons, measurements or supplier evidence, each scoped to its material, feature, orientation, setup and tool.'
+      - Range and resolution are specifications, not uncertainty.
+      - Record each instrument's demonstrated measurement uncertainty as a calibration with its calibration record.
+    machine:
+      identity: {status: unknown, reason: 'template: record the make, model and identity of your machine'}
+    operator: {status: unknown, reason: 'template: record who operates it and their constraints'}
+    materials: {status: unknown, reason: 'template: list the exact materials and stock it is approved or forbidden for'}
+    parameters:
+      instrument: {status: unknown, reason: 'template: record your own value'}
+      range: {status: unknown, reason: 'template: record your own value'}
+      resolution: {status: unknown, reason: 'template: record your own value'}
+    calibrations: []

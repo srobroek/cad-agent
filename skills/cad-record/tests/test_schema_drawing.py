@@ -6,6 +6,7 @@ from __future__ import annotations
 import copy
 import csv
 import hashlib
+import importlib.util
 import json
 import subprocess
 import sys
@@ -101,6 +102,18 @@ REQUIREMENTS = {"requirements": [{"id": "REQ-001", "text": "Pin fits", "rational
                                   "priority": "must", "verification": {"method": "I", "criteria": "Fits"}}]}
 
 
+def _load(name: str, path: Path) -> Any:
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, path)
+        assert spec and spec.loader
+        sys.modules[name] = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sys.modules[name])
+    return sys.modules[name]
+
+
+fx = _load("cad_record_mi_fixtures", Path(__file__).resolve().parent / "fixtures" / "manufacturing_intent.py")
+
+
 def bom_rows(parts: list[dict[str, Any]], procurement: bool) -> list[dict[str, str]]:
     rows = []
     for part in parts:
@@ -136,11 +149,12 @@ class DrawingRecordAdditions(unittest.TestCase):
         (self.hw / "decisions" / "DR-001.md").write_text("# DR-001\n", encoding="utf-8")
         (self.hw / "parts" / "TST-0002" / "sources").mkdir(parents=True, exist_ok=True)
         (self.hw / "parts" / "TST-0002" / "sources" / "dp.pdf").write_bytes(DATASHEET)
-        for name, document in self.docs.items():
+        # Record version 2 (fx.current_documents): the drawing, procurement and fit additions read the same in both
+        # versions, and a record version 1 project no longer validates (record.migration_required).
+        parts = {f"parts/{pn}/part.yaml": part for pn, part in self.parts.items()}
+        for name, document in fx.current_documents({**self.docs, **parts}).items():
+            (self.hw / name).parent.mkdir(parents=True, exist_ok=True)
             (self.hw / name).write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
-        for pn, part in self.parts.items():
-            (self.hw / "parts" / pn).mkdir(parents=True, exist_ok=True)
-            (self.hw / "parts" / pn / "part.yaml").write_text(yaml.safe_dump(part, sort_keys=False), encoding="utf-8")
         rows = bom_rows(list(self.parts.values()), self.procurement_columns)
         self.bom_edit(rows)
         columns = BASE_COLUMNS + (PROCUREMENT_COLUMNS if self.procurement_columns else [])

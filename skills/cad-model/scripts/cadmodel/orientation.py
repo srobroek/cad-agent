@@ -1,14 +1,21 @@
-"""How a manufactured part sits on the printer bed: the one owner of build orientation, for run and check.
+"""How a manufactured part sits on the machine bed: the one owner of build orientation, for run and check.
 
 A placement is a proper rigid transform: rotation rows with determinant +1, then a translation. It is
 never a reflection, a scaling or a shear. A permutation name such as `xzy` says which part axis each
 printer axis takes; alone it can describe a mirror, so `permutation_rotation` reverses the printer X
 row whenever the plain permutation has determinant -1.
+
+A record version 2 part fixes its orientation in its route: the additive operation's approved
+`orientation.rotation` (`rotation_of`) is the pose its outputs are exported in, and the envelope check
+verifies that very pose (`pose_fit`). `fit` searches the envelope for a pose: it is the legacy export of a
+record version 1 part and a proposal otherwise, never an approved orientation. Fitting an envelope is
+geometry only; it says nothing about whether the part can be printed.
 """
 
 from __future__ import annotations
 
 import itertools
+import math
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -22,16 +29,99 @@ PROPER_TOL = 1e-9    # allowed |det - 1| and |(R R^T - I) entry| of a proper rot
 Vec = tuple[float, float, float]
 Rot = tuple[Vec, Vec, Vec]
 IDENTITY: Rot = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
+UNIT_TOL = 1e-6  # allowed |norm - 1| of a declared quaternion
+
+
+def rotation_of(data: Any) -> Rot:
+    """The proper rotation of a part.yaml route orientation `rotation`: a unit quaternion `[w, x, y, z]`
+    or an `axis` and `angle_deg` (right-handed). Machine coordinates = rotation @ native coordinates.
+    ValueError for a non-unit quaternion, a zero axis or anything else."""
+    if not isinstance(data, Mapping):
+        raise ValueError(f"an orientation rotation is a quaternion or an axis and angle, got {data!r}")
+
+    def numbers(value: Any, size: int, name: str) -> list[float]:
+        if (not isinstance(value, (list, tuple)) or len(value) != size
+                or any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in value)):
+            raise ValueError(f"orientation {name} must be {size} finite numbers, got {value!r}")
+        return [float(v) for v in value]
+
+    if "quaternion" in data:
+        w, x, y, z = numbers(data["quaternion"], 4, "quaternion")
+        norm = math.sqrt(w * w + x * x + y * y + z * z)
+        if abs(norm - 1.0) > UNIT_TOL:
+            raise ValueError(f"orientation quaternion norm {norm:.9g} is not 1")
+        w, x, y, z = w / norm, x / norm, y / norm, z / norm
+        rot = ((1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)),
+               (2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)),
+               (2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)))
+    elif "axis" in data and "angle_deg" in data:
+        axis = numbers(data["axis"], 3, "axis")
+        angle = numbers([data["angle_deg"]], 1, "angle_deg")[0]
+        length = math.sqrt(sum(a * a for a in axis))
+        if length == 0.0:
+            raise ValueError("orientation axis cannot be zero")
+        x, y, z = (a / length for a in axis)
+        theta = math.radians(angle)
+        c, s, k = math.cos(theta), math.sin(theta), 1.0 - math.cos(theta)
+        rot = ((c + x * x * k, x * y * k - z * s, x * z * k + y * s),
+               (y * x * k + z * s, c + y * y * k, y * z * k - x * s),
+               (z * x * k - y * s, z * y * k + x * s, c + z * z * k))
+    else:
+        raise ValueError(f"an orientation rotation is a quaternion or an axis and angle_deg, got {dict(data)!r}")
+    rows = tuple(tuple(v + 0.0 for v in row) for row in rot)
+    if not is_proper(rows):  # type: ignore[arg-type]
+        raise ValueError("orientation rotation is not a proper rotation")
+    return rows  # type: ignore[return-value]
+
+
+@dataclass(frozen=True)
+class Pose:
+    """The pose one manufacturing component is exported in, and where it comes from.
+
+    `status`: `approved` (the route's approved orientation), `proposed`, `not_applicable` or `unknown`
+    for a record version 2 part; `unapproved_auto_fit` or `unapproved_native` for the legacy envelope
+    search of a record version 1 part; `model_frame` for a part that is not built on a bed."""
+
+    status: str
+    rotation: Rot
+    method: str  # approved, proposed, native, axis_aligned, oriented or identity
+    name: str  # the permutation name of an auto-fit; else the method
+    operation: str | None = None  # the route operation whose orientation this is
+    decision: str | None = None
+    reason: str | None = None
+
+    @property
+    def approved(self) -> bool:
+        return self.status == "approved"
+
+    def describe(self) -> dict[str, Any]:
+        """The placement facts of this pose; `pose` is its status (`status` names a check row's verdict)."""
+        return {"pose": self.status, "approved": self.approved, "operation": self.operation,
+                "decision": self.decision, "reason": self.reason}
+
+
+def reserved_extents(volume: BuildVolume) -> dict[str, list[float]]:
+    """The bed-frame box a placed part must stay in: X and Y margin to size - margin; Z 0 to size - 2 margin."""
+    margin, size = volume.margin_mm, volume.size_mm
+    return {"min": [margin, margin, 0.0], "max": [size[0] - margin, size[1] - margin, size[2] - 2.0 * margin]}
+
+
+def pose_fit(low: Vec, high: Vec, volume: BuildVolume, slack: float) -> bool:
+    """Whether a part already placed on the bed, with box `low`..`high`, lies in the reserved extents."""
+    reserved = reserved_extents(volume)
+    return all(low[i] >= reserved["min"][i] - slack and high[i] <= reserved["max"][i] + slack for i in range(3))
 
 
 @dataclass(frozen=True)
 class BuildVolume:
-    """product.yaml `build_volume`: the printer envelope, the margin reserved at both ends of each axis,
-    and the permutations a part may be printed in."""
+    """A machine envelope: its size, the margin reserved at both ends of each axis, the permutations a
+    legacy auto-fit may try, and where it is declared: product.yaml `build_volume` (a record version 1
+    declaration) or a capability profile's measured `envelope`."""
 
     size_mm: Vec
     margin_mm: float
     orientations: tuple[str, ...]
+    source: str = "product.yaml build_volume"
 
     @property
     def usable_mm(self) -> Vec:
@@ -52,9 +142,18 @@ class BuildVolume:
         orientations = tuple(name for name in allowed if name in ORIENTATIONS) if isinstance(allowed, list) else ORIENTATIONS
         return BuildVolume(size, margin, orientations)  # type: ignore[arg-type]
 
+    @staticmethod
+    def described(data: Any) -> BuildVolume | None:
+        """The volume a manufacturing entry recorded with `describe`, or None."""
+        if not isinstance(data, Mapping):
+            return None
+        return BuildVolume(tuple(float(v) for v in data["size_mm"]), float(data["margin_mm"]),  # type: ignore[arg-type]
+                           tuple(data.get("orientations") or ORIENTATIONS),
+                           str(data.get("source", "product.yaml build_volume")))
+
     def describe(self) -> dict[str, Any]:
         return {"size_mm": list(self.size_mm), "margin_mm": self.margin_mm, "usable_mm": list(self.usable_mm),
-                "orientations": list(self.orientations)}
+                "orientations": list(self.orientations), "source": self.source}
 
 
 @dataclass(frozen=True)

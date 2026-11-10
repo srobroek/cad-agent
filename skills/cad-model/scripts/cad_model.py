@@ -24,20 +24,25 @@ run   executes every hw/parts/<PN>/model.py in its declared kernel's own uv envi
                           component per occurrence at the joints' nominal pose (cad-motion pose.py)
         assembly.glb      binary glTF of assembly.step, metres, +Y up, one node per occurrence
         part-map.json     occurrence -> glTF nodes and meshes, plus the PN aggregate
-        metrics.json      per PN: volume, area, bbox, solids, holes, mass from assets/materials.yaml;
+        metrics.json      per PN: volume, area, bbox, solids, holes, mass from its material profile's
+                          density (record version 1: the legacy density table), unknown without one;
                           per occurrence: placement, placed bbox, centre and holes; totals by quantity
         manifest.json     per PN: kernel, model frame, model path, source and record sha256, params,
                           kernel volume; occurrences with rest placements; tool versions; pose
                           (values, placements, motions); joints and joint pairs; the record
                           snapshot; the manufacturing entry of each custom-made PN; file hashes
-        record/           the product, interface, assembly and part records the version was built from
-        manufacturing/<PN>/  every custom-made PN: part.step (AP242, mm), part.stl (FDM: binary, mm)
-                          and manufacturing.json, in the state model.py build_manufacture defines
-                          (else the installed definition), placed on the printer bed for FDM
+        record/           the records the version was built from: product, requirements, interfaces,
+                          assembly, parts, manufacturing profiles and selection, and their source bytes
+        manufacturing/<PN>/  every custom-made PN: part.step (AP242, mm), part.stl (additive: binary,
+                          mm), components/<COMP>/ of a part of several solids, and manufacturing.json,
+                          in the state model.py build_manufacture defines (else the installed
+                          definition), an additive part on the bed in its route's approved orientation
       and hw/versions/latest.json pointing at that version (paths relative to hw/). Labels
       increase: an existing label or one below the newest built version is refused. A part whose
       manufacturing output fails a blocking check fails the run: no version, latest unchanged.
-check runs the geometry checks on a built version; diff compares two built versions. A check is a
+check runs the geometry checks on a built version; diff compares two built versions. A check of a
+      version built from a record version 2 snapshot also publishes its cad.readback required-check
+      packet to hw/checks/<V>/cad/ (stdout `packet`). A check is a
       run recorded in hw/.cad/runs (cad-flow process_lifecycle.py): it refuses to start while
       another check runs or an earlier run left processes behind, and prints how to stop them.
       Its pair workers die with it. --changed-only measures only the occurrence pairs whose
@@ -128,7 +133,8 @@ def parser() -> argparse.ArgumentParser:
     check.add_argument("--allow-interference", action="append", type=_pair, default=[], metavar="REF:REF",
                        help="undeclared intentional overlap: reported, not blocking (repeatable)")
     check.add_argument("--expect-solids", action="append", type=_expect, default=[], metavar="PN=N",
-                       help="expected solid count; overrides the previous version as baseline")
+                       help="expected solid count; overrides the record's declared components and the previous "
+                            "version as baseline")
     check.add_argument("--out", type=Path, help="also write the result JSON here")
     check.add_argument("--jobs", type=_jobs, default="1", metavar="N|auto",
                        help="worker processes measuring pairs (1, the default: this process, on OCCT's thread pool; "

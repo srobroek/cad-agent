@@ -452,6 +452,29 @@ class PairRequirementTests(unittest.TestCase):
                                           self.policy.declared_heat_sets(hw, interfaces, assembly))
         self.assertEqual(fitted, {("TST-0201", "arm-a"), ("TST-0201", "arm-b"), ("arm-a", "arm-b")})
 
+    def test_locating_fits_are_fitted_and_only_an_interference_class_may_overlap(self) -> None:
+        import yaml
+
+        def locating(number: int, fit: str, pair: list[str]) -> dict:
+            return {"id": f"IF-00{number}", "from": "a", "to": "b", "type": "mounting", "description": "Locates.",
+                    "limits": {"locating_fit": {"fit": fit, "pair": pair}}}
+
+        interfaces = [locating(1, "5 H7/h6", ["@arm-a", "TST-0201"]), locating(2, "5 H7/p6", ["@arm-b", "TST-0201"]),
+                      locating(3, "5 dowel to vendor limits", ["@arm-a", "@arm-b"])]
+        assembly, hw = assembly_of(GAP_YAML), Path("hw")
+        fits = self.policy.declared_locating_fits(hw, interfaces, assembly)
+        self.assertEqual([(fit["pair"], fit["classification"]) for fit in fits], [
+            (["TST-0201", "arm-a"], "clearance"), (["TST-0201", "arm-b"], "interference"),
+            (["arm-a", "arm-b"], "unclassified")])
+        self.assertEqual(self.policy.allowed_pairs([], [], fits), {("TST-0201", "arm-b")})
+        self.assertEqual(self.policy.fitted_pairs(fits), {("TST-0201", "arm-a"), ("TST-0201", "arm-b"), ("arm-a", "arm-b")})
+        with tempfile.TemporaryDirectory() as directory:
+            record = Path(directory)
+            (record / "interfaces.yaml").write_text(yaml.safe_dump({"interfaces": interfaces}), encoding="utf-8")
+            allowed, fitted, _clearances = sweep.declared_policy(record, assembly)
+        self.assertEqual(allowed, {("TST-0201", "arm-b")})
+        self.assertEqual(fitted, {("TST-0201", "arm-a"), ("TST-0201", "arm-b"), ("arm-a", "arm-b")})
+
     def test_a_running_fit_on_one_occurrence_twice_is_refused(self) -> None:
         twice = {"id": "IF-001", "from": "a", "to": "b", "type": "motion", "description": "Pivots.",
                  "limits": {"running_fit": {"fit": "5 f7", "pair": ["TST-0202", "@arm-p"]}}}

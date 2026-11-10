@@ -1,0 +1,44 @@
+# Plan section 11 row 15: a valid sequence whose last step cannot be done. The bearing is pressed in,
+# the cover closed over it and the bracket mounted; then the cover screw is driven with a hex socket,
+# which the bracket blocks (its hole passes the screw head, not the socket). Driving the screw before
+# mounting the bracket is the valid order. The socket envelope is a sourced solid; the test binds its
+# sha256 to the generated socket.step ({socket_sha256}). Synthetic TST record; geometry from
+# access_fixture.py.
+operations:
+  - id: seat-bearing
+    kind: press_fit
+    part: TST-0102
+    into: TST-0101
+    interface: IF-001
+    direction: [0, 0, -1]
+    acceptance: {kind: seated, features: [outer_face, seat_floor]}
+  - id: fit-cover
+    kind: close
+    part: TST-0103
+    into: TST-0101
+    closes: [TST-0102]
+    direction: [0, 0, -1]
+  - id: mount-bracket
+    kind: join
+    part: TST-0105
+    into: TST-0101
+    direction: [0, 0, -1]
+    acceptance: {kind: standoff, features: [bracket_foot, housing_top]}
+  - id: fasten-cover
+    kind: fasten
+    part: TST-0104
+    into: TST-0103
+    direction: [0, 0, -1]
+    acceptance: {kind: seated, features: [head_face, cover_top]}
+    tool_access:
+      - tool: 3 mm hex socket on a ratchet
+        approach: [0, 0, -1]
+        envelope:
+          status: known
+          value: TST hex socket and holder envelope
+          basis: supplier_typical
+          sources:
+            - kind: supplier
+              reference: TST hex socket CAD model
+              artifact: manufacturing/sources/socket.step
+              sha256: "{socket_sha256}"

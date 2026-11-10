@@ -59,9 +59,12 @@ class ScratchCase(unittest.TestCase):
         shutil.copytree(TEMPLATE, self.hw)
         part = self.hw / "parts" / "PRT-0001"
         part.mkdir(parents=True)
+        # The template is a record version 2 record: a part states its manufacturing intent, here all unknown.
+        intent = "".join(f"  {name}: {{status: unknown, reason: not recorded yet}}\n" for name in (
+            "functions", "material_profile", "service", "critical_surfaces", "route"))
         (part / "part.yaml").write_text(
             "PN: PRT-0001\nrev: X1\ntitle: Placeholder part\nmaterial: Placeholder material\n"
-            "process: cnc\nfinish: As machined\nmass_target: null\nmake_buy: make\n", encoding="utf-8")
+            "process: cnc\nfinish: As machined\nmass_target: null\nmake_buy: make\nintent:\n" + intent, encoding="utf-8")
         result = subprocess.run([sys.executable, str(VALIDATOR), str(self.project)],
                                 capture_output=True, text=True, timeout=60)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -281,6 +284,40 @@ class InitAndDeliver(ScratchCase):
         self.assertEqual(report["attach"], ["PRT-0002=PRT-0001", "@foot-1=PRT-0001"])
         run = next(argv for argv in calls if argv[1] == "run")
         self.assertEqual(run[run.index("--attach"):], ["--attach", "PRT-0002=PRT-0001", "--attach", "@foot-1=PRT-0001"])
+
+    def test_a_record_version_2_build_runs_the_process_checks_and_blocks_only_on_its_own_failures(self) -> None:
+        """form_check runs as --version on a record version 2 scratch version: the process packet's failed
+        outcomes of the unit's own part block it, another part's failures and its own unknowns do not."""
+        scratch_module = load_scratch()
+        self.init("part-base_sub", "PRT-0001")
+        calls = []
+        opened = [{"obligation": "process.fdm.support@PRT-0001/print", "outcome": "unknown"},
+                  {"obligation": "route.consistency@PRT-0002", "outcome": "fail"}]
+
+        def run_tool(argv: list[str], _log: Path) -> tuple[int, dict]:
+            calls.append(argv)
+            if argv[1] == "run":
+                version = Path(argv[2]) / "versions" / argv[argv.index("--label") + 1]
+                version.mkdir(parents=True)
+                (version / "manifest.json").write_text('{"record_version": 2}\n', encoding="utf-8")
+                return 0, {"findings": []}
+            if argv[1] == "check":
+                return 0, {"blocking_failures": [], "warnings": []}
+            return 1, {"findings": [], "manufacturing": {"status": "fail", "complete": True, "bundle": "b", "open": opened}}
+
+        with mock.patch.object(scratch_module, "run_tool", side_effect=run_tool):
+            code, report = scratch_module.build(self.hw, "part-base_sub", "cadquery", "F2")
+        form = next(argv for argv in calls if argv[0].endswith("form_check.py"))
+        self.assertEqual(form[form.index("--version") + 1], report["label"])
+        self.assertNotIn("--parts-dir", form)
+        self.assertEqual((code, report["status"]), (0, "pass"), report)
+        self.assertEqual((report["form"]["process"]["own_failures"], report["form"]["process"]["own_unknown"]),
+                         ([], [opened[0]]))
+        opened.append({"obligation": "process.fdm.geometry@PRT-0001/print", "outcome": "fail"})
+        with mock.patch.object(scratch_module, "run_tool", side_effect=run_tool):
+            code, report = scratch_module.build(self.hw, "part-base_sub", "cadquery", "F2")
+        self.assertEqual((code, report["status"]), (1, "fail"), report)
+        self.assertEqual(report["form"]["process"]["own_failures"], [opened[-1]])
 
     def test_build_then_deliver_ignores_generated_version_output(self) -> None:
         scratch_module = load_scratch()

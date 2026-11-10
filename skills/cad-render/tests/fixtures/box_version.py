@@ -73,9 +73,11 @@ def _sha(path: Path) -> str:
 
 
 def write(hw: Path, label: str, boxes: dict[str, Box], parts: dict[str, dict[str, Any]],
-          translations: dict[str, tuple[float, float, float]] | None = None) -> Path:
+          translations: dict[str, tuple[float, float, float]] | None = None, record_version: int | None = None) -> Path:
     """Write hw/'s part records and assembly.yaml and the sealed version `label` of `boxes`, whose
-    part.yaml records are `parts` (PN -> document); latest.json then names `label`."""
+    part.yaml records are `parts` (PN -> document); latest.json then names `label`. With `record_version`
+    the version is one the current cad-model builds: its manifest names that record version and its
+    record snapshot holds hw/requirements.yaml when the project has one."""
     hw.mkdir(parents=True, exist_ok=True)
     (hw / "assembly.yaml").write_text("joints: []\n", encoding="utf-8")
     for pn, record in parts.items():
@@ -88,6 +90,8 @@ def write(hw: Path, label: str, boxes: dict[str, Box], parts: dict[str, dict[str
     for pn in parts:
         (folder / "record" / "parts" / pn).mkdir()
         (folder / "record" / "parts" / pn / "part.yaml").write_bytes((hw / "parts" / pn / "part.yaml").read_bytes())
+    if record_version is not None and (hw / "requirements.yaml").is_file():
+        (folder / "record" / "requirements.yaml").write_bytes((hw / "requirements.yaml").read_bytes())
     order = sorted(boxes)
     (folder / "assembly.glb").write_bytes(glb(boxes, translations))
     (folder / "assembly.step").write_text("fixture placeholder; cad-render never reads it\n", encoding="utf-8")
@@ -102,6 +106,7 @@ def write(hw: Path, label: str, boxes: dict[str, Box], parts: dict[str, dict[str
     files = {p.relative_to(folder).as_posix(): _sha(p) for p in sorted(folder.rglob("*")) if p.is_file()}
     manifest = {
         "schema_version": 2, "label": label, "ground": order[0], "attach": [],
+        **({"record_version": record_version} if record_version is not None else {}),
         "assembly_yaml_sha256": files["record/assembly.yaml"],
         "occurrences": {pn: {"PN": pn, "ref": pn, "group": None, "rest": IDENTITY} for pn in order},
         "pose": {"values": {}, "transforms": {pn: IDENTITY for pn in order}, "motions": {pn: IDENTITY for pn in order}},

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://srobroek.com/cad/schemas/manufacturing-check-result.schema.json",
+  "title": "CAD manufacturing-intent check result (result.json of a bundle.checks bundle)",
+  "description": "One producer's required-check packet for one version: the obligations it was asked to cover (manufacturing_intent.required_checks, enumerated before it ran), one outcome per obligation, its findings, the dependency fingerprints it read and whether it covered every expected obligation. A producer cannot shrink its scope by omission: an expected obligation without an outcome makes the packet incomplete, and unknown never counts as pass",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "record_version", "producer", "version", "scope", "expected", "outcomes", "findings", "dependencies", "complete", "result"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "record_version": {"$ref": "manufacturing.schema.json#/$defs/record_version"},
+    "producer": {"description": "the writing tool and its version", "$ref": "manufacturing.schema.json#/$defs/text"},
+    "version": {"$ref": "product.schema.json#/$defs/version"},
+    "scope": {"type": "array", "minItems": 1, "items": {"$ref": "manufacturing.schema.json#/$defs/subject"}},
+    "expected": {"type": "array", "items": {"$ref": "manufacturing.schema.json#/$defs/obligation"}},
+    "outcomes": {"type": "array", "items": {"$ref": "manufacturing.schema.json#/$defs/obligation_outcome"}},
+    "findings": {"type": "array", "items": {"$ref": "manufacturing.schema.json#/$defs/finding"}},
+    "dependencies": {
+      "description": "sha256 of each input the producer read, by name, such as the part record, material and capability profiles and the geometry",
+      "type": "object",
+      "propertyNames": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+      "additionalProperties": {"$ref": "manufacturing.schema.json#/$defs/sha256"}
+    },
+    "complete": {"description": "true only when every expected obligation has an outcome", "type": "boolean"},
+    "result": {"description": "fail if any outcome fails, else unknown if any is unknown or the packet is incomplete, else pass (not_applicable outcomes aside)", "$ref": "manufacturing.schema.json#/$defs/outcome"}
+  }
+}

@@ -102,6 +102,23 @@ def area(shape: Any) -> float:
     return props.Mass()
 
 
+def principal_moments(shape: Any) -> tuple[float, float, float]:
+    """The principal moments of inertia of `shape`'s volume at unit density (mm^5), ascending: invariant
+    under rigid motion, so two congruent solids share them (and so do mirror images)."""
+    moments = _volume_props(shape).PrincipalProperties().Moments()
+    return tuple(sorted(float(m) for m in moments))  # type: ignore[return-value]
+
+
+def classify(solid: Any, point: tuple[float, float, float], tolerance: float) -> str:
+    """Where `point` lies against `solid`: `in`, `on` (within `tolerance` of its boundary) or `out`."""
+    from OCP import TopAbs
+    from OCP.BRepClass3d import BRepClass3d_SolidClassifier
+    from OCP.gp import gp_Pnt
+
+    state = BRepClass3d_SolidClassifier(solid, gp_Pnt(*point), tolerance).State()
+    return {TopAbs.TopAbs_IN: "in", TopAbs.TopAbs_ON: "on", TopAbs.TopAbs_OUT: "out"}.get(state, "unknown")
+
+
 def bbox(shape: Any) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
     """Tight axis-aligned box from the exact geometry, without tolerance enlargement."""
     from OCP.Bnd import Bnd_Box

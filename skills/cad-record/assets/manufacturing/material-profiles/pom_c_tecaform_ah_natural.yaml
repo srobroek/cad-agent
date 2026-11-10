@@ -1,0 +1,392 @@
+profiles:
+- id: pom_c_tecaform_ah_natural
+  revision: 1
+  title: TECAFORM AH natural
+  level: grade
+  family: Engineering polymer stock / POM-C
+  grade:
+    status: known
+    value: TECAFORM AH natural
+    sources:
+    - kind: datasheet
+      reference: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+        A3, 2017-10-06
+      revision: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+        A3, 2017-10-06
+      url: https://www.ensinger-online.com/modules/public/sheet/createsheet.php?SID=1575&FL=14&FILENAME=TECAFORM_AH_Natural_Acetal_Copolymer_14.PDF&ZOOM=1.0
+      accessed: '2026-11-02'
+      conditions: 'test_standard: not stated; source_condition: stock shape; statistic:
+        typical; quoted_source_value: Density 1.41 g/cm³'
+    basis: supplier_typical
+  manufacturer:
+    status: known
+    value: Ensinger Inc.
+    sources:
+    - kind: datasheet
+      reference: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+        A3, 2017-10-06
+      revision: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+        A3, 2017-10-06
+      url: https://www.ensinger-online.com/modules/public/sheet/createsheet.php?SID=1575&FL=14&FILENAME=TECAFORM_AH_Natural_Acetal_Copolymer_14.PDF&ZOOM=1.0
+      accessed: '2026-11-02'
+      conditions: 'test_standard: not stated; source_condition: stock shape; statistic:
+        typical; quoted_source_value: Density 1.41 g/cm³'
+    basis: supplier_typical
+  form: bulk
+  process_state:
+    process: extrusion
+    conditioning: unknown
+    notes: Unfilled, porosity-free POM copolymer stock shape. Mechanical data source
+      says values are obtained from extruded shapes unless noted; test temperature
+      73 °F (about 23 °C) as listed. Datasheet values are comparative guidelines,
+      not guarantees.
+  typical_not_allowable: true
+  properties:
+  - name: density
+    value:
+      status: known
+      value:
+        value: 1.41
+        units: g_cm3
+      sources:
+      - kind: datasheet
+        reference: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+          A3, 2017-10-06
+        revision: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+          A3, 2017-10-06
+        url: https://www.ensinger-online.com/modules/public/sheet/createsheet.php?SID=1575&FL=14&FILENAME=TECAFORM_AH_Natural_Acetal_Copolymer_14.PDF&ZOOM=1.0
+        accessed: '2026-11-02'
+        conditions: 'test_standard: not stated; source_condition: stock shape; statistic:
+          typical; quoted_source_value: Density 1.41 g/cm³'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: not stated
+        sources:
+        - kind: datasheet
+          reference: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet,
+            Version A3, 2017-10-06
+          revision: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+            A3, 2017-10-06
+          url: https://www.ensinger-online.com/modules/public/sheet/createsheet.php?SID=1575&FL=14&FILENAME=TECAFORM_AH_Natural_Acetal_Copolymer_14.PDF&ZOOM=1.0
+          accessed: '2026-11-02'
+          conditions: 'test_standard: not stated; source_condition: stock shape; statistic:
+            typical; quoted_source_value: Density 1.41 g/cm³'
+        basis: supplier_typical
+      temperature:
+        status: unknown
+        reason: The source does not state one numeric test temperature; retain the
+          exact test condition in the cited source conditions.
+      conditioning: unknown
+      notes: 'Research property density; source condition: stock shape; reported statistic:
+        typical'
+  - name: youngs_modulus
+    value:
+      status: known
+      value:
+        value: 2275.269906745559
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+          A3, 2017-10-06
+        revision: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+          A3, 2017-10-06
+        url: https://www.ensinger-online.com/modules/public/sheet/createsheet.php?SID=1575&FL=14&FILENAME=TECAFORM_AH_Natural_Acetal_Copolymer_14.PDF&ZOOM=1.0
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ASTM D638; source_condition: 73 °F; extruded shapes
+          unless otherwise noted; statistic: typical; quoted_source_value: Modulus
+          of elasticity (tensile test) | @ 73 °F | 330,000 | psi | ASTM D 638; conversion
+          factor: 1 psi = 0.006894757293168361 MPa; documented test-temperature conversion:
+          (73 °F - 32) × 5/9 = 22.777777777778 °C; original °F condition retained
+          verbatim.'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ASTM D638
+        sources:
+        - kind: datasheet
+          reference: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet,
+            Version A3, 2017-10-06
+          revision: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+            A3, 2017-10-06
+          url: https://www.ensinger-online.com/modules/public/sheet/createsheet.php?SID=1575&FL=14&FILENAME=TECAFORM_AH_Natural_Acetal_Copolymer_14.PDF&ZOOM=1.0
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D638; source_condition: 73 °F; extruded
+            shapes unless otherwise noted; statistic: typical; quoted_source_value:
+            Modulus of elasticity (tensile test) | @ 73 °F | 330,000 | psi | ASTM
+            D 638'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          value: 22.77777777777778
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet,
+            Version A3, 2017-10-06
+          revision: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+            A3, 2017-10-06
+          url: https://www.ensinger-online.com/modules/public/sheet/createsheet.php?SID=1575&FL=14&FILENAME=TECAFORM_AH_Natural_Acetal_Copolymer_14.PDF&ZOOM=1.0
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D638; source_condition: 73 °F; extruded
+            shapes unless otherwise noted; statistic: typical; quoted_source_value:
+            Modulus of elasticity (tensile test) | @ 73 °F | 330,000 | psi | ASTM
+            D 638; conversion factor: 1 psi = 0.006894757293168361 MPa; documented
+            test-temperature conversion: (73 °F - 32) × 5/9 = 22.777777777778 °C;
+            original °F condition retained verbatim.'
+        basis: supplier_typical
+      conditioning: unknown
+      notes: 'Research property tensile_modulus; source condition: 73 °F; extruded
+        shapes unless otherwise noted; reported statistic: typical; conversion factor:
+        1 psi = 0.006894757293168361 MPa'
+  - name: yield_strength
+    value:
+      status: known
+      value:
+        value: 64.12124282646576
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+          A3, 2017-10-06
+        revision: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+          A3, 2017-10-06
+        url: https://www.ensinger-online.com/modules/public/sheet/createsheet.php?SID=1575&FL=14&FILENAME=TECAFORM_AH_Natural_Acetal_Copolymer_14.PDF&ZOOM=1.0
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ASTM D638; source_condition: 73 °F; extruded shapes
+          unless otherwise noted; statistic: typical; quoted_source_value: Tensile
+          strength at yield | @ 73 °F | 9,300 | psi | ASTM D 638; conversion factor:
+          1 psi = 0.006894757293168361 MPa; documented test-temperature conversion:
+          (73 °F - 32) × 5/9 = 22.777777777778 °C; original °F condition retained
+          verbatim.'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ASTM D638
+        sources:
+        - kind: datasheet
+          reference: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet,
+            Version A3, 2017-10-06
+          revision: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+            A3, 2017-10-06
+          url: https://www.ensinger-online.com/modules/public/sheet/createsheet.php?SID=1575&FL=14&FILENAME=TECAFORM_AH_Natural_Acetal_Copolymer_14.PDF&ZOOM=1.0
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D638; source_condition: 73 °F; extruded
+            shapes unless otherwise noted; statistic: typical; quoted_source_value:
+            Tensile strength at yield | @ 73 °F | 9,300 | psi | ASTM D 638'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          value: 22.77777777777778
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet,
+            Version A3, 2017-10-06
+          revision: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+            A3, 2017-10-06
+          url: https://www.ensinger-online.com/modules/public/sheet/createsheet.php?SID=1575&FL=14&FILENAME=TECAFORM_AH_Natural_Acetal_Copolymer_14.PDF&ZOOM=1.0
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D638; source_condition: 73 °F; extruded
+            shapes unless otherwise noted; statistic: typical; quoted_source_value:
+            Tensile strength at yield | @ 73 °F | 9,300 | psi | ASTM D 638; conversion
+            factor: 1 psi = 0.006894757293168361 MPa; documented test-temperature
+            conversion: (73 °F - 32) × 5/9 = 22.777777777778 °C; original °F condition
+            retained verbatim.'
+        basis: supplier_typical
+      conditioning: unknown
+      notes: 'Research property tensile_strength_at_yield; source condition: 73 °F;
+        extruded shapes unless otherwise noted; reported statistic: typical; conversion
+        factor: 1 psi = 0.006894757293168361 MPa'
+  - name: elongation_at_break
+    value:
+      status: known
+      value:
+        value: 40
+        units: percent
+      sources:
+      - kind: datasheet
+        reference: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+          A3, 2017-10-06
+        revision: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+          A3, 2017-10-06
+        url: https://www.ensinger-online.com/modules/public/sheet/createsheet.php?SID=1575&FL=14&FILENAME=TECAFORM_AH_Natural_Acetal_Copolymer_14.PDF&ZOOM=1.0
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ASTM D638; source_condition: 73 °F; extruded shapes
+          unless otherwise noted; statistic: typical; quoted_source_value: Elongation
+          at break (tensile test) | @ 73 °F | 40 | % | ASTM D 638; documented test-temperature
+          conversion: (73 °F - 32) × 5/9 = 22.777777777778 °C; original °F condition
+          retained verbatim.'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ASTM D638
+        sources:
+        - kind: datasheet
+          reference: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet,
+            Version A3, 2017-10-06
+          revision: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+            A3, 2017-10-06
+          url: https://www.ensinger-online.com/modules/public/sheet/createsheet.php?SID=1575&FL=14&FILENAME=TECAFORM_AH_Natural_Acetal_Copolymer_14.PDF&ZOOM=1.0
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D638; source_condition: 73 °F; extruded
+            shapes unless otherwise noted; statistic: typical; quoted_source_value:
+            Elongation at break (tensile test) | @ 73 °F | 40 | % | ASTM D 638'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          value: 22.77777777777778
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet,
+            Version A3, 2017-10-06
+          revision: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+            A3, 2017-10-06
+          url: https://www.ensinger-online.com/modules/public/sheet/createsheet.php?SID=1575&FL=14&FILENAME=TECAFORM_AH_Natural_Acetal_Copolymer_14.PDF&ZOOM=1.0
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D638; source_condition: 73 °F; extruded
+            shapes unless otherwise noted; statistic: typical; quoted_source_value:
+            Elongation at break (tensile test) | @ 73 °F | 40 | % | ASTM D 638; documented
+            test-temperature conversion: (73 °F - 32) × 5/9 = 22.777777777778 °C;
+            original °F condition retained verbatim.'
+        basis: supplier_typical
+      conditioning: unknown
+      notes: 'Research property elongation_at_break; source condition: 73 °F; extruded
+        shapes unless otherwise noted; reported statistic: typical'
+  - name: flexural_strength
+    value:
+      status: known
+      value:
+        value: 89.63184481118869
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+          A3, 2017-10-06
+        revision: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+          A3, 2017-10-06
+        url: https://www.ensinger-online.com/modules/public/sheet/createsheet.php?SID=1575&FL=14&FILENAME=TECAFORM_AH_Natural_Acetal_Copolymer_14.PDF&ZOOM=1.0
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ASTM D790; source_condition: 73 °F; statistic:
+          typical; quoted_source_value: Flexural strength | @ 73 °F | 13,000 | psi
+          | ASTM D 790; conversion factor: 1 psi = 0.006894757293168361 MPa; documented
+          test-temperature conversion: (73 °F - 32) × 5/9 = 22.777777777778 °C; original
+          °F condition retained verbatim.'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ASTM D790
+        sources:
+        - kind: datasheet
+          reference: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet,
+            Version A3, 2017-10-06
+          revision: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+            A3, 2017-10-06
+          url: https://www.ensinger-online.com/modules/public/sheet/createsheet.php?SID=1575&FL=14&FILENAME=TECAFORM_AH_Natural_Acetal_Copolymer_14.PDF&ZOOM=1.0
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D790; source_condition: 73 °F; statistic:
+            typical; quoted_source_value: Flexural strength | @ 73 °F | 13,000 | psi
+            | ASTM D 790'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          value: 22.77777777777778
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet,
+            Version A3, 2017-10-06
+          revision: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+            A3, 2017-10-06
+          url: https://www.ensinger-online.com/modules/public/sheet/createsheet.php?SID=1575&FL=14&FILENAME=TECAFORM_AH_Natural_Acetal_Copolymer_14.PDF&ZOOM=1.0
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D790; source_condition: 73 °F; statistic:
+            typical; quoted_source_value: Flexural strength | @ 73 °F | 13,000 | psi
+            | ASTM D 790; conversion factor: 1 psi = 0.006894757293168361 MPa; documented
+            test-temperature conversion: (73 °F - 32) × 5/9 = 22.777777777778 °C;
+            original °F condition retained verbatim.'
+        basis: supplier_typical
+      conditioning: unknown
+      notes: 'Research property flexural_strength; source condition: 73 °F; reported
+        statistic: typical; conversion factor: 1 psi = 0.006894757293168361 MPa'
+  - name: water_absorption
+    value:
+      status: known
+      value:
+        value: 0.18
+        units: percent
+      sources:
+      - kind: datasheet
+        reference: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+          A3, 2017-10-06
+        revision: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+          A3, 2017-10-06
+        url: https://www.ensinger-online.com/modules/public/sheet/createsheet.php?SID=1575&FL=14&FILENAME=TECAFORM_AH_Natural_Acetal_Copolymer_14.PDF&ZOOM=1.0
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ASTM D570; source_condition: 24 h, 73 °F; statistic:
+          typical; quoted_source_value: Moisture absorption | @ 24 hrs, 73 °F | 0.18
+          | % | ASTM D 570; documented test-temperature conversion: (73 °F - 32) ×
+          5/9 = 22.777777777778 °C; original °F condition retained verbatim.'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ASTM D570
+        sources:
+        - kind: datasheet
+          reference: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet,
+            Version A3, 2017-10-06
+          revision: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+            A3, 2017-10-06
+          url: https://www.ensinger-online.com/modules/public/sheet/createsheet.php?SID=1575&FL=14&FILENAME=TECAFORM_AH_Natural_Acetal_Copolymer_14.PDF&ZOOM=1.0
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D570; source_condition: 24 h, 73 °F; statistic:
+            typical; quoted_source_value: Moisture absorption | @ 24 hrs, 73 °F |
+            0.18 | % | ASTM D 570'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          value: 22.77777777777778
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet,
+            Version A3, 2017-10-06
+          revision: TECAFORM AH natural Acetal Copolymer Stock Shapes Datasheet, Version
+            A3, 2017-10-06
+          url: https://www.ensinger-online.com/modules/public/sheet/createsheet.php?SID=1575&FL=14&FILENAME=TECAFORM_AH_Natural_Acetal_Copolymer_14.PDF&ZOOM=1.0
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D570; source_condition: 24 h, 73 °F; statistic:
+            typical; quoted_source_value: Moisture absorption | @ 24 hrs, 73 °F |
+            0.18 | % | ASTM D 570; documented test-temperature conversion: (73 °F
+            - 32) × 5/9 = 22.777777777778 °C; original °F condition retained verbatim.'
+        basis: supplier_typical
+      conditioning: unknown
+      notes: 'Research property moisture_absorption_24h; source condition: 24 h, 73
+        °F; reported statistic: typical'
+  note: Every numeric research property represented as sourced typed data. Profile-specific
+    unknowns and source cautions are explicit in guidance.
+  guidance:
+  - 'Unknown (not established by the cited research; not zero or absent): yield strength
+    in MPa (source expresses tensile yield strength in psi)'
+  - 'Unknown (not established by the cited research; not zero or absent): impact standard/value
+    beyond source''s incomplete Izod entry'
+  - 'Unknown (not established by the cited research; not zero or absent): Vicat/glass
+    transition temperature'
+  - 'Unknown (not established by the cited research; not zero or absent): maximum
+    service temperature not converted/assigned'
+  - The Ensinger stock-shape datasheet is dated 2017, uses customary units, describes
+    values as guidelines rather than guarantees, and notes one value was obtained
+    from a public source.

@@ -7,3 +7,110 @@ requirements:
     verification:
       method: T
       criteria: "Describe the acceptance criteria for verification."
+preferences: []
+assumptions: []
+open_questions:
+  - id: Q-001
+    question: 'Which service class applies: appearance or concept model, fit or assembly prototype, functional demonstration with limited loads and supervised operation, working prototype, production or end-use product, or safety-critical, regulated or high-consequence application?'
+    subjects:
+      - {product: true}
+    owner: lead
+    material_to_choice: true
+    safety_relevant: true
+    status: open
+  - id: Q-002
+    question: What must the product do, and who uses it?
+    subjects:
+      - {product: true}
+    owner: lead
+    material_to_choice: true
+    safety_relevant: false
+    status: open
+  - id: Q-003
+    question: What operating temperature range and heat sources apply?
+    subjects:
+      - {product: true}
+    owner: lead
+    material_to_choice: true
+    safety_relevant: true
+    status: open
+  - id: Q-004
+    question: What moisture, chemical, UV and corrosion exposure applies?
+    subjects:
+      - {product: true}
+    owner: lead
+    material_to_choice: true
+    safety_relevant: false
+    status: open
+  - id: Q-005
+    question: 'Which loads act on it: magnitude, direction, static or sustained, cyclic, impact and vibration?'
+    subjects:
+      - {product: true}
+    owner: lead
+    material_to_choice: true
+    safety_relevant: true
+    status: open
+  - id: Q-006
+    question: 'Which motions occur: speed, range, duty cycle, friction, wear and expected service life?'
+    subjects:
+      - {product: true}
+    owner: lead
+    material_to_choice: true
+    safety_relevant: false
+    status: open
+  - id: Q-007
+    question: What accuracy, repeatability, surface finish and dimensional stability are required?
+    subjects:
+      - {product: true}
+    owner: lead
+    material_to_choice: true
+    safety_relevant: false
+    status: open
+  - id: Q-008
+    question: What are the consequences of failure, the forbidden outcomes, the applicable standards or safety requirements, the supervision and the approving authority?
+    subjects:
+      - {product: true}
+    owner: lead
+    material_to_choice: true
+    safety_relevant: true
+    status: open
+  - id: Q-009
+    question: What quantity, budget, lead time, maintenance and repair needs apply?
+    subjects:
+      - {product: true}
+    owner: lead
+    material_to_choice: true
+    safety_relevant: false
+    status: open
+  - id: Q-010
+    question: Which equipment and operators are available, and is outsourcing acceptable?
+    subjects:
+      - {product: true}
+    owner: lead
+    material_to_choice: true
+    safety_relevant: false
+    status: open
+  - id: Q-011
+    question: 'What may a release claim: its purpose, operating limits, exclusions and the evidence each requirement needs?'
+    subjects:
+      - {product: true}
+    owner: lead
+    material_to_choice: false
+    safety_relevant: true
+    status: open
+  - id: Q-012
+    question: 'How is the assembly installed: which operations, in which order, with which tools, access and closure?'
+    subjects:
+      - {product: true}
+    owner: lead
+    material_to_choice: true
+    safety_relevant: true
+    status: open
+  - id: Q-013
+    question: 'Which general tolerance must the drawings state for dimensions without their own tolerance: a standard tolerance class or a linear value in mm?'
+    subjects:
+      - {product: true}
+    owner: lead
+    material_to_choice: true
+    safety_relevant: false
+    status: open

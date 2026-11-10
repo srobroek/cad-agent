@@ -1,0 +1,17 @@
+# Plan section 11 row 15: the cover is closed over the bearing seat before the bearing is pressed in.
+# The order is impossible (the bearing is enclosed), and on the built geometry the closed cover blocks
+# the bearing's path. Synthetic TST record; geometry from access_fixture.py.
+operations:
+  - id: fit-cover
+    kind: close
+    part: TST-0103
+    into: TST-0101
+    closes: [TST-0102]
+    direction: [0, 0, -1]
+  - id: seat-bearing
+    kind: press_fit
+    part: TST-0102
+    into: TST-0101
+    interface: IF-001
+    direction: [0, 0, -1]
+    acceptance: {kind: seated, features: [outer_face, seat_floor]}

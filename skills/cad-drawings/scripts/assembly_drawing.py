@@ -206,7 +206,7 @@ def measure(inputs: Inputs, freecadcmd: Path, work: Path, timeout: float) -> dic
     template = work / "measure-template.svg"
     template.write_text(drawing_document.sheet_specs({"regime": "iso"}, ["A0"])[0].page_template_svg(), encoding="utf-8")
     job = techdraw_job(inputs.geometry, inputs.offsets, "measure", pages, template)
-    job["acceptance"] = [op.measurement() for op in plan.sheets[0].operations]
+    job["acceptance"] = [op.measurement() for op in plan.sheets[0].operations if op.measurable]
     measured = run_freecad(freecadcmd, job, work, timeout)
     findings = [f for op in plan.sheets[0].operations
                 for f in assembly_check.check_acceptance(op, measured["acceptance"].get(op.operation.id))]
@@ -305,8 +305,12 @@ def build(args: argparse.Namespace, freecadcmd: Path, work: Path, context: drawi
     plan = inputs.plan
     rows += [{"kind": "assembly_operation", "operation": op.operation.id, "type": op.operation.kind,
               "interface": op.operation.interface, "items": [op.part_item, op.into_item],
-              "acceptance": op.operation.acceptance, "measured": measured["acceptance"][op.operation.id],
-              "direction": list(op.direction), "sheets": [s.number for s in plan.sheets if op in s.operations]}
+              "acceptance": op.operation.acceptance,
+              "measured": measured["acceptance"][op.operation.id] if op.measurable else {
+                  "status": "not_measured", "reason": "the model cannot show this acceptance; its record and inspection "
+                                                      "evidence carry it"},
+              "direction": None if op.direction is None else list(op.direction),
+              "sheets": [s.number for s in plan.sheets if op in s.operations]}
              for op in plan.sheets[0].operations]
     report = CoverageReport(status="fail" if findings else "pass", rows=tuple(rows), findings=tuple(findings))
     return inputs.context, composed, report
@@ -318,6 +322,13 @@ def reject(output_dir: Path, findings: Sequence[Mapping[str, Any]], status: int)
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "rejected.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     return result
+
+
+def drawing_recipe(context: drawing_contract.DrawingContext) -> dict[str, Any]:
+    """The bundle recipe: the drawing's provenance, the BOM, and the normalized assembly operations it
+    presents, so a change of their meaning, whichever list holds them, is a new recipe."""
+    return {"drawing": context.provenance("assembly"), "bom": list(context.bom),
+            "operations": assembly_check.operations_summary(context.assembly)}
 
 @contextmanager
 def _ignore_publish_signals():
@@ -336,7 +347,7 @@ def run(args: argparse.Namespace, freecadcmd: Path, jobs: int = 1) -> tuple[dict
     label, version_dir, _ = api.built_version(hw, args.version)
     context = drawing_contract.load_context(hw, version_dir)
     intent = assembly_check.read_intent(context.assembly)
-    recipe = {"drawing": context.provenance("assembly"), "bom": list(context.bom)}
+    recipe = drawing_recipe(context)
     params = {"V": label, "S": "assembly"}
     if args.output_dir is None:
         existing = api.reusable(hw, "bundle.drawings", params, recipe, replace=args.replace)
@@ -396,7 +407,7 @@ def main(argv: list[str] | None = None) -> int:
         label, version_dir, _ = api.built_version(hw, args.version)
         context = drawing_contract.load_context(hw, version_dir)
         intent = assembly_check.read_intent(context.assembly)
-        recipe = {"drawing": context.provenance("assembly"), "bom": list(context.bom)}
+        recipe = drawing_recipe(context)
         if args.output_dir is None:
             existing = api.reusable(hw, "bundle.drawings", {"V": label, "S": "assembly"}, recipe,
                                     replace=args.replace)

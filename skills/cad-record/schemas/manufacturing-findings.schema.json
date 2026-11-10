@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://srobroek.com/cad/schemas/manufacturing-findings.schema.json",
+  "title": "CAD finding dispositions (hw/manufacturing/findings.yaml)",
+  "description": "The lead's dispositions of immutable producer findings. Each names the finding id and the exact producer bundle manifest it lives in; producer rows are never copied or edited here. Declining or waiving a finding never turns a mandatory fail or unknown into a pass: the original outcome is evaluated together with the permitted, scoped disposition",
+  "type": "object", "additionalProperties": false, "required": ["dispositions"],
+  "properties": {
+    "dispositions": {"type": "array", "items": {"$ref": "#/$defs/disposition"}}
+  },
+  "$defs": {
+    "disposition": {
+      "type": "object", "additionalProperties": false, "required": ["finding", "producer", "status", "reason"],
+      "properties": {
+        "finding": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "code": {"$ref": "manufacturing.schema.json#/$defs/finding_code"},
+        "producer": {
+          "type": "object", "additionalProperties": false, "required": ["bundle", "manifest_sha256"],
+          "properties": {
+            "bundle": {"description": "the producer bundle directory, project-relative", "type": "string", "pattern": "^hw/(?!(.*/)?\\.{1,2}(/|$))[^\\\\]+$"},
+            "manifest_sha256": {"$ref": "manufacturing.schema.json#/$defs/sha256"}
+          }
+        },
+        "status": {"enum": ["open", "resolved", "accepted_waiver", "declined"]},
+        "reason": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "decision": {"$ref": "manufacturing.schema.json#/$defs/decision"},
+        "replacement_evidence": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "manufacturing.schema.json#/$defs/evidence_id"}},
+        "waiver": {"$ref": "manufacturing.schema.json#/$defs/waiver"}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "accepted_waiver"}}}, "then": {"required": ["waiver", "decision"]}, "else": {"not": {"required": ["waiver"]}}},
+        {"if": {"properties": {"status": {"const": "declined"}}}, "then": {"required": ["decision"]}},
+        {"if": {"properties": {"status": {"const": "resolved"}}}, "then": {"anyOf": [{"required": ["replacement_evidence"]}, {"required": ["decision"]}]}}
+      ]
+    }
+  }
+}
