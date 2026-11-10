@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.11,<3.15"
-# dependencies = ["cadquery-ocp-novtk==8.0.1.1.0", "pyyaml>=6.0", "trimesh==4.*", "numpy>=1.26", "python-fcl==0.7.0.11"]
+# dependencies = ["cadquery-ocp-novtk==8.0.1.1.0", "jsonschema>=4.23", "pyyaml>=6.0", "trimesh==4.*", "numpy>=1.26", "python-fcl==0.7.0.11"]
 # ///
 """Build, check, and diff versions of a hardware design from its part model scripts.
 
@@ -69,7 +69,12 @@ from pathlib import Path
 
 from cadmodel import build
 
-LIFECYCLE_SCRIPT = Path(__file__).resolve().parents[2] / "cad-flow" / "scripts" / "process_lifecycle.py"
+LIFECYCLE_SCRIPT = (
+    Path(__file__).resolve().parents[2]
+    / "cad-flow"
+    / "scripts"
+    / "process_lifecycle.py"
+)
 
 
 def load_lifecycle():
@@ -91,7 +96,9 @@ def _pair(text: str) -> tuple[str, str]:
 
     a, sep, b = text.partition(":")
     if not sep or not load_pose().is_ref(a) or not load_pose().is_ref(b) or a == b:
-        raise argparse.ArgumentTypeError(f"expected REF:REF (a PN or @occurrence each), got {text!r}")
+        raise argparse.ArgumentTypeError(
+            f"expected REF:REF (a PN or @occurrence each), got {text!r}"
+        )
     return a, b
 
 
@@ -109,53 +116,120 @@ def _jobs(text: str) -> int:
 
 
 def parser() -> argparse.ArgumentParser:
-    root = argparse.ArgumentParser(description="Build, check, and diff CAD design versions")
+    root = argparse.ArgumentParser(
+        description="Build, check, and diff CAD design versions"
+    )
     sub = root.add_subparsers(dest="command", required=True)
-    run = sub.add_parser("run", help="build hw/versions/<label>/ from the part model scripts")
+    run = sub.add_parser(
+        "run", help="build hw/versions/<label>/ from the part model scripts"
+    )
     run.add_argument("hw", type=Path, help="hardware design record directory (hw/)")
     run.add_argument("--label", required=True, help="version label: v1, v2, ...")
-    run.add_argument("--kernel", choices=("auto", *build.KERNELS), default="auto",
-                     help="auto: each part's declared KERNEL; otherwise every part must declare this kernel")
-    run.add_argument("--attach", action="append", default=[], metavar="REF=PARENT_REF",
-                     help="rigidly attach an occurrence without a joint (a PN or @id; repeatable)")
+    run.add_argument(
+        "--kernel",
+        choices=("auto", *build.KERNELS),
+        default="auto",
+        help="auto: each part's declared KERNEL; otherwise every part must declare this kernel",
+    )
+    run.add_argument(
+        "--attach",
+        action="append",
+        default=[],
+        metavar="REF=PARENT_REF",
+        help="rigidly attach an occurrence without a joint (a PN or @id; repeatable)",
+    )
     check = sub.add_parser("check", help="geometry checks on a built version")
     check.add_argument("label")
     check.add_argument("--hw", type=Path, default=Path("hw"))
     selection = check.add_mutually_exclusive_group()
-    selection.add_argument("--pair", action="append", type=_pair, metavar="REF:REF",
-                           help="check only these occurrence pairs for interference (default: all pairs)")
-    selection.add_argument("--changed-only", action="store_true",
-                           help="measure only the pairs a change since the baseline version can affect (partial report)")
-    check.add_argument("--since-version", metavar="vM",
-                       help="--changed-only baseline: a built version (default: the newest one before the checked version)")
-    check.add_argument("--exact", action="store_true",
-                       help="measure every pair; by default a far pair passes on its proven distance bounds")
-    check.add_argument("--allow-interference", action="append", type=_pair, default=[], metavar="REF:REF",
-                       help="undeclared intentional overlap: reported, not blocking (repeatable)")
-    check.add_argument("--expect-solids", action="append", type=_expect, default=[], metavar="PN=N",
-                       help="expected solid count; overrides the record's declared components and the previous "
-                            "version as baseline")
+    selection.add_argument(
+        "--pair",
+        action="append",
+        type=_pair,
+        metavar="REF:REF",
+        help="check only these occurrence pairs for interference (default: all pairs)",
+    )
+    selection.add_argument(
+        "--changed-only",
+        action="store_true",
+        help="measure only the pairs a change since the baseline version can affect (partial report)",
+    )
+    check.add_argument(
+        "--since-version",
+        metavar="vM",
+        help="--changed-only baseline: a built version (default: the newest one before the checked version)",
+    )
+    check.add_argument(
+        "--exact",
+        action="store_true",
+        help="measure every pair; by default a far pair passes on its proven distance bounds",
+    )
+    check.add_argument(
+        "--allow-interference",
+        action="append",
+        type=_pair,
+        default=[],
+        metavar="REF:REF",
+        help="undeclared intentional overlap: reported, not blocking (repeatable)",
+    )
+    check.add_argument(
+        "--expect-solids",
+        action="append",
+        type=_expect,
+        default=[],
+        metavar="PN=N",
+        help="expected solid count; overrides the record's declared components and the previous "
+        "version as baseline",
+    )
     check.add_argument("--out", type=Path, help="also write the result JSON here")
-    check.add_argument("--jobs", type=_jobs, default="1", metavar="N|auto",
-                       help="worker processes measuring pairs (1, the default: this process, on OCCT's thread pool; "
-                            "auto: the CPU count, at most 8)")
+    check.add_argument(
+        "--jobs",
+        type=_jobs,
+        default="1",
+        metavar="N|auto",
+        help="worker processes measuring pairs (1, the default: this process, on OCCT's thread pool; "
+        "auto: the CPU count, at most 8)",
+    )
     caching = check.add_mutually_exclusive_group()
-    caching.add_argument("--cache", type=Path, metavar="DIR",
-                         help="pair result cache shared with cad-motion sweep.py (default: hw/.cad)")
-    caching.add_argument("--no-cache", action="store_true", help="measure every pair, reading and writing no cache")
+    caching.add_argument(
+        "--cache",
+        type=Path,
+        metavar="DIR",
+        help="pair result cache shared with cad-motion sweep.py (default: hw/.cad)",
+    )
+    caching.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="measure every pair, reading and writing no cache",
+    )
     diff = sub.add_parser("diff", help="compare two built versions")
     diff.add_argument("a")
     diff.add_argument("b")
     diff.add_argument("--hw", type=Path, default=Path("hw"))
     diff.add_argument("--out", type=Path, help="also write the result JSON here")
-    latest = sub.add_parser("latest", help="point hw/versions/latest.json at the newest sealed version")
+    latest = sub.add_parser(
+        "latest", help="point hw/versions/latest.json at the newest sealed version"
+    )
     latest.add_argument("hw", type=Path, help="hardware design record directory (hw/)")
-    latest.add_argument("--label", required=True, help="the sealed version label the pointer write failed for")
-    store = sub.add_parser("store", help="maintain the part store hw/.cad/parts and hw/.cad/builds")
-    store.add_argument("action", choices=("gc",),
-                       help="gc: remove what no version or release manifest references, report the bytes freed")
+    latest.add_argument(
+        "--label",
+        required=True,
+        help="the sealed version label the pointer write failed for",
+    )
+    store = sub.add_parser(
+        "store", help="maintain the part store hw/.cad/parts and hw/.cad/builds"
+    )
+    store.add_argument(
+        "action",
+        choices=("gc",),
+        help="gc: remove what no version or release manifest references, report the bytes freed",
+    )
     store.add_argument("hw", type=Path, help="hardware design record directory (hw/)")
-    store.add_argument("--dry-run", action="store_true", help="report what gc would remove; remove nothing")
+    store.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="report what gc would remove; remove nothing",
+    )
     return root
 
 
@@ -175,14 +249,39 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command == "check":
                 from cadmodel.check import check
 
-                cache_dir = None if args.no_cache else (args.cache or load_pair_measure().default_cache_dir(args.hw.resolve()))
-                build.version_dir(args.hw, args.label)  # no run record in a folder that holds no such version
-                selection = (f"changed-pairs since {args.since_version or 'previous'}" if args.changed_only
-                             else "named-pairs" if args.pair else "all-pairs")
-                with lifecycle.claim_run(args.hw, "static", scope=f"{args.label} {selection}"):
-                    code, result = check(args.hw, args.label, args.pair, args.allow_interference,
-                                         dict(args.expect_solids), cache_dir, args.jobs, exact=args.exact,
-                                         changed_only=args.changed_only, since=args.since_version)
+                cache_dir = (
+                    None
+                    if args.no_cache
+                    else (
+                        args.cache
+                        or load_pair_measure().default_cache_dir(args.hw.resolve())
+                    )
+                )
+                build.version_dir(
+                    args.hw, args.label
+                )  # no run record in a folder that holds no such version
+                selection = (
+                    f"changed-pairs since {args.since_version or 'previous'}"
+                    if args.changed_only
+                    else "named-pairs"
+                    if args.pair
+                    else "all-pairs"
+                )
+                with lifecycle.claim_run(
+                    args.hw, "static", scope=f"{args.label} {selection}"
+                ):
+                    code, result = check(
+                        args.hw,
+                        args.label,
+                        args.pair,
+                        args.allow_interference,
+                        dict(args.expect_solids),
+                        cache_dir,
+                        args.jobs,
+                        exact=args.exact,
+                        changed_only=args.changed_only,
+                        since=args.since_version,
+                    )
             elif args.command == "diff":
                 from cadmodel.diff import diff
 
@@ -191,7 +290,12 @@ def main(argv: list[str] | None = None) -> int:
                 code, result = build.store_gc(args.hw, args.dry_run)
             else:
                 code, result = build.reconcile_latest(args.hw, args.label)
-    except (build.UsageError, pose.MotionError, lifecycle.LifecycleError, OSError) as error:
+    except (
+        build.UsageError,
+        pose.MotionError,
+        lifecycle.LifecycleError,
+        OSError,
+    ) as error:
         print(f"cad_model {args.command}: {error}", file=sys.stderr)
         return 2
     except Exception:  # noqa: BLE001 - an unexpected failure is no result, never a check failure
