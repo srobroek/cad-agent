@@ -10,8 +10,8 @@ What a pair check depends on is a version's state (`version_state`):
   - each occurrence's PN and its nominal placement (the manifest's pose transforms);
   - the kinematic chain of the version's record snapshot, rebuilt without geometry;
   - each occurrence pair's policy, read from the snapshot: the joints between the pair, its
-    declared press and running fits and heat-set inserts, and its clearance requirement with
-    that requirement's margin.
+    declared press, running and locating fits and heat-set inserts, and its clearance requirement
+    with that requirement's margin.
 
 `select_pairs` selects a pair that is new, whose definition geometry changed on either side, whose
 relative nominal placement T_a^-1 T_b has other bits, or whose policy changed. No tolerance hides a
@@ -94,7 +94,7 @@ class VersionState:
 
 
 def _rigid(rows: Sequence[Sequence[float]]) -> Any:
-    return pose.Rigid(tuple(tuple(float(v) for v in row[:3]) for row in rows),  # type: ignore[arg-type]
+    return pose.Rigid(tuple(tuple(float(v) for v in row[:3]) for row in rows),
                       tuple(float(row[3]) for row in rows))
 
 
@@ -113,6 +113,7 @@ def pair_policies(record: Path, assembly: Any, joint_pairs: Iterable[Mapping[str
         interfaces = pair_policy.read_interfaces(record)
         declared = {"press_fit": pair_policy.declared_press_fits(record, interfaces, assembly),
                     "running_fit": pair_policy.declared_running_fits(record, interfaces, assembly),
+                    "locating_fit": pair_policy.declared_locating_fits(record, interfaces, assembly),
                     "heat_set": pair_policy.declared_heat_sets(record, interfaces, assembly),
                     "clearance": pair_policy.declared_clearances(record, interfaces, assembly)}
     except pair_policy.PolicyError as error:
@@ -122,9 +123,9 @@ def pair_policies(record: Path, assembly: Any, joint_pairs: Iterable[Mapping[str
         for item in items:
             if kind == "clearance" and margins is not None:
                 item = {**item, "margin_mm": margins.for_interface(item["interface"])}
-            entries[tuple(item["pair"])].append(_policy_entry(kind, item))  # type: ignore[index]
+            entries[tuple(item["pair"])].append(_policy_entry(kind, item))
     for joint in joint_pairs:
-        entries[tuple(sorted(joint["pair"]))].append(_policy_entry("joint", {"type": joint["type"]}))  # type: ignore[index]
+        entries[tuple(sorted(joint["pair"]))].append(_policy_entry("joint", {"type": joint["type"]}))
     return {pair: "\n".join(sorted(texts)) for pair, texts in entries.items()}
 
 
@@ -221,7 +222,7 @@ class ChangeSet:
 
 def _same(a: Any, b: Any) -> bool:
     """Whether two placements have the same bits (-0.0 is 0.0)."""
-    return a.rot == b.rot and a.trans == b.trans
+    return bool(a.rot == b.rot and a.trans == b.trans)
 
 
 def _label_number(label: str) -> int:

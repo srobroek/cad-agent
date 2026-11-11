@@ -190,10 +190,10 @@ import shutil
 import sys
 import time
 import traceback
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping, Sequence, Set
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 
 def _load(name: str, path: Path) -> Any:
@@ -346,7 +346,7 @@ def sweep_paths(chain: Any, samples: list[Sample], steps: int, grid: int) -> lis
 def smoke_poses(chain: Any, smoke: Any) -> list[Sample]:
     """incremental.SmokePlan's samples as sweep samples, the other independent joints at nominal."""
     nominal = {j.id: j.nominal for j in chain.independent}
-    samples = []
+    samples: list[Sample] = []
     for item in smoke.samples:
         settings = {**nominal, **item.settings}
         samples.append(Sample(len(samples), f"smoke:{item.joint}:{'+'.join(item.labels)}", settings,
@@ -371,7 +371,8 @@ def pairs_to_check(chain: Any, include: list[str]) -> tuple[list[tuple[str, str]
         if ids[0] == ids[1]:
             raise pose.MotionError(f"--include-pair {spec}: both ends are one occurrence")
         wanted.add(frozenset(ids))
-    checked, excluded = [], []
+    checked: list[tuple[str, str]] = []
+    excluded: list[tuple[str, str]] = []
     for a, b in itertools.combinations(chain.ids, 2):
         key = frozenset((a, b))
         (excluded if key in adjacent and key not in wanted else checked).append((a, b))
@@ -412,9 +413,9 @@ class SweepState:
 
 def end_effector(chain: Any, explicit: str | None) -> str:
     if explicit:
-        return chain.resolve(explicit, "--end-effector: ")
+        return cast(str, chain.resolve(explicit, "--end-effector: "))
     depth = {oid: sum(1 for j in chain.path(oid) if j.movable) for oid in chain.ids}
-    return max(chain.ids, key=lambda oid: depth[oid])  # max keeps the first on a tie
+    return cast(str, max(chain.ids, key=lambda oid: depth[oid]))  # max keeps the first on a tie
 
 
 def rounded(values: dict[str, float]) -> dict[str, float]:
@@ -489,7 +490,9 @@ def plan(chain: Any, samples: list[Sample], pairs: list[tuple[str, str]], fitted
                 for pair, options in applicable.items() if options}
     selected = [index for index, pair in enumerate(measured) if selection is None or pair in selection]
     chosen = [measured[index] for index in selected]
-    planned, requests, posed = [], [], 0
+    planned: list[PlannedSample] = []
+    requests: list[Any] = []
+    posed = 0
     for sample in samples:
         limits = chain.limit_findings(sample.values)
         if limits:
@@ -512,7 +515,7 @@ def plan(chain: Any, samples: list[Sample], pairs: list[tuple[str, str]], fitted
     return Plan(checked, measured, selected, clearing, applicable, tightest, planned, requests, posed)
 
 
-def measured_prefix(chain: Any, plan: Plan, outcomes: list[Any], unresolved: set[int] = frozenset()) -> int:
+def measured_prefix(chain: Any, plan: Plan, outcomes: list[Any], unresolved: Set[int] = frozenset()) -> int:
     """How many leading samples the reduction can take: every request answered, and every pruned
     one proved by a request inside them, so it is above the minimum of those samples too (a run
     the deadline stopped measured out of sample order). A kernel failure is an error; a request of
@@ -552,7 +555,7 @@ def _bound(value: float | None) -> float:
 
 def accumulate(plan: Plan, outcomes: list[Any], evaluated: int, allowed: set[tuple[str, str]],
                requirements: dict[tuple[str, str], dict[str, Any]], volume_tol: float,
-               effectors: Mapping[int, dict[str, list[float]]], unresolved: set[int] = frozenset()) -> dict[str, Any]:
+               effectors: Mapping[int, dict[str, list[float]]], unresolved: Set[int] = frozenset()) -> dict[str, Any]:
     """The statistics of the first `evaluated` samples of `plan` from their request `outcomes`:
     {pairs: {pair index: ...}, samples: [...], mesh_cleared: [...]}, JSON-ready. `allowed` holds
     the sorted occurrence pairs whose overlap is declared; `effectors` the end effector's row per
@@ -683,6 +686,8 @@ def finalize(chain: Any, plan: Plan, statistics: Mapping[str, Any], reference: t
             state.pair_clearance[pair] = {"clearance_mm": _bound(seen["clearance_mm"]), "overlap_mm3": seen["overlap_mm3"],
                                           "sample": None if seen["sample"] is None else by_index[seen["sample"]],
                                           "samples_below": seen["samples_below"]}
+    rank: tuple[float, ...]
+    worst_pair: list[str] | None
     for row in statistics["samples"]:
         sample = by_index[row["index"]]
         if "limits" in row:
@@ -704,8 +709,8 @@ def finalize(chain: Any, plan: Plan, statistics: Mapping[str, Any], reference: t
                 continue
             centre = effector["centre"]
             reach = math.hypot(centre[0] - reference[0], centre[1] - reference[1])
-            rank, metric, pair = (-reach,), {"reach_mm": round(reach, 3),
-                                             "centre_of_mass": [round(v, 4) for v in centre]}, None
+            rank, metric, worst_pair = (-reach,), {"reach_mm": round(reach, 3),
+                                                   "centre_of_mass": [round(v, 4) for v in centre]}, None
         elif criterion == "minimum_clearance":
             if row["closest"] is None:
                 continue
@@ -714,13 +719,13 @@ def finalize(chain: Any, plan: Plan, statistics: Mapping[str, Any], reference: t
             rank = (margin, -largest)
             metric = {"clearance_mm": round(distance, 4), "required_mm": limit[0], "requirement": limit[1],
                       "margin_mm": round(margin, 4), "overlap_mm3": round(largest, 4)}
-            pair = refs(index)
+            worst_pair = refs(index)
         else:  # maximum_interference
             if not hits:
                 continue
-            rank, metric, pair = (-largest,), {"volume_mm3": round(largest, 4)}, refs(row["overlap"][1])
+            rank, metric, worst_pair = (-largest,), {"volume_mm3": round(largest, 4)}, refs(row["overlap"][1])
         if state.worst is None or rank < state.worst["rank"]:
-            state.worst = {"sample": sample, "rank": rank, "metric": metric, "pair": pair}
+            state.worst = {"sample": sample, "rank": rank, "metric": metric, "pair": worst_pair}
     return state
 
 
@@ -821,6 +826,7 @@ def clearance_report(clearance: dict[tuple[str, str], dict[str, Any]], required:
         exact = clearance.get(pair)
         span = bounded_minimum(exact["clearance_mm"] if exact else None, bounds.get(pair))
         if span is None:
+            exact = cast(dict[str, Any], exact)
             entries.append((exact["clearance_mm"], pair,
                             {**exact, "clearance_mm": round(exact["clearance_mm"], 4), "method": "exact"},
                             exact["clearance_mm"]))
@@ -867,6 +873,7 @@ def pair_clearance_report(chain: Any, requirements: dict[tuple[str, str], dict[s
                        independent_pose=rounded(sample.settings), pose=rounded(sample.values),
                        **bound_fields(bound, span))
         elif exact is not None:
+            seen = cast(dict[str, Any], seen)
             sample = seen["sample"]
             margin = exact - requirement["required_mm"]
             row.update(status="fail" if seen["samples_below"] else "pass", clearance_mm=round(exact, 4),
@@ -1006,10 +1013,11 @@ def declared_policy(hw: Path, assembly: Any) -> tuple[set[tuple[str, str]], set[
     try:
         interfaces = pair_policy.read_interfaces(hw)
         press_fits = pair_policy.declared_press_fits(hw, interfaces, assembly)
+        locating_fits = pair_policy.declared_locating_fits(hw, interfaces, assembly)
         heat_sets = pair_policy.declared_heat_sets(hw, interfaces, assembly)
         fitted = pair_policy.fitted_pairs(press_fits, pair_policy.declared_running_fits(hw, interfaces, assembly),
-                                          heat_sets)
-        return (pair_policy.allowed_pairs(press_fits, heat_sets), fitted,
+                                          locating_fits, heat_sets)
+        return (pair_policy.allowed_pairs(press_fits, heat_sets, locating_fits), fitted,
                 pair_policy.declared_clearances(hw, interfaces, assembly))
     except pair_policy.PolicyError as error:
         raise pose.MotionError(str(error)) from error
@@ -1281,7 +1289,7 @@ def detect_periods(run: Run) -> dict[str, dict[str, Any]]:
     found: dict[str, dict[str, Any]] = {name: {} for name in run.partition.members}
     for joint in chain.independent:
         def at(value: float, joint: Any = joint) -> Mapping[str, Any]:
-            return chain.transforms(chain.complete({**nominal, joint.id: value}))
+            return cast(Mapping[str, Any], chain.transforms(chain.complete({**nominal, joint.id: value})))
 
         evidence = subsystems.detect_periods(joint, joint.min, joint.max, run.partition.members, at, grid[joint.unit])
         for name, item in evidence.items():
@@ -1297,7 +1305,7 @@ def prove_continuous(run: Run, plan: Plan, outcomes: list[Any], session: Any, as
     findings are named by their references."""
     args, chain = run.args, run.chain
     if continuous_settings(args) is None:
-        return continuous.disabled().as_json()
+        return cast(dict[str, Any], continuous.disabled().as_json())
     if assets is None:
         return {**continuous.disabled().as_json(), "reason": "mesh bounds unavailable: no envelope bounds the motion"}
     ref_of = {oid: chain.ref(oid) for oid in chain.ids}
@@ -1353,9 +1361,9 @@ def prove_continuous(run: Run, plan: Plan, outcomes: list[Any], session: Any, as
             ids.append(item.id)
         return dict(zip(ids, session.measure(requests, deadline=deadline)))
 
-    return continuous.prove_between(paths, pairs=specs, endpoint=endpoint, rates=rates, evaluate_midpoints=evaluate,
+    return cast(dict[str, Any], continuous.prove_between(paths, pairs=specs, endpoint=endpoint, rates=rates, evaluate_midpoints=evaluate,
                                     volume_tol=args.volume_tol, max_depth=args.continuous_depth, deadline=deadline,
-                                    complete=chain.complete).as_json()
+                                    complete=chain.complete).as_json())
 
 
 def subsystem_report(run: Run, periods: dict[str, dict[str, Any]], state: SweepState,
@@ -1685,7 +1693,7 @@ def sweep_run(args: argparse.Namespace, version: str | None, version_dir: Path |
     result, state = report(run, planned, statistics, broad_phase=broad_phase, suspects=suspects, audit=audit,
                            between=between, complete=publishable, periods=periods, timings=timings)
     exporting = time.monotonic()
-    evidence = (statistics, provenance(run, planned, recipe, publishable, rule), audit) if version else None
+    evidence = (statistics, provenance(run, planned, cast(Mapping[str, Any], recipe), publishable, rule), audit) if version else None
     publish(run, result, state, recipe, evidence, publishable)
     result["timings_s"]["export"] = round(time.monotonic() - exporting, 2)
     result["timings_s"]["total"] = round(time.monotonic() - started, 2)

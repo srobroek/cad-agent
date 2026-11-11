@@ -126,6 +126,21 @@ A catalogue buy returns false.
 - `volume_tolerance_mm3(installed_volume)`: the allowed volume difference. A part made in its
   installed shape gets 1e-9 relative. A part with a `different` state gets its declared tolerance.
 
+A process without an output contract (`other`) raises `UnsupportedProcess`, a `LayoutError`
+subclass: its installed definition still builds, its manufacturing coverage is unknown, and freeze
+and release refuse it. A part with several solids also writes
+`manufacturing_component_dir(hw, V, PN, COMP)` (`.../manufacturing/<PN>/components/<COMP>`), which
+checks COMP against its grammar.
+
+## Read the record snapshot set
+
+`snapshot_names(hw, pns)` lists, below `hw/`, the record files a version built from `pns` snapshots,
+as the `version.record` entry names them: product, requirements, interfaces, assembly, each
+`parts/<PN>/part.yaml`, `manufacturing/{capabilities,materials,selection}.yaml` and every regular file
+under `manufacturing/sources/`. It never lists the evidence or finding ledgers, the BOM or
+verification, and never follows a symlink. Record version 2 contracts are read through
+`scripts/manufacturing_intent.py`.
+
 ## Read the git storage rules
 
 `git_storage(results_in_git)` returns `{".gitignore": [...], ".gitattributes": [...]}`, the rules for

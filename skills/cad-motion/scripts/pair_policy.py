@@ -10,13 +10,16 @@ interface id and record path.
 Press fits are classified with cad-fits' ISO 286 tables; only an `interference` classification
 allows shared volume. An installed heat-set insert overlaps its bore by design, so its pair may
 interfere; unlike a press fit, no measured overlap is required, because a model may draw the
-insert at its bore size. Running fits are resolved but not classified.
+insert at its bore size. Running fits are resolved but not classified. Locating fits are
+classified like press fits when their designation is an ISO 286 hole/shaft fit, else
+`unclassified` (a dowel or vendor limit): a locating fit is neither a running clearance nor a
+tolerated overlap, so only an `interference` classification allows shared volume.
 
-Every press fit, running fit and heat-set pair is fitted: fitted or contacting by design, it
-inherits no global running clearance (sweep's `--min-clearance`). A clearance requirement, an
-interface `{type: clearance, pair: [REF, REF], min_clearance_mm}`, binds its pair whatever else
-joins it: a joint, a fit or an insert never exempts the pair, because the requirement is
-explicit. Stdlib plus PyYAML; no CAD kernel.
+Every press fit, running fit, locating fit and heat-set pair is fitted: fitted or contacting by
+design, it inherits no global running clearance (sweep's `--min-clearance`). A clearance
+requirement, an interface `{type: clearance, pair: [REF, REF], min_clearance_mm}`, binds its pair
+whatever else joins it: a joint, a fit or an insert never exempts the pair, because the
+requirement is explicit. Stdlib plus PyYAML; no CAD kernel.
 """
 
 from __future__ import annotations
@@ -28,7 +31,7 @@ from collections.abc import Iterable, Iterator
 from decimal import Decimal, InvalidOperation
 from functools import cache
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 FITS_SCRIPT = Path(__file__).resolve().parents[2] / "cad-fits" / "scripts" / "fits.py"
 
@@ -62,7 +65,7 @@ def read_interfaces(hw: Path) -> list[Any]:
         raise PolicyError(f"{path}: cannot read interfaces: {error}") from error
     if not isinstance(document, dict) or not isinstance(document.get("interfaces"), list):
         raise PolicyError(f"{path}: expected an interfaces list")
-    return document["interfaces"]
+    return cast("list[Any]", document["interfaces"])
 
 
 def _text(value: Any) -> bool:
@@ -73,17 +76,17 @@ def _pair(refs: list[str], assembly: Any, where: str) -> tuple[str, str]:
     a, b = (assembly.attachable(ref, f"{where}: ") for ref in refs)
     if a == b:
         raise PolicyError(f"{where}: both ends are the same occurrence {refs[0]}")
-    return tuple(sorted((a, b)))  # type: ignore[return-value]
+    return tuple(sorted((a, b)))
 
 
 def _endpoint(entry: dict[str, Any], assembly: Any, where: str) -> str:
     """The occurrence of a feature endpoint: its `occurrence` (an @id of `PN`), else the PN's singleton."""
     ref = entry.get("occurrence")
     if ref is None:
-        return assembly.attachable(entry["PN"], f"{where}: ")
+        return cast(str, assembly.attachable(entry["PN"], f"{where}: "))
     if not _text(ref) or not ref.startswith("@"):
         raise PolicyError(f"{where}: occurrence must be an @id reference, got {ref!r}")
-    occurrence = assembly.attachable(ref, f"{where}: ")
+    occurrence = cast(str, assembly.attachable(ref, f"{where}: "))
     if assembly.pn(occurrence) != entry["PN"]:
         raise PolicyError(f"{where}: {ref} is an occurrence of {assembly.pn(occurrence)}, not {entry['PN']}")
     return occurrence
@@ -143,20 +146,38 @@ def declared_press_fits(hw: Path, interfaces: list[Any], assembly: Any) -> list[
     `hole` and `shaft` endpoints; an endpoint declaration is reported with its `endpoints`.
     """
     path = hw / "interfaces.yaml"
-    fits = _fits_module() if interfaces else None
+    return [_fit_entry(interface, designation, pair, endpoints, source,
+                       classification=_classify(designation, f"{path}:{source}"))
+            for interface, designation, pair, endpoints, source in _fits(hw, interfaces, assembly, "press_fit")]
+
+
+def _classify(designation: str, where: str) -> str:
+    """The ISO 286 fit type of `designation` ("SIZE HOLE/SHAFT"); PolicyError when it is not one."""
+    fits = _fits_module()
+    size = designation.split(maxsplit=1)
+    if len(size) != 2:
+        raise PolicyError(f"{where}: fit must contain a nominal size and ISO fit")
+    try:
+        fit_data = fits.evaluate(Decimal(size[0]), size[1]).get("fit")
+        if not isinstance(fit_data, dict):
+            raise PolicyError(f"{where}: expected an ISO hole/shaft fit, got {designation!r}")
+        classified: str = fit_data["type"]
+        return classified
+    except (InvalidOperation, ValueError, fits.FitError, KeyError) as error:
+        raise PolicyError(f"{where}: cannot classify {designation!r}: {error}") from error
+
+
+def declared_locating_fits(hw: Path, interfaces: list[Any], assembly: Any) -> list[dict[str, Any]]:
+    """Locating-fit declarations as {pair, fit, classification, interface, source[, endpoints]}, `pair`
+    the sorted occurrence ids. `classification` is the ISO 286 type of an ISO hole/shaft designation,
+    else `unclassified`: a dowel or vendor limit locates without a fit class this table covers."""
+    path = hw / "interfaces.yaml"
     declared = []
-    for interface, designation, pair, endpoints, source in _fits(hw, interfaces, assembly, "press_fit"):
-        where = f"{path}:{source}"
-        size = designation.split(maxsplit=1)
-        if len(size) != 2:
-            raise PolicyError(f"{where}: fit must contain a nominal size and ISO fit")
+    for interface, designation, pair, endpoints, source in _fits(hw, interfaces, assembly, "locating_fit"):
         try:
-            fit_data = fits.evaluate(Decimal(size[0]), size[1]).get("fit")
-            if not isinstance(fit_data, dict):
-                raise PolicyError(f"{where}: expected an ISO hole/shaft fit, got {designation!r}")
-            classified = fit_data["type"]
-        except (InvalidOperation, ValueError, fits.FitError, KeyError) as error:
-            raise PolicyError(f"{where}: cannot classify {designation!r}: {error}") from error
+            classified = _classify(designation, f"{path}:{source}")
+        except PolicyError:
+            classified = "unclassified"
         declared.append(_fit_entry(interface, designation, pair, endpoints, source, classification=classified))
     return declared
 
@@ -197,17 +218,20 @@ def declared_heat_sets(hw: Path, interfaces: list[Any], assembly: Any) -> list[d
     return declared
 
 
-def allowed_pairs(press_fits: Iterable[dict[str, Any]], heat_sets: Iterable[dict[str, Any]]) -> set[tuple[str, str]]:
-    """The occurrence pairs whose shared volume is declared: interference press fits and heat-set inserts."""
-    allowed = {tuple(item["pair"]) for item in press_fits if item["classification"] == "interference"}
-    return allowed | {tuple(item["pair"]) for item in heat_sets}  # type: ignore[return-value]
+def allowed_pairs(press_fits: Iterable[dict[str, Any]], heat_sets: Iterable[dict[str, Any]],
+                  locating_fits: Iterable[dict[str, Any]] = ()) -> set[tuple[str, str]]:
+    """The occurrence pairs whose shared volume is declared: interference press and locating fits, and
+    heat-set inserts. A transition, clearance or unclassified locating fit allows none."""
+    allowed = {tuple(item["pair"]) for items in (press_fits, locating_fits) for item in items
+               if item["classification"] == "interference"}
+    return allowed | {tuple(item["pair"]) for item in heat_sets}
 
 
 def fitted_pairs(*declarations: Iterable[dict[str, Any]]) -> set[tuple[str, str]]:
-    """The occurrence pairs a press fit, running fit or heat-set insert declares. Fitted or contacting
-    by design, they inherit no global running-clearance requirement; an explicit clearance
+    """The occurrence pairs a press, running or locating fit or a heat-set insert declares. Fitted or
+    contacting by design, they inherit no global running-clearance requirement; an explicit clearance
     requirement on such a pair still applies."""
-    return {tuple(item["pair"]) for items in declarations for item in items}  # type: ignore[misc]
+    return {tuple(item["pair"]) for items in declarations for item in items}
 
 
 def declared_clearances(hw: Path, interfaces: list[Any], assembly: Any) -> list[dict[str, Any]]:

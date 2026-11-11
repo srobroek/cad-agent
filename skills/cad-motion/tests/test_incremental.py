@@ -356,6 +356,20 @@ class VersionTests(unittest.TestCase):
         self.assertEqual((explicit.baseline.label, explicit.reason), ("v1", "baseline v1: --since-version"))
         self.assertEqual(explicit.select(pairs_of(PARTS)).selected, {("TST-0002", "TST-0004"): ("policy",)})
 
+    def test_a_locating_fit_change_selects_its_pair(self) -> None:
+        def locating(fit: str) -> dict:
+            return {"interfaces": [{"id": "IF-001", "type": "mounting", "from": "TST-0001", "to": "TST-0002",
+                                    "description": "Dowelled", "limits": {"locating_fit": {
+                                        "fit": fit, "pair": ["TST-0001", "TST-0002"]}}}]}
+
+        seal(self.hw, "v1", data=PARTS)
+        seal(self.hw, "v2", data=PARTS, interfaces=locating("5 H7/h6"))
+        seal(self.hw, "v3", data=PARTS, interfaces=locating("5 H7/p6"))
+        added = incremental.compare_versions(self.hw, "v2").select(pairs_of(PARTS))
+        self.assertEqual(added.selected, {("TST-0001", "TST-0002"): ("policy",)})
+        reclassified = incremental.compare_versions(self.hw, "v3").select(pairs_of(PARTS))
+        self.assertEqual(reclassified.selected, {("TST-0001", "TST-0002"): ("policy",)})
+
     def test_the_first_version_selects_every_pair_with_the_reason(self) -> None:
         seal(self.hw, "v1", data=PARTS)
         changes = incremental.compare_versions(self.hw, "v1")

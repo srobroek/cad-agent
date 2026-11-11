@@ -1,0 +1,3 @@
+# Material profiles: family or grade, form, process state and sourced properties with their conditions
+# (schemas/manufacturing-materials.schema.json). None is selected; part.yaml material strings stay declarations.
+profiles: []

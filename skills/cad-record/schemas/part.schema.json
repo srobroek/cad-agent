@@ -9,8 +9,8 @@
     "PN": {"type": "string", "pattern": "^[A-Z]{2,5}-[0-9]{4}$"},
     "rev": {"type": "string", "pattern": "^(X[1-9][0-9]*|[A-HJ-NPRTUVWY])$"},
     "title": {"type": "string", "minLength": 1},
-    "material": {"type": "string", "minLength": 1},
-    "process": {"type": "string", "enum": ["fdm", "cnc", "purchased"]},
+    "material": {"description": "A declaration of the part's material, kept for BOM and drawings; it is not a sourced grade or property. intent.material_profile names the qualified profile", "type": "string", "minLength": 1},
+    "process": {"description": "The scalar label of the primary process; intent.route is the authority for the operations", "$ref": "manufacturing.schema.json#/$defs/primary_process"},
     "finish": {"type": "string", "minLength": 1},
     "mass_target": {"type": ["number", "null"], "exclusiveMinimum": 0},
     "make_buy": {"type": "string", "enum": ["make", "buy"]},
@@ -25,7 +25,7 @@
       "type": "string", "enum": ["solid", "frame", "plate", "skeleton", "shell"]
     },
     "transparency": {
-      "description": "How much light the part passes; absent means opaque. Only a transparent part is see-through to the visibility check, and an FDM part cannot be transparent",
+      "description": "How much light the part passes; absent means opaque. Only a transparent part is see-through to the visibility check. An optical requirement is a hard selection constraint met by a purchased transparent part or identified transparent stock on a suitable route, never by an opaque process",
       "type": "string", "enum": ["opaque", "translucent", "transparent"]
     },
     "procurement": {"$ref": "drawing.schema.json#/$defs/procurement"},
@@ -58,6 +58,235 @@
       "else": {
         "not": {"anyOf": [{"required": ["state"]}, {"required": ["reason"]}, {"required": ["decision"]},
                           {"required": ["volume_rel_tolerance"]}, {"required": ["volume_abs_tolerance_mm3"]}]}
+      }
+    },
+    "intent": {"$ref": "#/$defs/intent"}
+  },
+  "$defs": {
+    "intent": {
+      "description": "Record version 2 manufacturing intent: what the part does, the qualified material profile, the service it sees, its critical surfaces and its complete ordered route. make_buy and procurement.mode stay the sourcing authority; manufacture stays the manufacturing-state authority. A sole solid is the implicit main component; a part with several solids lists components",
+      "type": "object", "additionalProperties": false,
+      "required": ["functions", "material_profile", "service", "critical_surfaces", "route"],
+      "properties": {
+        "functions": {"oneOf": [{"type": "array", "minItems": 1, "items": {"$ref": "manufacturing.schema.json#/$defs/function_entry"}},
+                                {"$ref": "manufacturing.schema.json#/$defs/fact_unknown"}]},
+        "material_profile": {"description": "a profile id in manufacturing/materials.yaml",
+                             "oneOf": [{"$ref": "manufacturing.schema.json#/$defs/profile_id"}, {"$ref": "manufacturing.schema.json#/$defs/fact_open"}]},
+        "selection": {"description": "the selection.yaml candidate this intent implements", "$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "service": {"oneOf": [
+          {"type": "object", "additionalProperties": false, "minProperties": 1,
+           "properties": {
+             "requirements": {"$ref": "manufacturing.schema.json#/$defs/requirement_ids"},
+             "loads": {"description": "product.yaml use_case.loads ids", "$ref": "manufacturing.schema.json#/$defs/semantic_ids"},
+             "environment": {"$ref": "manufacturing.schema.json#/$defs/text"},
+             "duty": {"$ref": "manufacturing.schema.json#/$defs/text"},
+             "life": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"},
+             "differences": {"description": "where this part's service differs from the product use case", "$ref": "manufacturing.schema.json#/$defs/text"}
+           }},
+          {"$ref": "manufacturing.schema.json#/$defs/fact_open"}]},
+        "components": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/component"}},
+        "critical_surfaces": {"oneOf": [{"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/critical_surface"}},
+                                        {"$ref": "manufacturing.schema.json#/$defs/fact_open"}]},
+        "route": {"oneOf": [{"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/operation"}},
+                            {"$ref": "manufacturing.schema.json#/$defs/fact_unknown"}]},
+        "rationale": {
+          "type": "object", "additionalProperties": false, "minProperties": 1,
+          "properties": {
+            "decision": {"$ref": "manufacturing.schema.json#/$defs/decision"},
+            "selection": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+            "alternatives": {"$ref": "manufacturing.schema.json#/$defs/texts"},
+            "tradeoffs": {"$ref": "manufacturing.schema.json#/$defs/text"}
+          }
+        }
+      }
+    },
+    "component": {
+      "description": "One disconnected solid of the part, bound by an interior witness point in the native manufacturing frame (mm) or a semantic locator; every solid binds exactly once. Equivalent members list their multiplicity",
+      "type": "object", "additionalProperties": false, "required": ["id"],
+      "oneOf": [{"required": ["witness"]}, {"required": ["locator"]}],
+      "properties": {
+        "id": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "witness": {"$ref": "manufacturing.schema.json#/$defs/vector"},
+        "locator": {"$ref": "manufacturing.schema.json#/$defs/target"},
+        "material_profile": {"oneOf": [{"$ref": "manufacturing.schema.json#/$defs/profile_id"}, {"$ref": "manufacturing.schema.json#/$defs/fact_open"}]},
+        "functions": {"type": "array", "minItems": 1, "items": {"$ref": "manufacturing.schema.json#/$defs/function_entry"}},
+        "multiplicity": {"type": "integer", "minimum": 1},
+        "note": {"$ref": "manufacturing.schema.json#/$defs/text"}
+      }
+    },
+    "critical_surface": {
+      "type": "object", "additionalProperties": false, "required": ["id", "feature", "role", "dimension_state"],
+      "properties": {
+        "id": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "feature": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "region": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "component": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "role": {"enum": ["datum", "bore", "seat", "journal", "running", "sliding", "flank", "cam", "seal", "fastener", "locating", "optical", "other"]},
+        "interfaces": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "manufacturing.schema.json#/$defs/interface_id"}},
+        "requirements": {"$ref": "manufacturing.schema.json#/$defs/requirement_ids"},
+        "criteria": {"type": "array", "minItems": 1, "items": {"$ref": "manufacturing.schema.json#/$defs/criterion"}},
+        "finish": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "inspection": {"description": "the route inspection id that verifies it", "$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "dimension_state": {"$ref": "manufacturing.schema.json#/$defs/dimension_state"}
+      }
+    },
+    "operation": {
+      "description": "One route operation, in route order: the previous operation is its predecessor unless depends_on names the true dependencies. A made operation names its capability profile or why it is unknown; a purchase names its identity, specification and ratings",
+      "type": "object", "additionalProperties": false, "required": ["id", "kind"],
+      "properties": {
+        "id": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "kind": {"$ref": "manufacturing.schema.json#/$defs/route_kind"},
+        "title": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "capability": {"oneOf": [{"$ref": "manufacturing.schema.json#/$defs/profile_id"}, {"$ref": "manufacturing.schema.json#/$defs/fact_unknown"}]},
+        "provider": {"enum": ["local", "outsourced"]},
+        "supplier": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "components": {"$ref": "manufacturing.schema.json#/$defs/semantic_ids"},
+        "depends_on": {"$ref": "manufacturing.schema.json#/$defs/semantic_ids"},
+        "input_state": {"description": "stock, or the output_state of an earlier operation", "$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "output_state": {"description": "installed, part.yaml manufacture.state, or an intermediate state", "$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "material_state_in": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "material_state_out": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "targets": {"type": "array", "minItems": 1, "items": {"$ref": "manufacturing.schema.json#/$defs/target"}},
+        "setup": {"$ref": "#/$defs/setup"},
+        "orientation": {"oneOf": [{"$ref": "#/$defs/orientation"}, {"$ref": "manufacturing.schema.json#/$defs/fact_open"}]},
+        "supports": {"oneOf": [{"$ref": "#/$defs/supports"}, {"$ref": "manufacturing.schema.json#/$defs/fact_open"}]},
+        "allowances": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/allowance"}},
+        "post_processing": {"$ref": "manufacturing.schema.json#/$defs/texts"},
+        "inspection": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/inspection"}},
+        "requirements": {"$ref": "manufacturing.schema.json#/$defs/requirement_ids"},
+        "criteria": {"type": "array", "minItems": 1, "items": {"$ref": "manufacturing.schema.json#/$defs/criterion"}},
+        "evidence": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "manufacturing.schema.json#/$defs/evidence_id"}},
+        "purchase": {"$ref": "#/$defs/purchase"}
+      },
+      "if": {"properties": {"kind": {"const": "purchased"}}},
+      "then": {"required": ["purchase"], "not": {"anyOf": [{"required": ["capability"]}, {"required": ["supports"]}, {"required": ["orientation"]}]}},
+      "else": {"required": ["capability"], "not": {"required": ["purchase"]}}
+    },
+    "purchase": {
+      "description": "Traceable purchase criteria: the identity, specification and ratings that make a bought item the right one, never an unidentified description",
+      "type": "object", "additionalProperties": false, "required": ["identity", "specification", "ratings"],
+      "properties": {
+        "identity": {"description": "manufacturer and part number, or a standard designation", "$ref": "manufacturing.schema.json#/$defs/text_fact"},
+        "specification": {"description": "material grade, standard or datasheet the item conforms to", "$ref": "manufacturing.schema.json#/$defs/text_fact"},
+        "ratings": {"description": "load, speed, temperature or other ratings", "$ref": "manufacturing.schema.json#/$defs/text_fact"},
+        "optical": {"description": "optical grade and transmission, for a transparent item", "$ref": "manufacturing.schema.json#/$defs/text_fact"},
+        "thickness": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"},
+        "availability": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+        "supplier_evidence": {"$ref": "manufacturing.schema.json#/$defs/sources"}
+      }
+    },
+    "setup": {
+      "description": "Stock, datums, workholding and access of one operation. Nothing here is guessed from a bounding box",
+      "type": "object", "additionalProperties": false, "minProperties": 1,
+      "properties": {
+        "stock": {
+          "type": "object", "additionalProperties": false, "minProperties": 1,
+          "properties": {
+            "material_profile": {"oneOf": [{"$ref": "manufacturing.schema.json#/$defs/profile_id"}, {"$ref": "manufacturing.schema.json#/$defs/fact_open"}]},
+            "grade": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "form": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "dimensions": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "thickness": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"},
+            "state": {"$ref": "manufacturing.schema.json#/$defs/text"},
+            "supplier": {"$ref": "manufacturing.schema.json#/$defs/text"}
+          }
+        },
+        "datums": {"$ref": "manufacturing.schema.json#/$defs/semantic_ids"},
+        "workholding": {
+          "type": "object", "additionalProperties": false, "required": ["method"],
+          "properties": {
+            "method": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+            "contact_regions": {"type": "array", "minItems": 1, "items": {"$ref": "manufacturing.schema.json#/$defs/target"}},
+            "fixture": {"$ref": "manufacturing.schema.json#/$defs/text"},
+            "clamping_force": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"},
+            "allowable_deformation": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"}
+          }
+        },
+        "access": {
+          "type": "object", "additionalProperties": false, "minProperties": 1,
+          "properties": {
+            "sides": {"$ref": "manufacturing.schema.json#/$defs/texts"},
+            "tools": {"type": "array", "minItems": 1, "items": {
+              "type": "object", "additionalProperties": false, "required": ["description"],
+              "properties": {
+                "description": {"$ref": "manufacturing.schema.json#/$defs/text"},
+                "capability": {"$ref": "manufacturing.schema.json#/$defs/profile_id"},
+                "diameter": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"},
+                "reach": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"},
+                "holder": {"$ref": "manufacturing.schema.json#/$defs/text_fact"}
+              }}}
+          }
+        },
+        "inspection_access": {"$ref": "manufacturing.schema.json#/$defs/text_fact"}
+      }
+    },
+    "orientation": {
+      "description": "The fixed manufacturing orientation in the native manufacture frame: a proper rotation, as a unit quaternion [w, x, y, z] or an axis and angle. An approved orientation names its decision; an envelope auto-fit is never approved",
+      "type": "object", "additionalProperties": false, "required": ["status", "rotation"],
+      "properties": {
+        "status": {"enum": ["proposed", "approved"]},
+        "rotation": {"oneOf": [
+          {"type": "object", "additionalProperties": false, "required": ["quaternion"],
+           "properties": {"quaternion": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "number"}}}},
+          {"type": "object", "additionalProperties": false, "required": ["axis", "angle_deg"],
+           "properties": {"axis": {"$ref": "manufacturing.schema.json#/$defs/vector"}, "angle_deg": {"type": "number"}}}
+        ]},
+        "decision": {"$ref": "manufacturing.schema.json#/$defs/decision"},
+        "selection": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "note": {"$ref": "manufacturing.schema.json#/$defs/text"}
+      },
+      "if": {"properties": {"status": {"const": "approved"}}}, "then": {"required": ["decision"]}
+    },
+    "supports": {
+      "description": "Where supports start, touch and come off. reachable_noncritical keeps them on reachable non-critical surfaces; finished_critical names the finishing, allowance and inspection that restore a critical surface. Absent supports are unknown, never none",
+      "type": "object", "additionalProperties": false, "required": ["strategy"],
+      "properties": {
+        "strategy": {"enum": ["none", "reachable_noncritical", "finished_critical"]},
+        "start_regions": {"type": "array", "minItems": 1, "items": {"$ref": "manufacturing.schema.json#/$defs/target"}},
+        "contact_regions": {"type": "array", "minItems": 1, "items": {"$ref": "manufacturing.schema.json#/$defs/target"}},
+        "material": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "removal": {
+          "type": "object", "additionalProperties": false, "required": ["tools", "access"],
+          "properties": {"tools": {"$ref": "manufacturing.schema.json#/$defs/texts"}, "access": {"$ref": "manufacturing.schema.json#/$defs/text"},
+                         "path": {"$ref": "manufacturing.schema.json#/$defs/text"}}
+        },
+        "affected_surfaces": {"type": "array", "minItems": 1, "items": {"$ref": "manufacturing.schema.json#/$defs/target"}},
+        "allowance": {"$ref": "manufacturing.schema.json#/$defs/quantity"},
+        "finish": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "inspection": {"$ref": "manufacturing.schema.json#/$defs/semantic_ids"}
+      },
+      "allOf": [
+        {"if": {"properties": {"strategy": {"const": "reachable_noncritical"}}}, "then": {"required": ["contact_regions", "removal"]}},
+        {"if": {"properties": {"strategy": {"const": "finished_critical"}}},
+         "then": {"required": ["contact_regions", "removal", "allowance", "finish", "inspection"]}}
+      ]
+    },
+    "allowance": {
+      "type": "object", "additionalProperties": false, "required": ["feature", "amount", "purpose", "source"],
+      "properties": {
+        "feature": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "region": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "dimension": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "amount": {"$ref": "manufacturing.schema.json#/$defs/quantity"},
+        "purpose": {"enum": ["stock", "finish", "coating", "support_removal", "shrinkage", "other"]},
+        "limits": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "source": {"$ref": "manufacturing.schema.json#/$defs/source"}
+      }
+    },
+    "inspection": {
+      "type": "object", "additionalProperties": false, "required": ["id", "method", "state"],
+      "properties": {
+        "id": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "feature": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "region": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "requirement": {"$ref": "manufacturing.schema.json#/$defs/requirement_id"},
+        "criterion": {"$ref": "manufacturing.schema.json#/$defs/criterion"},
+        "method": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "instrument": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "capability": {"$ref": "manufacturing.schema.json#/$defs/profile_id"},
+        "state": {"$ref": "manufacturing.schema.json#/$defs/dimension_state"},
+        "coupon": {"description": "true when a representative coupon or test piece is the inspected item", "type": "boolean"},
+        "evidence": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "manufacturing.schema.json#/$defs/evidence_id"}}
       }
     }
   }

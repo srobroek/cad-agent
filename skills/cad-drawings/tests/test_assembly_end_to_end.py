@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import importlib.util
 import json
 import shutil
 import subprocess
@@ -26,6 +27,14 @@ SCRIPTS = HERE.parent / "scripts"
 SKILLS = HERE.parents[1]
 FIXTURE = HERE / "fixtures" / "build_assembly_fixture.py"
 CLI = SCRIPTS / "assembly_drawing.py"
+_FX_SPEC = importlib.util.spec_from_file_location("cad_record_mi_fixtures",
+                                                  SKILLS / "cad-record" / "tests" / "fixtures" / "manufacturing_intent.py")
+fx = sys.modules.get("cad_record_mi_fixtures")
+if fx is None:
+    assert _FX_SPEC and _FX_SPEC.loader
+    fx = importlib.util.module_from_spec(_FX_SPEC)
+    sys.modules["cad_record_mi_fixtures"] = fx
+    _FX_SPEC.loader.exec_module(fx)
 sys.path.insert(0, str(SCRIPTS))
 sys.path.insert(0, str(SKILLS / "cad-model" / "scripts"))
 import assembly_check  # noqa: E402
@@ -105,6 +114,8 @@ def write_project(root: Path, regime: str = "iso", bom_pin_qty: int = 2) -> Path
         (folder / "part.yaml").write_text(yaml.safe_dump(record, sort_keys=False), encoding="utf-8")
         (folder / "model.py").write_text(f'KERNEL = "cadquery"\nPARAMS = {{}}\n# {pn}\n', encoding="utf-8")
         built[pn] = {"model": f"parts/{pn}/model.py", "source_sha256": sha(folder / "model.py"), "step": f"parts/{pn}.step"}
+    # The record as current cad-record reads it: record version 2, every manufacturing-intent field unknown.
+    fx.upgrade_record(hw)
     spec = {"definitions": {pn: {"name": f"{pn} {p['title']}", **p["shape"]} for pn, p in PARTS.items()},
             "occurrences": [{"id": PLATE, "PN": PLATE, "explicit": False, "translation_mm": [0, 0, 0], "axis": [0, 0, 1],
                              "angle_deg": 0}] + [{"id": oid, "PN": PIN, "explicit": True, "translation_mm": xyz,

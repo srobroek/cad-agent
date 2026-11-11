@@ -50,6 +50,16 @@ if "cad_record_layout" not in sys.modules:
     _LAYOUT_SPEC.loader.exec_module(LAYOUT)
 else:
     LAYOUT = sys.modules["cad_record_layout"]
+OPERATIONS_PATH = SKILL / "scripts" / "assembly_operations.py"
+if "cad_record_assembly_operations" not in sys.modules:
+    _OPERATIONS_SPEC = importlib.util.spec_from_file_location("cad_record_assembly_operations", OPERATIONS_PATH)
+    if _OPERATIONS_SPEC is None or _OPERATIONS_SPEC.loader is None:
+        raise ImportError(f"{OPERATIONS_PATH} not found")
+    OPERATIONS = importlib.util.module_from_spec(_OPERATIONS_SPEC)
+    sys.modules["cad_record_assembly_operations"] = OPERATIONS
+    _OPERATIONS_SPEC.loader.exec_module(OPERATIONS)
+else:
+    OPERATIONS = sys.modules["cad_record_assembly_operations"]
 import assembly_data  # noqa: E402
 import assembly_check  # noqa: E402
 import assembly_sheet  # noqa: E402
@@ -164,12 +174,17 @@ def _read_manifest(path: Path) -> dict[str, Any] | None:
 
 
 def _holds(manifest: Mapping[str, Any], product_id: str, version: str) -> bool:
-    """A version 2 manifest names the version in frozen.version, a version 1 manifest lists its files in place."""
+    """Whether a release manifest releases `version`, read by its own manifest version: version 2 and 3
+    name it in frozen.version, version 1 lists its files in place. A manifest version this guide does
+    not know releases nothing it can cite."""
     if manifest.get("product_id") != product_id:
         return False
-    if "schema_version" in manifest:
+    schema = manifest.get("schema_version")
+    if schema in (2, 3):
         frozen = manifest.get("frozen")
         return isinstance(frozen, Mapping) and frozen.get("version") == version
+    if schema is not None:
+        return False
     return any(re.search(rf"(?:^|/)versions/{re.escape(version)}(?:/|$)", item)
                for item in manifest.get("files", []) if isinstance(item, str))
 
@@ -212,13 +227,17 @@ def release_cell(release: ReleaseRef | None, version: str, hw: Path, out: Path) 
     return f"{release.label()} (release.py seals it with these documents)"
 
 
-def built_manufacturing(layout: Any, hw: Path, version: str, pn: str, process: str, out: Path) -> str | None:
-    """Link the canonical manufacturing STEP, and the FDM STL when applicable."""
+def built_manufacturing(layout: Any, hw: Path, version: str, pn: str, out: Path) -> str | None:
+    """Link every manufacturing output the version built for `pn`, as its process route's output policy
+    wrote them: the canonical part.step first, then the other files (an additive STL, per-component
+    outputs of a multi-solid part), never the manufacturing.json sidecar."""
     directory = layout.manufacturing_dir(hw, version, pn)
-    files = ["part.step"]
-    if process == "fdm":
-        files.append("part.stl")
-    links = [markdown_link(name, directory / name, out) for name in files if (directory / name).is_file()]
+    if not directory.is_dir():
+        return None
+    names = sorted((path.relative_to(directory).as_posix() for path in directory.rglob("*")
+                    if path.is_file() and not path.is_symlink() and path.name != "manufacturing.json"),
+                   key=lambda name: (name != "part.step", name.count("/"), name))
+    links = [markdown_link(name, directory / name, out) for name in names]
     return "<br>".join(links) if links else None
 
 
@@ -310,7 +329,7 @@ def toml_string(value: Any) -> str:
 
 def licenses(product: Mapping[str, Any]) -> dict[str, str | None]:
     """product.yaml license.hardware and license.documentation, None where not recorded."""
-    data = product.get("license") if isinstance(product.get("license"), Mapping) else {}
+    data = section if isinstance(section := product.get("license"), Mapping) else {}
     return {key: value.strip() if isinstance(value := data.get(key), str) and value.strip() else None
             for key in ("hardware", "documentation")}
 
@@ -418,8 +437,8 @@ def make_guide(hw: Path, version: str, out: Path, rev: str | None = None, date: 
     bom_rows = read_csv(hw / "bom.csv", optional=True)
     verification = read_csv(hw / "verification.csv", optional=True)
     decision_paths = sorted((hw / "decisions").glob("DR-[0-9][0-9][0-9].md"))
-    manufacturing = product.get("manufacturing") if isinstance(product.get("manufacturing"), Mapping) else {}
-    processes = manufacturing.get("processes", [])
+    declared = section if isinstance(section := product.get("manufacturing"), Mapping) else {}
+    processes = declared.get("processes", [])
     processes = processes if isinstance(processes, list) else []
     product_id = product.get("id")
     part_records = {path.parent.name: record for path in sorted((hw / "parts").glob("*/part.yaml"))
@@ -461,7 +480,7 @@ def make_guide(hw: Path, version: str, out: Path, rev: str | None = None, date: 
         common = (items.get(pn), pn)
         if part.get("make_buy", bom.get("make_buy")) == "make":
             process = str(part.get("process") or bom.get("process") or "")
-            manufacturing = built_manufacturing(LAYOUT, hw, version, pn, process, out)
+            manufacturing = built_manufacturing(LAYOUT, hw, version, pn, out)
             make_rows.append((*common, part.get("title") or bom.get("title"), quantity,
                               part.get("material") or bom.get("material"), process, manufacturing))
         elif part.get("make_buy", bom.get("make_buy")) == "buy":
@@ -487,7 +506,10 @@ def make_guide(hw: Path, version: str, out: Path, rev: str | None = None, date: 
                     drawing_link = markdown_link("drawing sheet PDF", drawing, out)
             buy_rows.append((*common, designation, quantity, supplier, order_code, drawing_link))
 
-    operations = assembly_drawing.get("operations", []) if isinstance(assembly_drawing, Mapping) else []
+    try:
+        operations = OPERATIONS.normalize(assembly)
+    except OPERATIONS.OperationsError as exc:
+        raise GuideError(f"cannot read the assembly operations: {exc} ({exc.code})") from exc
     resolved = plan.sheets[0].operations if plan is not None else ()
     measurements = guide_measurements(hw, version_dir, version, str(product_id or ""),
                                       {operation.operation.id for operation in resolved})
@@ -537,10 +559,11 @@ def make_guide(hw: Path, version: str, out: Path, rev: str | None = None, date: 
             ("Design owner", "HUMAN-OWNED / MISSING: product.design_owner"),
         ]),
     ]
-    if not any(row.get("tools") or row.get("consumables") for row in operations):
+    if not any(operation.tools or operation.consumables for operation in operations.items):
         sections[3] = "## Tools and consumables\n\n" + table(
             ("Step", "Items", "Tool or consumable"),
-            [("MISSING: assembly.yaml drawing.operations[].tools / consumables", None, None)])
+            [(f"MISSING: assembly.yaml {'operations' if operations.authority == 'operations' else 'drawing.operations'}"
+              "[].tools / consumables", None, None)])
     bom_path = hw / "bom.csv"
     guide = (f"# {text(product_id)} build guide\n\n"
              f"<parts src=\"{html.escape(relative_link(bom_path, out), quote=True)}\" />\n\n"

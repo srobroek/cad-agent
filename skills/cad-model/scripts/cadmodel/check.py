@@ -7,9 +7,13 @@ one PN included), each clearance requirement of the version's interfaces.yaml ho
 connectivity welds occurrences, and each occurrence's GLB node is judged watertight alone. A version
 1 version (written before occurrences) reads as one occurrence per PN. Every file must match the
 manifest inventory (`artifact_integrity`), and the manufacturing outputs of each custom-made part
-are judged again on the sealed files (`manufacturing`, cadmodel.manufacture); `build_volume` fits
-each FDM part in the state it is printed in, against the printer of the version's record snapshot.
-Declarations (fits, inserts, clearance requirements and their margins) come from that snapshot too.
+are judged again on the sealed files (`manufacturing`, cadmodel.manufacture); `build_volume`, a
+non-blocking diagnostic, fits each additive part in the state and pose it is made in against a
+machine envelope: an envelope fit is never process feasibility.
+Declarations (fits, inserts, clearance requirements and their margins) come from the version's record snapshot.
+A version built from a record version 2 snapshot also gets its cad.readback required-check packet
+(B-rep validity, read-back, manufacturing state and component identity per made part and component)
+published to hw/checks/<V>/cad/, where cad-record evidence.py reads it (`publish_readback`).
 
 Pairs are measured by cad-motion's pair measurer under the sweep's rule, cache, mesh bounds and
 suspect checks, on the per-part STEP definitions (their DATA geometry ids) placed as the sweep
@@ -25,6 +29,7 @@ against a baseline version; its report is partial (`scope.complete` false) and s
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import math
 import sys
@@ -32,11 +37,11 @@ import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, cast
 
 from cadmodel import build, manufacture, mesh, occ, orientation, stepfile
 from cadmodel.motion import load_incremental, load_mesh_bound, load_pair_measure, load_pair_policy, load_pose
-from cadmodel.record import load_layout
+from cadmodel.record import load_intent, load_layout, read_folder
 from cadmodel.stepfile import AP242, READBACK_REL
 
 Pair = tuple[str, str]
@@ -104,7 +109,7 @@ def resolve_pairs(pairs: Iterable[tuple[str, str]], inventory: Any, option: str)
         if ids[0] == ids[1]:
             raise build.UsageError(f"{option} {a}:{b}: both ends are one occurrence")
         resolved.append(ids)
-    return resolved  # type: ignore[return-value]
+    return resolved
 
 
 def step_readback(folder: Path, manifest: dict[str, Any], parts: dict[str, Any], step: Any,
@@ -180,14 +185,36 @@ def brep_validity(parts: dict[str, Any], manifest: dict[str, Any]) -> dict[str, 
     return {"status": _status(all(r["valid"] for r in rows.values())), "blocking": True, "parts": rows}
 
 
+def declared_solids(snapshot: Path) -> dict[str, int]:
+    """The solid count each record version 2 part of a version's record snapshot declares for its
+    definition: the sum of its part.yaml `intent.components` multiplicities, unless it is made in a
+    different state, whose components count that state's solids instead. A part declaring no
+    components, and every part of a record version 1 snapshot, declares none."""
+    found, _ = build.read_snapshot(read_folder(snapshot))
+    if found.version == load_intent().LEGACY_RECORD_VERSION:
+        return {}
+    counts = {}
+    for pn, part in found.intent.parts.items():
+        made = (found.parts.get(pn) or {}).get("manufacture") or {}
+        if part.intent.components and made.get("relationship") != "different":
+            counts[pn] = sum(component.multiplicity for component in part.intent.components)
+    return counts
+
+
 def solid_structure(parts: dict[str, Any], expected: dict[str, int], baseline: dict[str, Any] | None,
-                    baseline_label: str | None) -> dict[str, Any]:
+                    baseline_label: str | None, declared: Mapping[str, int] | None = None) -> dict[str, Any]:
+    """Each definition's solid count against `expected` (the `--expect-solids` counts), else the count
+    its record declares (`declared_solids`), else the baseline version's count."""
     unknown = sorted(set(expected) - set(parts))
     rows = {}
+    want: int | None
+    source: str | None
     for pn, part in sorted(parts.items()):
         solids, shells = occ.count(part.shape, "SOLID"), occ.count(part.shape, "SHELL")
         if pn in expected:
             want, source = expected[pn], "expected"
+        elif declared and pn in declared:
+            want, source = declared[pn], "intent.components"
         elif baseline is not None and pn in baseline:
             want, source = baseline[pn]["solids"], baseline_label
         else:
@@ -297,7 +324,7 @@ def pair_geometry(parts: Mapping[str, Any], specs: Mapping[Pair, PairSpec], *, c
 
     def run(session: Any, chosen: Sequence[Pair], mode: str) -> list[Any]:
         around = None if neighbours is None else (lambda index: neighbours(chosen[index]))
-        outcomes = session.measure(requests(chosen, mode), neighbours=around)
+        outcomes: list[Any] = session.measure(requests(chosen, mode), neighbours=around)
         suspects.extend(_suspect_report(s, chosen) for s in session.suspects)
         return outcomes
 
@@ -355,7 +382,7 @@ def declared_press_fits(hw: Path, assembly: Any = None) -> list[dict[str, Any]]:
     """cad-motion pair_policy's press fits, `pair` as sorted occurrence ids, classified with cad-fits."""
     policy = load_pair_policy()
     try:
-        return policy.declared_press_fits(hw, policy.read_interfaces(hw), assembly or _Unrecorded())
+        return cast(list[dict[str, Any]], policy.declared_press_fits(hw, policy.read_interfaces(hw), assembly or _Unrecorded()))
     except policy.PolicyError as error:
         raise build.UsageError(str(error)) from error
 
@@ -364,7 +391,19 @@ def declared_heat_sets(hw: Path, assembly: Any = None) -> list[dict[str, Any]]:
     """cad-motion pair_policy's heat-set inserts, `pair` as sorted occurrence ids."""
     policy = load_pair_policy()
     try:
-        return policy.declared_heat_sets(hw, policy.read_interfaces(hw), assembly or _Unrecorded())
+        return cast(list[dict[str, Any]], policy.declared_heat_sets(hw, policy.read_interfaces(hw), assembly or _Unrecorded()))
+    except policy.PolicyError as error:
+        raise build.UsageError(str(error)) from error
+
+
+def declared_locating_fits(hw: Path, assembly: Any = None) -> list[dict[str, Any]]:
+    """cad-motion pair_policy's locating fits, `pair` as sorted occurrence ids: an ISO 286 designation
+    classified with cad-fits, else `unclassified`."""
+    policy = load_pair_policy()
+    try:
+        fits: list[dict[str, Any]] = policy.declared_locating_fits(hw, policy.read_interfaces(hw),
+                                                                   assembly or _Unrecorded())
+        return fits
     except policy.PolicyError as error:
         raise build.UsageError(str(error)) from error
 
@@ -373,7 +412,7 @@ def declared_clearances(hw: Path, assembly: Any = None) -> list[dict[str, Any]]:
     """cad-motion pair_policy's clearance requirements, `pair` as sorted occurrence ids."""
     policy = load_pair_policy()
     try:
-        return policy.declared_clearances(hw, policy.read_interfaces(hw), assembly or _Unrecorded())
+        return cast(list[dict[str, Any]], policy.declared_clearances(hw, policy.read_interfaces(hw), assembly or _Unrecorded()))
     except policy.PolicyError as error:
         raise build.UsageError(str(error)) from error
 
@@ -382,9 +421,11 @@ def interference(geometry: dict[Pair, dict[str, Any]], named: Iterable[Pair] | N
                  joint_pairs: set[Pair], allowed: set[Pair],
                  declared: Iterable[dict[str, Any]] = (), heat_sets: Iterable[dict[str, Any]] = (),
                  refs: Mapping[str, str] | None = None, *, changed: bool = False,
-                 candidates: Iterable[Pair] | None = None) -> dict[str, Any]:
-    """Only a classified declared interference fit or a declared heat-set insert on exactly that
-    occurrence pair excuses overlap. `refs` maps an occurrence id to its copyable reference.
+                 candidates: Iterable[Pair] | None = None, locating_fits: Iterable[dict[str, Any]] = ()) -> dict[str, Any]:
+    """Only a classified declared interference fit (press or locating) or a declared heat-set insert on
+    exactly that occurrence pair excuses overlap, as cad-motion pair_policy.allowed_pairs decides; an
+    interference fit that measures no overlap is a finding. `refs` maps an occurrence id to its copyable
+    reference.
 
     A cleared row proves no overlap by its bounds; an exact row overlaps above INTERFERENCE_MM3; a
     failed row is unknown and fails. `named` limits the rows (`changed`: the changed-only selection,
@@ -395,8 +436,8 @@ def interference(geometry: dict[Pair, dict[str, Any]], named: Iterable[Pair] | N
     candidates = set(geometry) if candidates is None else set(candidates)
     declarations = sorted(declared, key=lambda item: (item["pair"], item["source"]))
     inserts = sorted(heat_sets, key=lambda item: (item["pair"], item["source"]))
-    declared_allowed = {tuple(item["pair"]) for item in declarations if item["classification"] == "interference"}
-    effective_allowed = allowed | declared_allowed | {tuple(item["pair"]) for item in inserts}
+    locating = sorted(locating_fits, key=lambda item: (item["pair"], item["source"]))
+    effective_allowed = allowed | load_pair_policy().allowed_pairs(declarations, inserts, locating)
     pairs = sorted(set(geometry) if named is None else {tuple(sorted(p)) for p in named})
     selected = set(pairs)
     unknown = [list(p) for p in pairs if p not in geometry]
@@ -413,11 +454,11 @@ def interference(geometry: dict[Pair, dict[str, Any]], named: Iterable[Pair] | N
                  "ok": not hit or (g["method"] == "exact" and pair in effective_allowed)}
         rows["joint_pairs" if pair in joint_pairs else "pairs"].append(entry)
     declared_fit_findings = []
-    for item in declarations:
+    for item in [*declarations, *locating]:
         pair = tuple(item["pair"])
         if item["classification"] != "interference" or pair not in selected:
             continue
-        measurement = geometry.get(pair)
+        measurement = geometry.get(cast(Pair, pair))
         if measurement is not None and measurement["interference_mm3"] is not None \
                 and measurement["interference_mm3"] <= threshold:
             declared_fit_findings.append({**item, "type": "declared_fit_not_realized", **measurement,
@@ -429,7 +470,8 @@ def interference(geometry: dict[Pair, dict[str, Any]], named: Iterable[Pair] | N
     return {"status": _status(ok), "blocking": True,
             "selection": "changed" if changed else ("all" if named is None else "named"),
             "threshold_mm3": threshold, "unknown_pairs": unknown, "unknown_allowed": unknown_allowed,
-            "declared_pairs": declarations, "declared_heat_sets": inserts, "declared_fit_findings": declared_fit_findings,
+            "declared_pairs": declarations, "declared_heat_sets": inserts, "declared_locating_fits": locating,
+            "declared_fit_findings": declared_fit_findings,
             "min_clearance": {"pair": smallest["pair"], "clearance_mm": smallest["clearance_mm"]} if smallest else None,
             **rows}
 
@@ -552,51 +594,109 @@ def _record_yaml(path: Path, what: str, missing: Any = None) -> Any:
         raise build.UsageError(f"{path}: cannot read {what}: {error}") from error
 
 
-def build_volume(record: Path, parts: Mapping[str, Any]) -> dict[str, Any]:
-    """Fit each FDM part on the printer of `record`/product.yaml with cadmodel.orientation: an allowed
-    permutation of its box, else its oriented minimum-volume box.
+BUILD_VOLUME_NOTE = ("a diagnostic: fitting an envelope is geometry only, never process feasibility; the part's "
+                     "route, capability profile and approved orientation decide whether it can be made")
 
+
+def _sizes(values: Iterable[float]) -> list[float]:
+    return [round(value, 6) for value in values]
+
+
+def _approved_fit(pn: str, shape: Any, placement: Mapping[str, Any]) -> dict[str, Any]:
+    """The exported part, in its approved pose, against the envelope its export recorded: no other pose is tried."""
+    volume = orientation.BuildVolume.described(placement.get("build_volume"))
+    low, high = occ.bbox(shape)
+    size = [high[i] - low[i] for i in range(3)]
+    row: dict[str, Any] = {"approved": True, "operation": placement.get("operation"), "pose": "approved",
+                           "size_mm": _sizes(size)}
+    if volume is None:
+        return {**row, "status": "warn", "message": f"{pn}: no machine envelope is declared for its approved pose"}
+    fits = orientation.pose_fit(low, high, volume, manufacture.BED_MM)
+    row.update(volume_mm=_sizes(volume.size_mm), envelope_source=volume.source,
+               reserved_mm=orientation.reserved_extents(volume))
+    if not fits:
+        return {**row, "status": "warn", "message": f"{pn} in its approved pose, box {tuple(round(v, 3) for v in size)} mm, "
+                                                    f"does not fit the {volume.source} {tuple(volume.size_mm)} mm"}
+    return {**row, "status": "pass"}
+
+
+def _proposed_fit(pn: str, shape: Any, volume: orientation.BuildVolume | None) -> dict[str, Any]:
+    """The legacy envelope search (cadmodel.orientation.fit): a proposal, never an approved orientation."""
+    row: dict[str, Any] = {"approved": False, "pose": "auto_fit_proposal"}
+    if volume is None:
+        return {**row, "status": "warn", "message": "no machine envelope is declared"}
+    dimensions, usable = volume.size_mm, volume.usable_mm
+    model_size, found, extents = orientation.fit(shape, volume)
+    sizes = {"model_frame_size_mm": _sizes(model_size), "volume_mm": _sizes(dimensions),
+             "usable_volume_mm": _sizes(usable), "envelope_source": volume.source}
+    if found is None:
+        return {**row, "status": "warn", "size_mm": _sizes(model_size), **sizes,
+                "message": f"{pn} bounding box {tuple(round(value, 3) for value in model_size)} mm "
+                           f"does not fit printer volume {tuple(round(value, 3) for value in dimensions)} mm "
+                           f"(usable {tuple(round(value, 3) for value in usable)} mm) in any allowed orientation; "
+                           f"oriented box {tuple(round(value, 3) for value in cast('tuple[float, float, float]', extents))} mm also does not fit"}
+    row.update(status="pass", orientation=found.orientation, method=found.method, **sizes,
+               size_mm=_sizes(found.size_mm),
+               rotation=[[round(value, 9) + 0.0 for value in axis] for axis in found.rotation],
+               determinant=orientation.determinant(found.rotation))
+    if found.method == "oriented":
+        row["axes"] = row["rotation"]
+    return row
+
+
+def _per_component_fit(pn: str, made_row: Mapping[str, Any] | None) -> dict[str, Any]:
+    """A part whose components are exported in their own approved poses: each component's placement row,
+    measured in that pose by checks.manufacturing."""
+    found = (((made_row or {}).get("checks") or {}).get("components") or {}).get("components") or {}
+    poses = {ident: {"status": row["checks"]["placement"]["status"],
+                     **({"message": row["checks"]["placement"]["message"]} if "message" in row["checks"]["placement"] else {})}
+             for ident, row in found.items() if "placement" in row.get("checks", {})}
+    worst = "pass" if poses and all(p["status"] == "pass" for p in poses.values()) else "warn"
+    return {"status": worst, "approved": True, "pose": "per_component", "components": poses,
+            **({} if worst == "pass" else {"message": f"{pn}: a component does not fit its envelope in its approved pose"})}
+
+
+def build_volume(record: Path, parts: Mapping[str, Any], entries: Mapping[str, Any] | None = None,
+                 made: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """Diagnostic: whether each additive part, in the state it is made in, fits a machine envelope. It
+    never blocks: an envelope fit is not process feasibility (BUILD_VOLUME_NOTE).
+
+    A part exported in its approved orientation (`entries`, the version's manufacturing entries) is
+    measured in that very pose against the envelope its export recorded; one whose components have
+    their own approved poses reports each component's placement row from `made` (checks.manufacturing
+    parts). Any other additive part gets the legacy search of cadmodel.orientation (an allowed
+    permutation of its box, else its oriented minimum-volume box) against the envelope its export
+    recorded or `record`/product.yaml `build_volume`: a proposal, never approved.
     `record` holds product.yaml and parts/<PN>/part.yaml: a version's record/ snapshot, or hw/ for a
-    version built before snapshots. `parts` carries each FDM part's manufacturing shape when the
-    version has one, already set on the bed, else its definition."""
+    version built before snapshots. `parts` carries each part's manufacturing shape when the version
+    has one, already set on the bed, else its definition."""
     product = _record_yaml(record / "product.yaml", "product record", missing={})
     try:
-        volume = orientation.BuildVolume.declared(product)
+        declared = orientation.BuildVolume.declared(product)
     except ValueError as error:
         raise build.UsageError(f"{record / 'product.yaml'}: {error}") from error
+    additive = load_intent().ADDITIVE_KINDS
     rows: dict[str, Any] = {}
     for pn, part in sorted(parts.items()):
         part_record = _record_yaml(record / "parts" / pn / "part.yaml", "part record")
-        if not isinstance(part_record, dict) or part_record.get("process") != "fdm":
+        if not isinstance(part_record, dict) or part_record.get("process") not in additive:
             continue
-        if volume is None:
-            rows[pn] = {"status": "warn", "message": "no printer build volume is declared"}
-            continue
-        dimensions, usable = volume.size_mm, volume.usable_mm
-        model_size, found, extents = orientation.fit(part.shape, volume)
-        sizes = {"model_frame_size_mm": [round(value, 6) for value in model_size],
-                 "volume_mm": [round(value, 6) for value in dimensions],
-                 "usable_volume_mm": [round(value, 6) for value in usable]}
-        if found is None:
-            rows[pn] = {"status": "fail", "size_mm": [round(value, 6) for value in model_size], **sizes,
-                        "message": f"{pn} bounding box {tuple(round(value, 3) for value in model_size)} mm "
-                                   f"does not fit printer volume {tuple(round(value, 3) for value in dimensions)} mm "
-                                   f"(usable {tuple(round(value, 3) for value in usable)} mm) in any allowed orientation; "
-                                   f"oriented box {tuple(round(value, 3) for value in extents)} mm also does not fit"}
-            continue
-        row = {"status": "pass", "orientation": found.orientation, "method": found.method, **sizes,
-               "size_mm": [round(value, 6) for value in found.size_mm],
-               "rotation": [[round(value, 9) + 0.0 for value in axis] for axis in found.rotation],
-               "determinant": orientation.determinant(found.rotation)}
-        if found.method == "oriented":
-            row["axes"] = row["rotation"]
-        rows[pn] = row
-    if volume is None:
-        return {"status": "warn", "blocking": False, "blocking_failures": [], "parts": rows,
-                "message": "product.yaml does not declare build_volume"}
-    failures = [pn for pn, row in rows.items() if row["status"] == "fail"]
-    return {"status": "fail" if failures else "pass", "blocking": True, "blocking_failures": failures,
-            "volume_mm": list(volume.size_mm), "margin_mm": volume.margin_mm, "parts": rows}
+        placement = ((entries or {}).get(pn) or {}).get("placement") or {}
+        if placement.get("approved") and placement.get("pose") == "per_component":
+            rows[pn] = _per_component_fit(pn, (made or {}).get(pn))
+        elif placement.get("approved"):
+            rows[pn] = _approved_fit(pn, part.shape, placement)
+        else:
+            rows[pn] = _proposed_fit(pn, part.shape, orientation.BuildVolume.described(placement.get("build_volume"))
+                                     or declared)
+    warned = sorted(pn for pn, row in rows.items() if row["status"] == "warn")
+    result: dict[str, Any] = {"status": "warn" if warned else "pass", "blocking": False, "diagnostic": True,
+                              "blocking_failures": [], "warned": warned, "note": BUILD_VOLUME_NOTE, "parts": rows}
+    if declared is None:
+        result["message"] = "product.yaml does not declare build_volume"
+    else:
+        result.update(volume_mm=list(declared.size_mm), margin_mm=declared.margin_mm)
+    return result
 
 
 def mesh_watertight(folder: Path, part_map: Mapping[str, Any], ids: Iterable[str]) -> dict[str, Any]:
@@ -636,6 +736,97 @@ def nominal_placements(manifest: Mapping[str, Any], record: Path | None,
             raise build.UsageError(f"{oid}: the version's record snapshot does not place it where its manifest does; "
                                    "rebuild the version")
     return chain, chain.relative_transforms(values, pairs)
+
+
+READBACK_FAMILY = "cad.readback"
+READBACK_SUBJECT = "cad"  # hw/checks/<V>/cad/: this check's required-check packet
+READBACK_PRODUCER = "cad-model check"
+READBACK_METHOD = ("cad-model check of the sealed version: kernel and STEP read-back B-rep validity, the STEP read-back's "
+                   "names, volumes and solids, the version's file inventory, the manufacturing state's native, identity "
+                   "and STEP checks and each component's binding on the sealed outputs")
+READBACK_COVERAGE = ("the sealed definition and manufacturing outputs only: process capability, fits, assembly and "
+                     "service are other checks")
+
+
+def readback_outcomes(expected: Sequence[Any], checks: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """One cad.readback outcome per expected obligation (manufacturing_intent Obligations, PN[.COMP]) from
+    this check's rows: fail when the B-rep is invalid, the STEP read-back differs, the sealed files changed
+    or a manufacturing state, identity, STEP or binding check fails; unknown while one of them is missing
+    or not passed (a part with no manufacturing output, a legacy unbound identity); else pass."""
+    brep, readback = checks["brep_validity"]["parts"], checks["step_readback"]["parts"]
+    made = checks["manufacturing"]["parts"]
+    rows = []
+    for obligation in expected:
+        pn, component = obligation.subject["PN"], obligation.subject.get("component")
+        failed: list[str] = []
+        unknown: list[str] = []
+        if checks["artifact_integrity"]["status"] == "fail":
+            failed.append("the version's sealed files no longer match its manifest (artifact_integrity)")
+        if pn not in brep or pn not in readback:
+            unknown.append(f"{pn} has no B-rep validity or STEP read-back row")
+        else:
+            if not brep[pn]["valid"]:
+                failed.append(f"{pn} B-rep is invalid (kernel {brep[pn]['kernel_errors'] or 'valid'}, "
+                              f"STEP read-back {brep[pn]['step_errors'] or 'valid'})")
+            if not readback[pn]["ok"]:
+                failed.append(f"{pn} STEP read-back differs from its definition (step_readback)")
+        row = made.get(pn)
+        if row is None:
+            unknown.append(f"{pn} has no manufacturing output: its manufacturing state and identity are unchecked")
+        else:
+            for name in ("native", "identity", "step"):
+                status = (row["checks"].get(name) or {}).get("status")
+                if status == "fail":
+                    failed.append(f"{pn} manufacturing {name} check fails")
+                elif status != "pass":
+                    unknown.append(f"{pn} manufacturing {name} check is {status or 'missing'}")
+            bound = (row["checks"].get("components") or {}).get("components") or {}
+            for name in [component] if component is not None else sorted(bound):
+                checks_of = (bound.get(name) or {}).get("checks")
+                if isinstance(checks_of, Mapping) and "binding" not in checks_of:
+                    continue  # the implicit sole solid: nothing to re-bind, the identity check covers it
+                status = ((checks_of or {}).get("binding") or {}).get("status")
+                if status == "fail":
+                    failed.append(f"{pn} component {name} does not bind on its sealed output")
+                elif status != "pass":
+                    unknown.append(f"{pn} component {name} binding is {status or 'missing'}")
+        outcome: dict[str, Any] = {"obligation": obligation.id, "outcome": "fail" if failed else "unknown" if unknown else "pass",
+                                   "level": obligation.level, "method": READBACK_METHOD, "coverage": READBACK_COVERAGE}
+        if failed or unknown:
+            outcome["uncertainty"] = "; ".join(failed + unknown)
+        rows.append(outcome)
+    return rows
+
+
+def publish_readback(hw: Path, label: str, folder: Path, snapshot: Path | None,
+                     checks: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Publish the cad.readback packet of a record version 2 version to hw/checks/<V>/cad/ (bundle.checks,
+    the one place cad-record evidence.py reads producer packets) and return {bundle, reused, result,
+    complete}; None for a version built from a record version 1 snapshot (or none). The packet is
+    recomputed by every check and replaces the one an earlier check sealed when it differs, so a changed
+    verdict is never hidden behind a reused bundle."""
+    if snapshot is None:
+        return None
+    found, _ = build.read_snapshot(read_folder(snapshot))
+    intent = load_intent()
+    if found.version != intent.RECORD_VERSION:
+        return None
+    record = found.intent
+    expected = [o for o in intent.required_checks(record) if o.family == READBACK_FAMILY]
+    packets = _script("cad_record_check_packet", SKILLS / "cad-record" / "scripts" / "check_packet.py")
+    layout = load_layout()
+    dependencies = {"version_manifest": hashlib.sha256((folder / layout.MANIFEST).read_bytes()).hexdigest()}
+    packet = packets.build(record, expected, READBACK_PRODUCER, label, readback_outcomes(expected, checks), [], dependencies)
+    recipe = {"producer": READBACK_PRODUCER, "packet_sha256": hashlib.sha256(layout.canonical_json(packet)).hexdigest()}
+    detail = {"artifact_integrity": checks["artifact_integrity"]["status"],
+              "brep_validity": checks["brep_validity"]["parts"], "step_readback": checks["step_readback"]["parts"],
+              "manufacturing": {pn: {name: (row["checks"].get(name) or {}).get("status")
+                                     for name in ("native", "identity", "step", "components")}
+                                for pn, row in checks["manufacturing"]["parts"].items()}}
+    output, status = packets.emit(layout, hw, label, READBACK_SUBJECT, READBACK_PRODUCER, packet, detail, "check.json",
+                                  recipe, out=None, replace=True, record_version=intent.RECORD_VERSION)
+    return {"bundle": layout.relative(hw, Path(output["bundle"])), "reused": output["reused"], "result": status,
+            "complete": packet["complete"]}
 
 
 def check(hw: Path, label: str, named: list[tuple[str, str]] | None, allowed: Iterable[tuple[str, str]],
@@ -678,6 +869,7 @@ def check(hw: Path, label: str, named: list[tuple[str, str]] | None, allowed: It
     assembly = pose.load_assembly(record, record)
     declared = declared_press_fits(record, assembly)
     heat_sets = declared_heat_sets(record, assembly)
+    locating = declared_locating_fits(record, assembly)
     margins = clearance_margins(record)
     requirements = [{**item, "margin_mm": margins.for_interface(item["interface"])}
                     for item in declared_clearances(record, assembly)]
@@ -688,9 +880,9 @@ def check(hw: Path, label: str, named: list[tuple[str, str]] | None, allowed: It
     minimum: dict[Pair, float] = {}
     for item in requirements:
         pair = tuple(item["pair"])
-        minimum[pair] = max(minimum.get(pair, 0.0), item["min_clearance_mm"] + item["margin_mm"])  # type: ignore[index]
+        minimum[pair] = max(minimum.get(pair, 0.0), item["min_clearance_mm"] + item["margin_mm"])
     exact_required = ({tuple(e["pair"]) for e in joints if e["type"] == "fixed"}
-                      | {tuple(i["pair"]) for i in declared if i["classification"] == "interference"})
+                      | {tuple(i["pair"]) for i in [*declared, *locating] if i["classification"] == "interference"})
     specs = {pair: PairSpec(located[pair[0]][0], located[pair[1]][0], relative[pair], minimum.get(pair, 0.0),
                             pair in exact_required) for pair in chosen}
     mesh_bound, description = mesh_bounds({pn: parts[pn].shape for pn in {s.a for s in specs.values()}
@@ -711,7 +903,7 @@ def check(hw: Path, label: str, named: list[tuple[str, str]] | None, allowed: It
         connected = connection(geometry, located, joints)
         pair_scope, requirement_scope = named_pairs, requirements
     else:
-        scope = {**selection.scope(), "changes": changes.to_json()}
+        scope = {**selection.scope(), "changes": cast(Any, changes).to_json()}
         connected = {"status": "skipped", "blocking": False,
                      "reason": "a changed-only check measures only the changed pairs; connection needs every pair"}
         pair_scope = chosen
@@ -719,12 +911,13 @@ def check(hw: Path, label: str, named: list[tuple[str, str]] | None, allowed: It
     checks = {
         "step_readback": step_readback(folder, manifest, parts, step, occurrences),
         "brep_validity": brep_validity(parts, manifest),
-        "solid_structure": solid_structure(parts, expected_solids, baseline, previous),
+        "solid_structure": solid_structure(parts, expected_solids, baseline, previous,
+                                           declared_solids(snapshot) if snapshot is not None else None),
         "interference": interference(geometry, pair_scope, joint_pairs, allowed_pairs, declared, heat_sets, refs,
-                                     changed=selection is not None, candidates=relative),
+                                     changed=selection is not None, candidates=relative, locating_fits=locating),
         "pair_clearance": pair_clearance(geometry, requirement_scope, refs),
         "connection": connected,
-        "build_volume": build_volume(record, printed),
+        "build_volume": build_volume(record, printed, manifest.get("manufacturing"), manufacturing["parts"]),
         "slivers_tolerances": slivers_and_tolerances(parts),
         "mesh_watertight": mesh_watertight(folder, part_map, occurrences),
         "artifact_integrity": artifact_integrity(folder),
@@ -742,4 +935,7 @@ def check(hw: Path, label: str, named: list[tuple[str, str]] | None, allowed: It
                             "kernel_evaluations": counters.kernel_evaluations, "exact_hits": counters.exact_hits,
                             "decision_hits": counters.decision_hits, "bucket_hits": counters.bucket_hits,
                             "cleared": dict(counters.cleared), "reevaluations": counters.reevaluations}}
+    packet = publish_readback(hw, label, folder, snapshot, checks)
+    if packet is not None:
+        result["packet"] = packet  # the cad.readback required-check packet (record version 2)
     return (1 if blocking else 0), result

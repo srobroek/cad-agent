@@ -1,0 +1,141 @@
+profiles:
+- id: steel_dc01_salzgitter
+  revision: 1
+  title: DC01 (CR1), material no. 1.0330
+  level: grade
+  family: Low-carbon steel sheet
+  grade:
+    status: known
+    value: DC01 (CR1), material no. 1.0330
+    sources:
+    - kind: datasheet
+      reference: Salzgitter Flachstahl DC01 (CR1) Mild Steels for Cold Forming, Edition
+        07/2022
+      revision: Salzgitter Flachstahl DC01 (CR1) Mild Steels for Cold Forming, Edition
+        07/2022
+      url: https://www.salzgitter-flachstahl.de/fileadmin/footage/MEDIA/gesellschaften/szfg/informationsmaterial/produktinformationen/kaltgewalztes_feinblech/eng/dc01.pdf
+      accessed: '2026-11-02'
+      conditions: 'test_standard: DIN EN 10130; source_condition: transverse tensile
+        sample; cold-rolled sheet; statistic: specified range; quoted_source_value:
+        Yield strength ReL / Rp0.2 ... DIN EN | 140 – 280'
+    basis: supplier_typical
+  manufacturer:
+    status: known
+    value: Salzgitter Flachstahl GmbH
+    sources:
+    - kind: datasheet
+      reference: Salzgitter Flachstahl DC01 (CR1) Mild Steels for Cold Forming, Edition
+        07/2022
+      revision: Salzgitter Flachstahl DC01 (CR1) Mild Steels for Cold Forming, Edition
+        07/2022
+      url: https://www.salzgitter-flachstahl.de/fileadmin/footage/MEDIA/gesellschaften/szfg/informationsmaterial/produktinformationen/kaltgewalztes_feinblech/eng/dc01.pdf
+      accessed: '2026-11-02'
+      conditions: 'test_standard: DIN EN 10130; source_condition: transverse tensile
+        sample; cold-rolled sheet; statistic: specified range; quoted_source_value:
+        Yield strength ReL / Rp0.2 ... DIN EN | 140 – 280'
+    basis: supplier_typical
+  form: sheet
+  process_state:
+    process: sheet_forming
+    conditioning: unknown
+    notes: Values per DIN EN 10130 for transverse mechanical properties; tensile samples
+      taken at right angles to rolling direction unless product width prevents it.
+      Thickness range in sheet is primarily 0.40–3.00 mm for listed standard availability.
+  typical_not_allowable: true
+  properties:
+  - name: yield_strength
+    value:
+      status: known
+      value:
+        lower: 140
+        upper: 280
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: Salzgitter Flachstahl DC01 (CR1) Mild Steels for Cold Forming,
+          Edition 07/2022
+        revision: Salzgitter Flachstahl DC01 (CR1) Mild Steels for Cold Forming, Edition
+          07/2022
+        url: https://www.salzgitter-flachstahl.de/fileadmin/footage/MEDIA/gesellschaften/szfg/informationsmaterial/produktinformationen/kaltgewalztes_feinblech/eng/dc01.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: DIN EN 10130; source_condition: transverse tensile
+          sample; cold-rolled sheet; statistic: specified range; quoted_source_value:
+          Yield strength ReL / Rp0.2 ... DIN EN | 140 – 280'
+      basis: standard
+    conditions:
+      test_standard:
+        status: known
+        value: DIN EN 10130
+        sources:
+        - kind: datasheet
+          reference: Salzgitter Flachstahl DC01 (CR1) Mild Steels for Cold Forming,
+            Edition 07/2022
+          revision: Salzgitter Flachstahl DC01 (CR1) Mild Steels for Cold Forming,
+            Edition 07/2022
+          url: https://www.salzgitter-flachstahl.de/fileadmin/footage/MEDIA/gesellschaften/szfg/informationsmaterial/produktinformationen/kaltgewalztes_feinblech/eng/dc01.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: DIN EN 10130; source_condition: transverse tensile
+            sample; cold-rolled sheet; statistic: specified range; quoted_source_value:
+            Yield strength ReL / Rp0.2 ... DIN EN | 140 – 280'
+        basis: standard
+      temperature:
+        status: unknown
+        reason: The source does not state one numeric test temperature; retain the
+          exact test condition in the cited source conditions.
+      conditioning: unknown
+      notes: 'Research property yield_strength; source condition: transverse tensile
+        sample; cold-rolled sheet; reported statistic: specified range'
+  - name: tensile_strength
+    value:
+      status: known
+      value:
+        lower: 270
+        upper: 410
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: Salzgitter Flachstahl DC01 (CR1) Mild Steels for Cold Forming,
+          Edition 07/2022
+        revision: Salzgitter Flachstahl DC01 (CR1) Mild Steels for Cold Forming, Edition
+          07/2022
+        url: https://www.salzgitter-flachstahl.de/fileadmin/footage/MEDIA/gesellschaften/szfg/informationsmaterial/produktinformationen/kaltgewalztes_feinblech/eng/dc01.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: DIN EN 10130; source_condition: transverse tensile
+          sample; cold-rolled sheet; statistic: specified range; quoted_source_value:
+          Tensile strength Rm in MPa | DIN EN | 270 – 410'
+      basis: standard
+    conditions:
+      test_standard:
+        status: known
+        value: DIN EN 10130
+        sources:
+        - kind: datasheet
+          reference: Salzgitter Flachstahl DC01 (CR1) Mild Steels for Cold Forming,
+            Edition 07/2022
+          revision: Salzgitter Flachstahl DC01 (CR1) Mild Steels for Cold Forming,
+            Edition 07/2022
+          url: https://www.salzgitter-flachstahl.de/fileadmin/footage/MEDIA/gesellschaften/szfg/informationsmaterial/produktinformationen/kaltgewalztes_feinblech/eng/dc01.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: DIN EN 10130; source_condition: transverse tensile
+            sample; cold-rolled sheet; statistic: specified range; quoted_source_value:
+            Tensile strength Rm in MPa | DIN EN | 270 – 410'
+        basis: standard
+      temperature:
+        status: unknown
+        reason: The source does not state one numeric test temperature; retain the
+          exact test condition in the cited source conditions.
+      conditioning: unknown
+      notes: 'Research property tensile_strength; source condition: transverse tensile
+        sample; cold-rolled sheet; reported statistic: specified range'
+  note: 'The research-specified total elongation A80 (≥28%) has no property identifier in U1 MATERIAL_PROPERTIES that preserves its named gauge length; source value, unit, test condition, statistic, URL, document revision, access date and quote are retained: [{"research_property":"elongation_a80_minimum","value":"≥28","unit":"%","reason":"No A80-specific property identifier; mapping to generic elongation_at_break would lose the source-gauge distinction.","test_standard":"DIN EN 10130","condition":"transverse tensile sample; total elongation A80","statistic":"minimum","source":{"url":"https://www.salzgitter-flachstahl.de/fileadmin/footage/MEDIA/gesellschaften/szfg/informationsmaterial/produktinformationen/kaltgewalztes_feinblech/eng/dc01.pdf","document_title_revision":"Salzgitter Flachstahl DC01 (CR1) Mild Steels for Cold Forming, Edition 07/2022","retrieval_date":"2026-11-02"},"quote":"Total elongation A80 in % | DIN EN | ≥ 28"}]'
+  guidance:
+  - 'Unknown (not established by the cited research; not zero or absent): density'
+  - 'Unknown (not established by the cited research; not zero or absent): tensile
+    modulus'
+  - 'Unknown (not established by the cited research; not zero or absent): flexural
+    properties'
+  - 'Unknown (not established by the cited research; not zero or absent): impact strength'
+  - 'Unknown (not established by the cited research; not zero or absent): HDT/Vicat'
+  - 'Unknown (not established by the cited research; not zero or absent): CTE'
+  - 'Unknown (not established by the cited research; not zero or absent): moisture
+    absorption'

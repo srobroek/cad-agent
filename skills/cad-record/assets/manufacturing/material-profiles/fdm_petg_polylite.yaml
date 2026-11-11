@@ -1,0 +1,315 @@
+profiles:
+- id: fdm_petg_polylite
+  revision: 1
+  title: PolyLite PETG
+  level: grade
+  family: FDM filament / PETG
+  grade:
+    status: known
+    value: PolyLite PETG
+    sources:
+    - kind: datasheet
+      reference: PolyLite PETG Technical Data Sheet, V5.4
+      revision: PolyLite PETG Technical Data Sheet, V5.4
+      url: https://cdn.shopify.com/s/files/1/0548/7299/7945/files/PolyLite_PETG_TDS_EN_V5.4.pdf?v=1731954068
+      accessed: '2026-11-02'
+      conditions: 'test_standard: ISO 1183; GB/T 1033; source_condition: 23 °C; bulk
+        filament/material; statistic: typical; quoted_source_value: Density | ISO1183,
+        GB/T1033 | 1.25 g/cm³ at 23°C'
+    basis: supplier_typical
+  manufacturer:
+    status: known
+    value: Polymaker
+    sources:
+    - kind: datasheet
+      reference: PolyLite PETG Technical Data Sheet, V5.4
+      revision: PolyLite PETG Technical Data Sheet, V5.4
+      url: https://cdn.shopify.com/s/files/1/0548/7299/7945/files/PolyLite_PETG_TDS_EN_V5.4.pdf?v=1731954068
+      accessed: '2026-11-02'
+      conditions: 'test_standard: ISO 1183; GB/T 1033; source_condition: 23 °C; bulk
+        filament/material; statistic: typical; quoted_source_value: Density | ISO1183,
+        GB/T1033 | 1.25 g/cm³ at 23°C'
+    basis: supplier_typical
+  form: printed
+  process_state:
+    process: fdm
+    conditioning: unknown
+    notes: 'FFF/FDM. Datasheet specimen recipe: 240 °C nozzle, 80 °C bed, 2 shells,
+      3 top/bottom layers, 100% infill, ambient environment, cooling off; based on
+      0.4 mm nozzle. Specimen conditioning not stated in this revision.'
+  typical_not_allowable: true
+  properties:
+  - name: density
+    value:
+      status: known
+      value:
+        value: 1.25
+        units: g_cm3
+      sources:
+      - kind: datasheet
+        reference: PolyLite PETG Technical Data Sheet, V5.4
+        revision: PolyLite PETG Technical Data Sheet, V5.4
+        url: https://cdn.shopify.com/s/files/1/0548/7299/7945/files/PolyLite_PETG_TDS_EN_V5.4.pdf?v=1731954068
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 1183; GB/T 1033; source_condition: 23 °C;
+          bulk filament/material; statistic: typical; quoted_source_value: Density
+          | ISO1183, GB/T1033 | 1.25 g/cm³ at 23°C'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 1183; GB/T 1033
+        sources:
+        - kind: datasheet
+          reference: PolyLite PETG Technical Data Sheet, V5.4
+          revision: PolyLite PETG Technical Data Sheet, V5.4
+          url: https://cdn.shopify.com/s/files/1/0548/7299/7945/files/PolyLite_PETG_TDS_EN_V5.4.pdf?v=1731954068
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 1183; GB/T 1033; source_condition: 23 °C;
+            bulk filament/material; statistic: typical; quoted_source_value: Density
+            | ISO1183, GB/T1033 | 1.25 g/cm³ at 23°C'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          value: 23.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: PolyLite PETG Technical Data Sheet, V5.4
+          revision: PolyLite PETG Technical Data Sheet, V5.4
+          url: https://cdn.shopify.com/s/files/1/0548/7299/7945/files/PolyLite_PETG_TDS_EN_V5.4.pdf?v=1731954068
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 1183; GB/T 1033; source_condition: 23 °C;
+            bulk filament/material; statistic: typical; quoted_source_value: Density
+            | ISO1183, GB/T1033 | 1.25 g/cm³ at 23°C'
+        basis: supplier_typical
+      conditioning: unknown
+      notes: 'Research property density; source condition: 23 °C; bulk filament/material;
+        reported statistic: typical'
+      orientation:
+        status: unknown
+        reason: Source does not state specimen orientation; it remains unknown.
+  - name: youngs_modulus
+    value:
+      status: known
+      value:
+        value: 2116.8
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: PolyLite PETG Technical Data Sheet, V5.4
+        revision: PolyLite PETG Technical Data Sheet, V5.4
+        url: https://cdn.shopify.com/s/files/1/0548/7299/7945/files/PolyLite_PETG_TDS_EN_V5.4.pdf?v=1731954068
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 527; GB/T 1040; source_condition: printed
+          specimen, X-Y orientation; conditioning not stated; statistic: typical (reported
+          mean ± spread); quoted_source_value: Young’s modulus (X-Y) | ISO 527, GB/T
+          1040 | 2116.8 ± 68.1 MPa; ; typed quantity is the reported central value;
+          the exact reported mean ± spread remains in the quoted source value'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 527; GB/T 1040
+        sources:
+        - kind: datasheet
+          reference: PolyLite PETG Technical Data Sheet, V5.4
+          revision: PolyLite PETG Technical Data Sheet, V5.4
+          url: https://cdn.shopify.com/s/files/1/0548/7299/7945/files/PolyLite_PETG_TDS_EN_V5.4.pdf?v=1731954068
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 527; GB/T 1040; source_condition: printed
+            specimen, X-Y orientation; conditioning not stated; statistic: typical
+            (reported mean ± spread); quoted_source_value: Young’s modulus (X-Y) |
+            ISO 527, GB/T 1040 | 2116.8 ± 68.1 MPa'
+        basis: supplier_typical
+      temperature:
+        status: unknown
+        reason: The source does not state one numeric test temperature; retain the
+          exact test condition in the cited source conditions.
+      conditioning: unknown
+      notes: 'Research property tensile_modulus_xy; source condition: printed specimen,
+        X-Y orientation; conditioning not stated; reported statistic: typical (reported
+        mean ± spread); typed quantity is the reported central value; the exact reported
+        mean ± spread remains in the quoted source value'
+      orientation:
+        status: known
+        value: X-Y
+        sources:
+        - kind: datasheet
+          reference: PolyLite PETG Technical Data Sheet, V5.4
+          revision: PolyLite PETG Technical Data Sheet, V5.4
+          url: https://cdn.shopify.com/s/files/1/0548/7299/7945/files/PolyLite_PETG_TDS_EN_V5.4.pdf?v=1731954068
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 527; GB/T 1040; source_condition: printed
+            specimen, X-Y orientation; conditioning not stated; statistic: typical
+            (reported mean ± spread); quoted_source_value: Young’s modulus (X-Y) |
+            ISO 527, GB/T 1040 | 2116.8 ± 68.1 MPa; ; typed quantity is the reported
+            central value; the exact reported mean ± spread remains in the quoted
+            source value'
+        basis: supplier_typical
+  - name: tensile_strength
+    value:
+      status: known
+      value:
+        value: 50.8
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: PolyLite PETG Technical Data Sheet, V5.4
+        revision: PolyLite PETG Technical Data Sheet, V5.4
+        url: https://cdn.shopify.com/s/files/1/0548/7299/7945/files/PolyLite_PETG_TDS_EN_V5.4.pdf?v=1731954068
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 527; GB/T 1040; source_condition: printed
+          specimen, X-Y orientation; conditioning not stated; statistic: typical (reported
+          mean ± spread); quoted_source_value: Tensile strength (X-Y) | ISO 527, GB/T
+          1040 | 50.8 ± 0.9 MPa; ; typed quantity is the reported central value; the
+          exact reported mean ± spread remains in the quoted source value'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 527; GB/T 1040
+        sources:
+        - kind: datasheet
+          reference: PolyLite PETG Technical Data Sheet, V5.4
+          revision: PolyLite PETG Technical Data Sheet, V5.4
+          url: https://cdn.shopify.com/s/files/1/0548/7299/7945/files/PolyLite_PETG_TDS_EN_V5.4.pdf?v=1731954068
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 527; GB/T 1040; source_condition: printed
+            specimen, X-Y orientation; conditioning not stated; statistic: typical
+            (reported mean ± spread); quoted_source_value: Tensile strength (X-Y)
+            | ISO 527, GB/T 1040 | 50.8 ± 0.9 MPa'
+        basis: supplier_typical
+      temperature:
+        status: unknown
+        reason: The source does not state one numeric test temperature; retain the
+          exact test condition in the cited source conditions.
+      conditioning: unknown
+      notes: 'Research property tensile_strength_xy; source condition: printed specimen,
+        X-Y orientation; conditioning not stated; reported statistic: typical (reported
+        mean ± spread); typed quantity is the reported central value; the exact reported
+        mean ± spread remains in the quoted source value'
+      orientation:
+        status: known
+        value: X-Y
+        sources:
+        - kind: datasheet
+          reference: PolyLite PETG Technical Data Sheet, V5.4
+          revision: PolyLite PETG Technical Data Sheet, V5.4
+          url: https://cdn.shopify.com/s/files/1/0548/7299/7945/files/PolyLite_PETG_TDS_EN_V5.4.pdf?v=1731954068
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 527; GB/T 1040; source_condition: printed
+            specimen, X-Y orientation; conditioning not stated; statistic: typical
+            (reported mean ± spread); quoted_source_value: Tensile strength (X-Y)
+            | ISO 527, GB/T 1040 | 50.8 ± 0.9 MPa; ; typed quantity is the reported
+            central value; the exact reported mean ± spread remains in the quoted
+            source value'
+        basis: supplier_typical
+  - name: elongation_at_break
+    value:
+      status: known
+      value:
+        value: 8.4
+        units: percent
+      sources:
+      - kind: datasheet
+        reference: PolyLite PETG Technical Data Sheet, V5.4
+        revision: PolyLite PETG Technical Data Sheet, V5.4
+        url: https://cdn.shopify.com/s/files/1/0548/7299/7945/files/PolyLite_PETG_TDS_EN_V5.4.pdf?v=1731954068
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 527; GB/T 1040; source_condition: printed
+          specimen, X-Y orientation; conditioning not stated; statistic: typical (reported
+          mean ± spread); quoted_source_value: Elongation at break (X-Y) ... 8.4 ±
+          1.7 %; ; typed quantity is the reported central value; the exact reported
+          mean ± spread remains in the quoted source value'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 527; GB/T 1040
+        sources:
+        - kind: datasheet
+          reference: PolyLite PETG Technical Data Sheet, V5.4
+          revision: PolyLite PETG Technical Data Sheet, V5.4
+          url: https://cdn.shopify.com/s/files/1/0548/7299/7945/files/PolyLite_PETG_TDS_EN_V5.4.pdf?v=1731954068
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 527; GB/T 1040; source_condition: printed
+            specimen, X-Y orientation; conditioning not stated; statistic: typical
+            (reported mean ± spread); quoted_source_value: Elongation at break (X-Y)
+            ... 8.4 ± 1.7 %'
+        basis: supplier_typical
+      temperature:
+        status: unknown
+        reason: The source does not state one numeric test temperature; retain the
+          exact test condition in the cited source conditions.
+      conditioning: unknown
+      notes: 'Research property elongation_at_break_xy; source condition: printed
+        specimen, X-Y orientation; conditioning not stated; reported statistic: typical
+        (reported mean ± spread); typed quantity is the reported central value; the
+        exact reported mean ± spread remains in the quoted source value'
+      orientation:
+        status: known
+        value: X-Y
+        sources:
+        - kind: datasheet
+          reference: PolyLite PETG Technical Data Sheet, V5.4
+          revision: PolyLite PETG Technical Data Sheet, V5.4
+          url: https://cdn.shopify.com/s/files/1/0548/7299/7945/files/PolyLite_PETG_TDS_EN_V5.4.pdf?v=1731954068
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 527; GB/T 1040; source_condition: printed
+            specimen, X-Y orientation; conditioning not stated; statistic: typical
+            (reported mean ± spread); quoted_source_value: Elongation at break (X-Y)
+            ... 8.4 ± 1.7 %; ; typed quantity is the reported central value; the exact
+            reported mean ± spread remains in the quoted source value'
+        basis: supplier_typical
+  - name: heat_deflection_temperature
+    value:
+      status: known
+      value:
+        value: 75
+        units: deg_C
+      sources:
+      - kind: datasheet
+        reference: PolyLite PETG Technical Data Sheet, V5.4
+        revision: PolyLite PETG Technical Data Sheet, V5.4
+        url: https://cdn.shopify.com/s/files/1/0548/7299/7945/files/PolyLite_PETG_TDS_EN_V5.4.pdf?v=1731954068
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 75; source_condition: 1.8 MPa; statistic:
+          typical; quoted_source_value: Heat deflection temperature | ISO 75 1.8MPa
+          | 75 °C'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 75
+        sources:
+        - kind: datasheet
+          reference: PolyLite PETG Technical Data Sheet, V5.4
+          revision: PolyLite PETG Technical Data Sheet, V5.4
+          url: https://cdn.shopify.com/s/files/1/0548/7299/7945/files/PolyLite_PETG_TDS_EN_V5.4.pdf?v=1731954068
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 75; source_condition: 1.8 MPa; statistic:
+            typical; quoted_source_value: Heat deflection temperature | ISO 75 1.8MPa
+            | 75 °C'
+        basis: supplier_typical
+      temperature:
+        status: unknown
+        reason: The source does not state one numeric test temperature; retain the
+          exact test condition in the cited source conditions.
+      conditioning: unknown
+      notes: 'Research property heat_deflection_temperature_1_8_mpa; source condition:
+        1.8 MPa; reported statistic: typical'
+      orientation:
+        status: unknown
+        reason: Source does not state specimen orientation; it remains unknown.
+  note: Every numeric research property represented as sourced typed data. Profile-specific
+    unknowns and source cautions are explicit in guidance.
+  guidance:
+  - 'Unknown (not established by the cited research; not zero or absent): yield strength'
+  - 'Unknown (not established by the cited research; not zero or absent): flexural
+    strength/modulus'
+  - 'Unknown (not established by the cited research; not zero or absent): impact strength'
+  - 'Unknown (not established by the cited research; not zero or absent): CTE'
+  - 'Unknown (not established by the cited research; not zero or absent): max service
+    temperature'

@@ -1,53 +1,34 @@
 ---
 name: cad-design
-description: Grows CAD parts from massing blocks to realistic products through fidelity levels F0-F3, rendered every batch. Triggers on "make it look real", "detail the parts".
+description: Applies CAD appearance fidelity and declared-route manufacturing checks. Triggers on "make it look real", "detail the parts", or a PARTS/DETAIL gate.
 ---
 
 Resolve `$CAD_SKILLS` as the parent directory of this skill's directory; it contains the installed `cad-*` skill folders.
 
-# CAD Design Fidelity
-
-Stages L1 LAYOUT to L3 DETAIL of `cad-flow`: how far each part's form must have grown
-before a gate, and how to check that it no longer reads as a block.
-Paths below are relative to this skill's directory.
+# CAD Design Fidelity and Manufacturing Checks
 
 TRIGGER
 + "make it look like a real product", "these parts are just blocks", "detail the parts"
-+ an L1, L2, or L3 commit batch, or an L2 PARTS or L3 DETAIL gate in `cad-flow`
-- fit classes, limits, or stack-ups -> `cad-fits`
-- joint posing, sweeps, or collisions -> `cad-motion`
-- L0 concept variants -> `cad-concept`
++ an L1, L2, or L3 commit batch, or a PARTS/DETAIL gate
+- fit classes, limits, or stack-ups → `cad-fits`
+- joint posing, sweeps, or collisions → `cad-motion`
+- L0 concept variants → `cad-concept`
 
 ## Workflow
 
-1. LOAD `references/fidelity.md`. Read each part's `material` and `process` from
-   `hw/parts/<PN>/part.yaml` and the joints from `hw/assembly.yaml`.
-2. Write or grow `hw/parts/<PN>/model.py` to the stage's level: F0 at L1 LAYOUT, F1 then F2
-   during L2 PARTS, F3 during L3 DETAIL. Follow the model.py contract: one `KERNEL`, a JSON
-   `PARAMS` dict in mm and degrees, `build(params)` returning one part in place at the zero pose.
-3. Start by using the skill's own references: read `references/fidelity.md`, the model.py contract, and the fidelity ladder. Extract the applicable shape and detail decisions from the part's requirements, interfaces, joints, material, and process; do not assume a reference model belongs to an installed skill.
-   Checkout users may optionally read `cad/examples/lamp-arm/reference/` as a worked example; it is not a runtime dependency.
-4. On "commit batch", use cad-render to review the built version. The lamp reference aid writes temporary CAD files to the output directory you provide. Run `build_reference.py --kernel cadquery|build123d --out DIR` or `review_render.py --out DIR`. Never set a hardware project as `DIR`.
-5. Export one STEP per part in the temporary build output, then run `uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-design/scripts/form_check.py --hw hw --parts-dir DIR --fidelity F2|F3`. JSON reports per-part validity, axis-planar fraction, OBB fill and thickness, blends and joint-bore offsets; exit 0 means no findings, 1 means findings, and 2 means usage error. When DIR contains `build.json`, form_check also compares in-memory checks with STEP read-back.
-6. Walk the render self-check questions in `references/fidelity.md` against the renders. A part that fails stays in the stage; report the level it reached.
+1. LOAD `references/fidelity.md` for appearance decisions and `references/process-checks.md` for route obligations. Review recorded material, ordered route, capability, functional requirements and interfaces; infer no service or default route.
+2. Work only on the assigned fidelity and source parts. Use the `model.py` contract for CAD implementation; a concept model is not a manufacturing plan.
+3. On "commit batch", use `cad-render` to review the integrated build. Preserve scratch, record and gate ownership.
+4. For PARTS run `uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-design/scripts/form_check.py --hw hw --version vN --fidelity F2`. For DETAIL use the same command with `--fidelity F3`. This is the only form-check gate command; `--parts-dir` is legacy diagnostics only. Exit 0 means the form criteria and process packet pass, 1 means form failure or process packet not `pass`, 2 means no result. Use the version-bound `cad-motion` access/play producers and fulfill every packet obligation.
+5. Compare the render with `references/fidelity.md`. Report appearance level separately from process and evidence coverage. A new support or inspection finding does not make an undocumented route pass.
 
 ## Rules
 
-MUST Reach F2 on every made part before the L2 PARTS gate and F3 before the L3 DETAIL gate.
-MUST Treat `form_check.py` exit 1 as a gate blocker; `block_like` is never waived by a render.
-The `block_like` check applies only when `part.yaml` `form_class` is `solid` (the
-default when absent). Frame, plate, skeleton, and shell are exempt. Solid parts retain
-the two OBB exemptions: either at least 80% of face area is planar and normal to a
-principal axis or there are no recognized blend/freeform faces; solid material fills
-at least 20% of its OBB and shortest OBB extent exceeds 10% of the second-shortest.
-At F2, form_check.py checks each made part's minimum wall: FDM 1.2 mm (0.4 mm nozzle)
-unless `product.yaml` `manufacturing.min_wall_mm` sets `fdm` or `cnc`. `min_wall` and
-`min_wall_unmeasured` (no wall measured) are findings; an invalid override exits 2.
-MUST Put every joint bore on its `assembly.yaml` origin and axis (form_check tolerance 0.05 mm).
-MUST Size bores from `cad-fits` output and counterbores from ISO 4762 head sizes, never from memory.
-DEFAULT Model CadQuery fastener heads natively; `cq_warehouse` is not on PyPI. bd_warehouse 0.4.0 serves build123d.
-NOT Call a part detailed from code alone; a render, read back, is the evidence.
-NOT Treat a render as a check result; it is review material for the user.
+MUST Use each part's recorded material, route and capability. Unknown does not fall back to FDM.
+MUST Treat form and envelope heuristics as diagnostics, not process or physical proof.
+MUST Report missing capability, handler, required input or packet as UNKNOWN.
+MUST Put every joint bore on its recorded assembly origin and axis; size bores from `cad-fits` output.
+NOT Treat a render as a check result or detailed form as process evidence.
 
 ```text
 L1 DESIGN {stage}: {PN count} parts at {lowest level}, form_check PASS|FAIL
@@ -55,3 +36,49 @@ L1 DESIGN {stage}: {PN count} parts at {lowest level}, form_check PASS|FAIL
    Renders -- {absolute PNG paths and one line each on what they show}
 ```
 CAP 80w clean · 160w with findings
+[ /Users/sjors/tmp/worktrees/cad-agent/feat-mfg-intent-fixes/skills/cad-fits/SKILL.md#7594]
+PUT 1.=51:
+---
+name: cad-fits
+description: Computes ISO 286 hole/shaft limits and 1D worst-case or justified statistical stack-ups. Triggers on "what fit for", "H7/g6 limits", or "stack-up".
+---
+
+Resolve `$CAD_SKILLS` as the parent directory of this skill's directory; it contains the installed `cad-*` skill folders.
+
+# CAD Fits and Stack-ups
+
+TRIGGER
++ choosing or checking a fit for a bore, pin, bearing seat, or press fit
++ "what are the limits of 25 H7/k6", "is H7/p6 an interference fit", or a 1D tolerance-chain stack-up
+- general tolerances, GD&T or drawing callouts → `cad-drawings`
+- interference or clearance between solid models → `cad-model` / `cad-motion`
+
+## Workflow
+
+1. Fit limits: `uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-fits/scripts/fits.py SIZE FIT [--expect TYPE]`. SIZE is nominal mm; FIT is `H7/g6` or one class; TYPE is `clearance|transition|interference`.
+2. For stack-up, LOAD `references/process-fits.md`. An intent stack is `hw/analysis/cases/<case>/case.yaml`, with `intent_version: 2` and `interfaces[].functional.variation.stack_case` pointing to its case id. Its exact version-bound command is:
+
+   ```sh
+   uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-fits/scripts/stackup.py hw/analysis/cases/<case>/case.yaml --hw hw --version vN [--replace]
+   ```
+
+   The stack file is positional. The result publishes under `hw/analysis/vN/<case>/`; for an intent stack it also publishes an evidence packet under `hw/checks/vN/stack-<case>/`. Standalone stacks may use `--out .cad-work/<unit>/stack.json`; `--out` cannot accompany version binding. Exit 0 is pass, 1 is a completed stack violation or unknown, 2 is invalid input or infrastructure failure.
+3. State worst-case result and method. Worst case governs collision, binding, lost function and critical fits. Use `justified_rss` only for a suitable non-governing consequence with sourced stable centered distributions, supported independence/correlation, coverage/probability assumptions and approved DR. Legacy `rss` is a quadrature heuristic, never a probability claim.
+
+## Rules
+
+MUST Take fit limits and classification from `fits.py` output.
+MUST Report stack outcome and method from `stackup.py` output; no RSS method overrides governing worst-case failure.
+DEFAULT Express asymmetric tolerances with `tol_plus`/`tol_minus`.
+NOT Report ASME B4.1 inch fits; the table covers ISO 286-1:2010 only.
+
+## Manufacturing capability and assembly
+
+Record desired fit separately from measured capability and inspected output. Use [process-fits.md](references/process-fits.md) for evidence and access. Stack results are evidence only when the sealed check packet covers the expected obligation.
+
+```text
+L1 FIT {size} {fit}: {type}, clearance {max}/{min} µm | STACK {id}: {PASS|FAIL|UNKNOWN} by {method}, {min} to {max} mm
+   Limits -- {hole and shaft limits in mm, only for fits}
+   Contributors -- {largest shares only for failing stacks}
+```
+CAP 80w

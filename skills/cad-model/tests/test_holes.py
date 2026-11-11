@@ -138,17 +138,21 @@ class HoleCaseTests(unittest.TestCase):
         self.assert_holes("counterbore")
 
     def test_form_check_corner_radius_rule_skips_bores_and_keeps_partial_walls(self) -> None:
-        """The seam-split Ø1.6 bore is no internal corner; the split channel's r3 walls are."""
+        """The seam-split Ø1.6 bore is no internal corner; the split channel's r3 walls are, as a non-blocking
+        diagnostic (decision 3: the declared route's capability decides manufacturability). The run still fails
+        on this fixture's blocking joint_bore_missing findings, never on the corner."""
         for kernel in KERNELS:
             self.metrics(kernel)
             hw = self.hw[kernel]
             with self.subTest(kernel=kernel):
                 proc = uv_script(FORM_CHECK, "--hw", str(hw), "--parts-dir", str(hw / "versions" / "v1" / "parts"),
                                  "--fidelity", "F2", "--cnc-tool-radius", "4")
+                findings = json.loads(proc.stdout)["findings"]
                 self.assertEqual(proc.returncode, 1, proc.stderr[-2000:])
-                corners = [f for f in json.loads(proc.stdout)["findings"] if f["check"] == "cnc_internal_radius"]
+                self.assertEqual({f["check"] for f in findings if f["blocking"]}, {"joint_bore_missing"})
+                corners = [f for f in findings if f["check"] == "cnc_internal_radius"]
                 self.assertEqual(corners, [{"check": "cnc_internal_radius", "part": PNS["split_channel"],
-                                            "radius": 3.0, "min": 4.0}])
+                                            "radius": 3.0, "min": 4.0, "blocking": False}])
 
 
 if __name__ == "__main__":

@@ -1,0 +1,267 @@
+profiles:
+- id: al_6082_t6_hydro
+  revision: 1
+  title: 6082-T6 (Hydro Alloy 6082)
+  level: grade
+  family: Aluminium alloy / bar and extruded stock
+  grade:
+    status: known
+    value: 6082-T6 (Hydro Alloy 6082)
+    sources:
+    - kind: datasheet
+      reference: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+      revision: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+      url: https://www.hydro.com/globalassets/01-products--services/extruded-profiles/americas/ena-resources/alloy-data-sheets/hydro_2019_data_sheet_6082_revise_1.pdf
+      accessed: '2026-11-02'
+      conditions: 'test_standard: not stated; source_condition: alloy; statistic:
+        typical; quoted_source_value: Density: 0.098 lb./in.³'
+    basis: supplier_typical
+  manufacturer:
+    status: known
+    value: Hydro Extrusion North America
+    sources:
+    - kind: datasheet
+      reference: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+      revision: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+      url: https://www.hydro.com/globalassets/01-products--services/extruded-profiles/americas/ena-resources/alloy-data-sheets/hydro_2019_data_sheet_6082_revise_1.pdf
+      accessed: '2026-11-02'
+      conditions: 'test_standard: not stated; source_condition: alloy; statistic:
+        typical; quoted_source_value: Density: 0.098 lb./in.³'
+    basis: supplier_typical
+  form: wrought
+  process_state:
+    process: extrusion
+    conditioning: unknown
+    notes: 'T6: solution heat-treated and artificially aged. Mechanical limits depend
+      on cross-section thickness; values below are for extruded stock with thickness
+      5.00–150.00 mm.'
+    temper: T6
+  typical_not_allowable: true
+  properties:
+  - name: density
+    value:
+      status: known
+      value:
+        value: 2712.6306615999065
+        units: kg_m3
+      sources:
+      - kind: datasheet
+        reference: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+        revision: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+        url: https://www.hydro.com/globalassets/01-products--services/extruded-profiles/americas/ena-resources/alloy-data-sheets/hydro_2019_data_sheet_6082_revise_1.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: not stated; source_condition: alloy; statistic:
+          typical; quoted_source_value: Density: 0.098 lb./in.³; conversion factor:
+          1 lb/in3 = 0.45359237 kg / (0.0254 m)^3 = 27,679.904710203 kg_m3'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: not stated
+        sources:
+        - kind: datasheet
+          reference: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+          revision: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+          url: https://www.hydro.com/globalassets/01-products--services/extruded-profiles/americas/ena-resources/alloy-data-sheets/hydro_2019_data_sheet_6082_revise_1.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: not stated; source_condition: alloy; statistic:
+            typical; quoted_source_value: Density: 0.098 lb./in.³'
+        basis: supplier_typical
+      temperature:
+        status: unknown
+        reason: The source does not state one numeric test temperature; retain the
+          exact test condition in the cited source conditions.
+      conditioning: unknown
+      notes: 'Research property density; source condition: alloy; reported statistic:
+        typical; conversion factor: 1 lb/in3 = 0.45359237 kg / (0.0254 m)^3 = 27,679.904710203
+        kg_m3'
+  - name: tensile_strength
+    value:
+      status: known
+      value:
+        value: 310
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+        revision: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+        url: https://www.hydro.com/globalassets/01-products--services/extruded-profiles/americas/ena-resources/alloy-data-sheets/hydro_2019_data_sheet_6082_revise_1.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: alloy data sheet property limits; test method
+          not stated in table; source_condition: T6 extruded, cross section 5.00–150.00
+          mm; statistic: minimum; quoted_source_value: T6, T6511 | 0.200 - 0.750 |
+          5.00 - 20.00 | 45.0 (310) [tensile strength ksi (MPa)]'
+      basis: standard
+    conditions:
+      test_standard:
+        status: known
+        value: alloy data sheet property limits; test method not stated in table
+        sources:
+        - kind: datasheet
+          reference: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+          revision: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+          url: https://www.hydro.com/globalassets/01-products--services/extruded-profiles/americas/ena-resources/alloy-data-sheets/hydro_2019_data_sheet_6082_revise_1.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: alloy data sheet property limits; test method
+            not stated in table; source_condition: T6 extruded, cross section 5.00–150.00
+            mm; statistic: minimum; quoted_source_value: T6, T6511 | 0.200 - 0.750
+            | 5.00 - 20.00 | 45.0 (310) [tensile strength ksi (MPa)]'
+        basis: standard
+      temperature:
+        status: unknown
+        reason: The source does not state one numeric test temperature; retain the
+          exact test condition in the cited source conditions.
+      conditioning: unknown
+      notes: 'Research property tensile_strength_minimum; source condition: T6 extruded,
+        cross section 5.00–150.00 mm; reported statistic: minimum'
+  - name: yield_strength
+    value:
+      status: known
+      value:
+        value: 260
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+        revision: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+        url: https://www.hydro.com/globalassets/01-products--services/extruded-profiles/americas/ena-resources/alloy-data-sheets/hydro_2019_data_sheet_6082_revise_1.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: 0.2% offset; alloy data sheet property limits;
+          source_condition: T6 extruded, cross section 5.00–150.00 mm; statistic:
+          minimum; quoted_source_value: Yield - 0.2% offset (min.) ... T6, T6511 ...
+          38.0 (260)'
+      basis: standard
+    conditions:
+      test_standard:
+        status: known
+        value: 0.2% offset; alloy data sheet property limits
+        sources:
+        - kind: datasheet
+          reference: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+          revision: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+          url: https://www.hydro.com/globalassets/01-products--services/extruded-profiles/americas/ena-resources/alloy-data-sheets/hydro_2019_data_sheet_6082_revise_1.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: 0.2% offset; alloy data sheet property limits;
+            source_condition: T6 extruded, cross section 5.00–150.00 mm; statistic:
+            minimum; quoted_source_value: Yield - 0.2% offset (min.) ... T6, T6511
+            ... 38.0 (260)'
+        basis: standard
+      temperature:
+        status: unknown
+        reason: The source does not state one numeric test temperature; retain the
+          exact test condition in the cited source conditions.
+      conditioning: unknown
+      notes: 'Research property yield_strength_minimum; source condition: T6 extruded,
+        cross section 5.00–150.00 mm; reported statistic: minimum'
+  - name: elongation_at_break
+    value:
+      status: known
+      value:
+        value: 6
+        units: percent
+      sources:
+      - kind: datasheet
+        reference: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+        revision: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+        url: https://www.hydro.com/globalassets/01-products--services/extruded-profiles/americas/ena-resources/alloy-data-sheets/hydro_2019_data_sheet_6082_revise_1.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: alloy data sheet property limits; source_condition:
+          T6 extruded, cross section 5.00–20.00 mm; gauge length described in datasheet
+          footnote; statistic: minimum; quoted_source_value: T6, T6511 | 0.200 - 0.750
+          | 5.00 - 20.00 ... Elongation³ % (min.) ... 6'
+      basis: standard
+    conditions:
+      test_standard:
+        status: known
+        value: alloy data sheet property limits
+        sources:
+        - kind: datasheet
+          reference: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+          revision: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+          url: https://www.hydro.com/globalassets/01-products--services/extruded-profiles/americas/ena-resources/alloy-data-sheets/hydro_2019_data_sheet_6082_revise_1.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: alloy data sheet property limits; source_condition:
+            T6 extruded, cross section 5.00–20.00 mm; gauge length described in datasheet
+            footnote; statistic: minimum; quoted_source_value: T6, T6511 | 0.200 -
+            0.750 | 5.00 - 20.00 ... Elongation³ % (min.) ... 6'
+        basis: standard
+      temperature:
+        status: unknown
+        reason: The source does not state one numeric test temperature; retain the
+          exact test condition in the cited source conditions.
+      conditioning: unknown
+      notes: 'Research property elongation_minimum; source condition: T6 extruded,
+        cross section 5.00–20.00 mm; gauge length described in datasheet footnote;
+        reported statistic: minimum'
+  - name: thermal_expansion
+    value:
+      status: known
+      value:
+        value: 23.04
+        units: um_m_K
+      sources:
+      - kind: datasheet
+        reference: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+        revision: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+        url: https://www.hydro.com/globalassets/01-products--services/extruded-profiles/americas/ena-resources/alloy-data-sheets/hydro_2019_data_sheet_6082_revise_1.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: not stated; source_condition: 68–212 °F; statistic:
+          typical average; quoted_source_value: Average Coefficient of Thermal Expansion
+          (68º to 212ºF) = 12.8 x 10⁻⁶ (in./in.ºF); conversion factor: 1 in/in/°F
+          = 1,800,000 um_m_K (1.8 °F/K × 1,000,000 um/m/K); documented test-temperature
+          conversion: (68 °F - 32) × 5/9 = 20 °C; (212 °F - 32) × 5/9 = 100 °C; original
+          °F condition retained verbatim.'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: not stated
+        sources:
+        - kind: datasheet
+          reference: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+          revision: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+          url: https://www.hydro.com/globalassets/01-products--services/extruded-profiles/americas/ena-resources/alloy-data-sheets/hydro_2019_data_sheet_6082_revise_1.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: not stated; source_condition: 68–212 °F; statistic:
+            typical average; quoted_source_value: Average Coefficient of Thermal Expansion
+            (68º to 212ºF) = 12.8 x 10⁻⁶ (in./in.ºF)'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          lower: 20.0
+          upper: 100.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+          revision: Hydro Alloy 6082 Data Sheet, Revision 2019/02 (Mar 2019)
+          url: https://www.hydro.com/globalassets/01-products--services/extruded-profiles/americas/ena-resources/alloy-data-sheets/hydro_2019_data_sheet_6082_revise_1.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: not stated; source_condition: 68–212 °F; statistic:
+            typical average; quoted_source_value: Average Coefficient of Thermal Expansion
+            (68º to 212ºF) = 12.8 x 10⁻⁶ (in./in.ºF); conversion factor: 1 in/in/°F
+            = 1,800,000 um_m_K (1.8 °F/K × 1,000,000 um/m/K); documented test-temperature
+            conversion: (68 °F - 32) × 5/9 = 20 °C; (212 °F - 32) × 5/9 = 100 °C;
+            original °F condition retained verbatim.'
+        basis: supplier_typical
+      conditioning: unknown
+      notes: 'Research property coefficient_thermal_expansion; source condition: 68–212
+        °F; reported statistic: typical average; conversion factor: 1 in/in/°F = 1,800,000
+        um_m_K (1.8 °F/K × 1,000,000 um/m/K)'
+  note: Every numeric research property represented as sourced typed data. Profile-specific
+    unknowns and source cautions are explicit in guidance.
+  guidance:
+  - 'Unknown (not established by the cited research; not zero or absent): tensile
+    modulus'
+  - 'Unknown (not established by the cited research; not zero or absent): flexural
+    properties'
+  - 'Unknown (not established by the cited research; not zero or absent): impact strength'
+  - 'Unknown (not established by the cited research; not zero or absent): HDT/Vicat'
+  - 'Unknown (not established by the cited research; not zero or absent): moisture
+    absorption'
+  - 'Unknown (not established by the cited research; not zero or absent): mechanical
+    values for plate stock'
+  - Hydro mechanical minima depend on the stated extruded cross-section/thickness
+    and are not transferable to sheet or plate; procurement evidence must match alloy,
+    temper, form and thickness.

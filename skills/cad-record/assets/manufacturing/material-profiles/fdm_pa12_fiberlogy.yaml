@@ -1,0 +1,297 @@
+profiles:
+- id: fdm_pa12_fiberlogy
+  revision: 1
+  title: Fiberlogy Nylon PA12
+  level: grade
+  family: FDM filament / nylon (PA)
+  grade:
+    status: known
+    value: Fiberlogy Nylon PA12
+    sources:
+    - kind: datasheet
+      reference: Fiberlogy Nylon PA12 product technical data (page; linked TDS PDF,
+        revision not stated)
+      revision: Fiberlogy Nylon PA12 product technical data (page; linked TDS PDF,
+        revision not stated)
+      url: https://fiberlogy.com/en/product/pa12-nylon-filament/
+      accessed: '2026-11-02'
+      conditions: 'test_standard: unknown; source_condition: manufacturer technical
+        specification; test condition not stated; statistic: manufacturer-listed typical/specification;
+        statistic not specified; quoted_source_value: Density: 1.01 g/cm³'
+    basis: supplier_typical
+  manufacturer:
+    status: known
+    value: Fiberlab S.A. (Fiberlogy)
+    sources:
+    - kind: datasheet
+      reference: Fiberlogy Nylon PA12 product technical data (page; linked TDS PDF,
+        revision not stated)
+      revision: Fiberlogy Nylon PA12 product technical data (page; linked TDS PDF,
+        revision not stated)
+      url: https://fiberlogy.com/en/product/pa12-nylon-filament/
+      accessed: '2026-11-02'
+      conditions: 'test_standard: unknown; source_condition: manufacturer technical
+        specification; test condition not stated; statistic: manufacturer-listed typical/specification;
+        statistic not specified; quoted_source_value: Density: 1.01 g/cm³'
+    basis: supplier_typical
+  form: printed
+  process_state:
+    process: fdm
+    conditioning: unknown
+    notes: FFF/FDM. Manufacturer lists 255–270 °C printing temperature, 110 °C bed,
+      drying at 70 °C for 4 h, enclosed chamber required; mechanical specimen orientation
+      and conditioning were not stated on the accessed manufacturer page.
+  typical_not_allowable: true
+  properties:
+  - name: density
+    value:
+      status: known
+      value:
+        value: 1.01
+        units: g_cm3
+      sources:
+      - kind: datasheet
+        reference: Fiberlogy Nylon PA12 product technical data (page; linked TDS PDF,
+          revision not stated)
+        revision: Fiberlogy Nylon PA12 product technical data (page; linked TDS PDF,
+          revision not stated)
+        url: https://fiberlogy.com/en/product/pa12-nylon-filament/
+        accessed: '2026-11-02'
+        conditions: 'test_standard: unknown; source_condition: manufacturer technical
+          specification; test condition not stated; statistic: manufacturer-listed
+          typical/specification; statistic not specified; quoted_source_value: Density:
+          1.01 g/cm³'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: unknown
+        reason: The source does not state a test standard; the exact source entry
+          is retained in source conditions.
+      temperature:
+        status: unknown
+        reason: The source does not state one numeric test temperature; retain the
+          exact test condition in the cited source conditions.
+      conditioning: unknown
+      notes: 'Research property density; source condition: manufacturer technical
+        specification; test condition not stated; reported statistic: manufacturer-listed
+        typical/specification; statistic not specified'
+      orientation:
+        status: unknown
+        reason: Source does not state specimen orientation; it remains unknown.
+  - name: youngs_modulus
+    value:
+      status: known
+      value:
+        value: 1400
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: Fiberlogy Nylon PA12 product technical data (page; linked TDS PDF,
+          revision not stated)
+        revision: Fiberlogy Nylon PA12 product technical data (page; linked TDS PDF,
+          revision not stated)
+        url: https://fiberlogy.com/en/product/pa12-nylon-filament/
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 527; source_condition: specimen orientation
+          and conditioning not stated; statistic: manufacturer-listed value; typical/minimum
+          not specified; quoted_source_value: Tensile modulus: 1,400 MPa (ISO 527)'
+      basis: standard
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 527
+        sources:
+        - kind: datasheet
+          reference: Fiberlogy Nylon PA12 product technical data (page; linked TDS
+            PDF, revision not stated)
+          revision: Fiberlogy Nylon PA12 product technical data (page; linked TDS
+            PDF, revision not stated)
+          url: https://fiberlogy.com/en/product/pa12-nylon-filament/
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 527; source_condition: specimen orientation
+            and conditioning not stated; statistic: manufacturer-listed value; typical/minimum
+            not specified; quoted_source_value: Tensile modulus: 1,400 MPa (ISO 527)'
+        basis: standard
+      temperature:
+        status: unknown
+        reason: The source does not state one numeric test temperature; retain the
+          exact test condition in the cited source conditions.
+      conditioning: unknown
+      notes: 'Research property tensile_modulus; source condition: specimen orientation
+        and conditioning not stated; reported statistic: manufacturer-listed value;
+        typical/minimum not specified'
+      orientation:
+        status: unknown
+        reason: Source does not state specimen orientation; it remains unknown.
+  - name: yield_strength
+    value:
+      status: known
+      value:
+        value: 45
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: Fiberlogy Nylon PA12 product technical data (page; linked TDS PDF,
+          revision not stated)
+        revision: Fiberlogy Nylon PA12 product technical data (page; linked TDS PDF,
+          revision not stated)
+        url: https://fiberlogy.com/en/product/pa12-nylon-filament/
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 527; source_condition: specimen orientation
+          and conditioning not stated; statistic: manufacturer-listed value; typical/minimum
+          not specified; quoted_source_value: Tensile strength at yield: 45 MPa (ISO
+          527)'
+      basis: standard
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 527
+        sources:
+        - kind: datasheet
+          reference: Fiberlogy Nylon PA12 product technical data (page; linked TDS
+            PDF, revision not stated)
+          revision: Fiberlogy Nylon PA12 product technical data (page; linked TDS
+            PDF, revision not stated)
+          url: https://fiberlogy.com/en/product/pa12-nylon-filament/
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 527; source_condition: specimen orientation
+            and conditioning not stated; statistic: manufacturer-listed value; typical/minimum
+            not specified; quoted_source_value: Tensile strength at yield: 45 MPa
+            (ISO 527)'
+        basis: standard
+      temperature:
+        status: unknown
+        reason: The source does not state one numeric test temperature; retain the
+          exact test condition in the cited source conditions.
+      conditioning: unknown
+      notes: 'Research property tensile_strength_at_yield; source condition: specimen
+        orientation and conditioning not stated; reported statistic: manufacturer-listed
+        value; typical/minimum not specified'
+      orientation:
+        status: unknown
+        reason: Source does not state specimen orientation; it remains unknown.
+  - name: impact_strength_charpy_notched
+    value:
+      status: known
+      value:
+        value: 12
+        units: kJ_m2
+      sources:
+      - kind: datasheet
+        reference: Fiberlogy Nylon PA12 product technical data (page; linked TDS PDF,
+          revision not stated)
+        revision: Fiberlogy Nylon PA12 product technical data (page; linked TDS PDF,
+          revision not stated)
+        url: https://fiberlogy.com/en/product/pa12-nylon-filament/
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 179; source_condition: 23 °C; specimen orientation/conditioning
+          not stated; statistic: manufacturer-listed value; typical/minimum not specified;
+          quoted_source_value: Charpy impact strength (notched) @ 23°C: 12 kJ/m² (ISO
+          179)'
+      basis: standard
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 179
+        sources:
+        - kind: datasheet
+          reference: Fiberlogy Nylon PA12 product technical data (page; linked TDS
+            PDF, revision not stated)
+          revision: Fiberlogy Nylon PA12 product technical data (page; linked TDS
+            PDF, revision not stated)
+          url: https://fiberlogy.com/en/product/pa12-nylon-filament/
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 179; source_condition: 23 °C; specimen orientation/conditioning
+            not stated; statistic: manufacturer-listed value; typical/minimum not
+            specified; quoted_source_value: Charpy impact strength (notched) @ 23°C:
+            12 kJ/m² (ISO 179)'
+        basis: standard
+      temperature:
+        status: known
+        value:
+          value: 23.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: Fiberlogy Nylon PA12 product technical data (page; linked TDS
+            PDF, revision not stated)
+          revision: Fiberlogy Nylon PA12 product technical data (page; linked TDS
+            PDF, revision not stated)
+          url: https://fiberlogy.com/en/product/pa12-nylon-filament/
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 179; source_condition: 23 °C; specimen orientation/conditioning
+            not stated; statistic: manufacturer-listed value; typical/minimum not
+            specified; quoted_source_value: Charpy impact strength (notched) @ 23°C:
+            12 kJ/m² (ISO 179)'
+        basis: standard
+      conditioning: unknown
+      notes: 'Research property charpy_impact_notched; source condition: 23 °C; specimen
+        orientation/conditioning not stated; reported statistic: manufacturer-listed
+        value; typical/minimum not specified'
+      orientation:
+        status: unknown
+        reason: Source does not state specimen orientation; it remains unknown.
+  - name: heat_deflection_temperature
+    value:
+      status: known
+      value:
+        value: 55
+        units: deg_C
+      sources:
+      - kind: datasheet
+        reference: Fiberlogy Nylon PA12 product technical data (page; linked TDS PDF,
+          revision not stated)
+        revision: Fiberlogy Nylon PA12 product technical data (page; linked TDS PDF,
+          revision not stated)
+        url: https://fiberlogy.com/en/product/pa12-nylon-filament/
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 75; source_condition: 1.8 MPa; specimen condition
+          not stated; statistic: manufacturer-listed value; typical/minimum not specified;
+          quoted_source_value: Heat deflection temperature under load @ 1.8 MPa: 55°C
+          (ISO 75)'
+      basis: standard
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 75
+        sources:
+        - kind: datasheet
+          reference: Fiberlogy Nylon PA12 product technical data (page; linked TDS
+            PDF, revision not stated)
+          revision: Fiberlogy Nylon PA12 product technical data (page; linked TDS
+            PDF, revision not stated)
+          url: https://fiberlogy.com/en/product/pa12-nylon-filament/
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 75; source_condition: 1.8 MPa; specimen
+            condition not stated; statistic: manufacturer-listed value; typical/minimum
+            not specified; quoted_source_value: Heat deflection temperature under
+            load @ 1.8 MPa: 55°C (ISO 75)'
+        basis: standard
+      temperature:
+        status: unknown
+        reason: The source does not state one numeric test temperature; retain the
+          exact test condition in the cited source conditions.
+      conditioning: unknown
+      notes: 'Research property heat_deflection_temperature_1_8_mpa; source condition:
+        1.8 MPa; specimen condition not stated; reported statistic: manufacturer-listed
+        value; typical/minimum not specified'
+      orientation:
+        status: unknown
+        reason: Source does not state specimen orientation; it remains unknown.
+  note: 'The research includes the open lower bound >50% for elongation_at_break. U1 quantity accepts only finite points or closed intervals, so no upper bound is invented. Exact source entry follows: [{"research_property":"elongation_at_break","value":">50","unit":"%","reason":"Open lower bound has no schema representation; inventing an upper bound changes the research value.","test_standard":"ISO 527","condition":"specimen orientation and conditioning not stated","statistic":"manufacturer-listed value; typical/minimum not specified","source":{"url":"https://fiberlogy.com/en/product/pa12-nylon-filament/","document_title_revision":"Fiberlogy Nylon PA12 product technical data (page; linked TDS PDF, revision not stated)","retrieval_date":"2026-11-02"},"quote":"Elongation at break: >50% (ISO 527)"}]'
+  guidance:
+  - 'Unknown (not established by the cited research; not zero or absent): yield strength
+    beyond manufacturer-listed yield stress'
+  - 'Unknown (not established by the cited research; not zero or absent): flexural
+    modulus/strength'
+  - 'Unknown (not established by the cited research; not zero or absent): Vicat/glass
+    transition temperature'
+  - 'Unknown (not established by the cited research; not zero or absent): CTE'
+  - 'Unknown (not established by the cited research; not zero or absent): moisture
+    absorption'
+  - 'Unknown (not established by the cited research; not zero or absent): XY/Z directional
+    properties'
+  - The manufacturer page links a technical datasheet PDF, but PDF extraction was
+    incomplete in the research session. Values are quoted from the same official manufacturer
+    product page technical specifications, not independently verified in that linked
+    PDF.

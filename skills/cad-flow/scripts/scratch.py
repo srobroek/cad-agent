@@ -14,7 +14,8 @@ Usage:
 The workspace is <project>/.cad-work/<UNIT>/, <project> being the directory that holds HW.
 
 init    copies HW into <workspace>/hw/ without versions/, renders/, releases/, .git/, .cad/ (the
-        part store, the pair cache, run records and the recheck stamp) and __pycache__/, then
+        part store, the pair cache, run records and the recheck stamp), the version-bound bundles
+        <kind>/vN/ (checks, drawings, captures, motion, analysis) and __pycache__/, then
         records the unit's PNs and the sha256 of every copied file in <workspace>/baseline.json.
         It seeds the scratch part store with hard links to HW's stored objects and build records,
         so the scratch build reuses every unchanged part. An existing workspace is kept unless
@@ -22,19 +23,26 @@ init    copies HW into <workspace>/hw/ without versions/, renders/, releases/, .
 build   runs cad-model `run` on the scratch hw/ under the next scratch label, cad-model `check`
         on that version, and cad-design form_check at --fidelity. HW itself is never passed to
         any of them, so HW/versions/ is neither created nor changed. Form findings are split
-        into the unit's own PNs and the rest; only the unit's own block it. Each --attach is
+        into the unit's own PNs and the rest; only the unit's own blocking findings block it. A
+        finding form_check marks `blocking: false` is a diagnostic (a legacy heuristic such as a
+        minimum wall or block_like proposal): reported as own_diagnostics, never a pass or a
+        failure, since manufacturability comes from the declared route's checks: for a record
+        version 2 version form_check runs as `--version`, which also publishes the process packet
+        in the scratch hw (form.process); a failed process check of the unit's own part blocks it,
+        an unknown one is reported (own_unknown). Each --attach is
         passed to cad-model `run` and recorded in the scratch version, so a unit builds and
         checks against the same rigid attachments as the lead's integrated build.
 deliver copies each unit PN's scratch hw/parts/<PN>/ over HW/parts/<PN>/ and lists every other
         scratch file that differs from the baseline as a proposal for the lead. When any
         HW/parts/<PN>/ changed since init it writes nothing and exits 1. Generated
-        versions/, renders/, releases/ and .cad/ output and every __pycache__/ are ignored
-        during delivery, so a scratch build's own caches never reach HW.
+        versions/, renders/, releases/, version-bound bundles (such as the hw/checks/vN/cad packet
+        a scratch check publishes) and .cad/ output and every __pycache__/ are ignored
+        during delivery, so a scratch build's own caches and evidence never reach HW.
 
 stdout: one JSON document; every path in it is absolute. build writes each tool's diagnostics to
 <workspace>/<tool>-<label>.log and names the log in the JSON, so its output stays small.
 Exit codes: 0 pass; 1 build: a part failed to build, a blocking check failed, or the unit's
-parts have form findings; deliver: HW/parts/<PN>/ changed since init; 2 usage or
+parts have blocking form findings; deliver: HW/parts/<PN>/ changed since init; 2 usage or
 infrastructure error.
 """
 
@@ -49,8 +57,9 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, cast
 
 SKILLS = Path(__file__).resolve().parents[2]
 CAD_MODEL_SCRIPTS = SKILLS / "cad-model" / "scripts"
@@ -68,7 +77,7 @@ PN = re.compile(r"^[A-Z]{2,5}-[0-9]{4}$")
 LABEL = re.compile(r"^v([1-9][0-9]*)$")
 
 
-def load_layout():
+def load_layout() -> Any:
     name = "cad_record_layout"
     if name not in sys.modules:
         path = CAD_RECORD_SCRIPTS / "layout.py"
@@ -81,6 +90,10 @@ def load_layout():
 
 
 layout = load_layout()
+# hw/<kind>/vN/: every version-bound bundle (cad-record layout bundle.*: checks, drawings, renders, captures,
+# motion, analysis) is generated output bound to a version; case definitions beside them (motion/cases/,
+# analysis/cases/) are record inputs and stay.
+BUNDLE_ROOTS = frozenset(layout.bundle_kinds())
 
 
 class UsageError(Exception):
@@ -96,12 +109,14 @@ def workspace(hw: Path, unit: str) -> Path:
 
 
 def is_skipped(relative: PurePosixPath, top: frozenset[str]) -> bool:
-    """Whether a path relative to the copied root is left out: `top` directly below it, and
-    __pycache__ anywhere."""
-    return relative.parts[0] in top or "__pycache__" in relative.parts
+    """Whether a path relative to the copied root is left out: `top` directly below it, a version-bound
+    bundle folder (<kind>/vN/), and __pycache__ anywhere."""
+    parts = relative.parts
+    return (parts[0] in top or "__pycache__" in parts
+            or (len(parts) > 1 and parts[0] in BUNDLE_ROOTS and LABEL.match(parts[1]) is not None))
 
 
-def skips(root: Path, top: frozenset[str] = NOT_COPIED):
+def skips(root: Path, top: frozenset[str] = NOT_COPIED) -> Callable[[str, list[str]], set[str]]:
     """A copytree `ignore` that leaves out what `is_skipped` names."""
     def ignore(directory: str, names: list[str]) -> set[str]:
         below = PurePosixPath(Path(directory).relative_to(root).as_posix())
@@ -124,7 +139,7 @@ def load_baseline(work: Path) -> dict[str, Any]:
     path = work / "baseline.json"
     if not path.is_file():
         raise UsageError(f"{work} has no baseline.json; run `scratch.py init` first")
-    return json.loads(path.read_text(encoding="utf-8"))
+    return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
 
 
 def seed_store(hw: Path, scratch_hw: Path) -> int:
@@ -227,22 +242,42 @@ def build(hw: Path, unit: str, kernel: str, fidelity: str,
                        "blocking_failures": (checked or {}).get("blocking_failures"),
                        "warnings": (checked or {}).get("warnings")}
 
+    # A record version 2 version: form_check --version runs the same fidelity checks and the process-dispatched
+    # manufacturing checks of the declared routes, publishing the process packet in the scratch hw only.
+    current = json.loads((version / "manifest.json").read_text(encoding="utf-8")).get("record_version") == 2
+    source = ["--version", label] if current else ["--parts-dir", str(version / "parts")]
     form_out = work / f"form-{label}.json"
     form_log = work / f"form-{label}.log"
-    form_code, form = run_tool([str(FORM_CHECK), "--hw", str(scratch_hw), "--parts-dir", str(version / "parts"),
-                                "--fidelity", fidelity], form_log)
+    form_code, form = run_tool([str(FORM_CHECK), "--hw", str(scratch_hw), *source, "--fidelity", fidelity], form_log)
     findings = (form or {}).get("findings", [])
     if form is not None:
         form_out.write_text(json.dumps(form, indent=2) + "\n", encoding="utf-8")
+    mine = [f for f in findings if f.get("part") in own]
     report["form"] = {"exit": form_code, "fidelity": fidelity, "json": str(form_out), "log": str(form_log),
-                      "own_findings": [f for f in findings if f.get("part") in own],
+                      "own_findings": [f for f in mine if f.get("blocking") is not False],
+                      "own_diagnostics": [f for f in mine if f.get("blocking") is False],
                       "other_findings": [f for f in findings if f.get("part") not in own]}
+    if current and form is not None:
+        process = form.get("manufacturing") or {}
+        own_open = [o for o in process.get("open") or () if _anchor_pn(o["obligation"]) in own]
+        report["form"]["process"] = {"status": process.get("status"), "complete": process.get("complete"),
+                                     "bundle": process.get("bundle"),
+                                     "own_failures": [o for o in own_open if o["outcome"] == "fail"],
+                                     "own_unknown": [o for o in own_open if o["outcome"] == "unknown"]}
     if code == 2 or form is None or form_code == 2:
         report["status"] = "error"
         return 2, report
-    passed = code == 0 and not report["form"]["own_findings"]
+    # A failed process check of the unit's own part blocks it; an unknown one is still exploration.
+    process_failures = (report["form"].get("process") or {}).get("own_failures") or []
+    passed = code == 0 and not report["form"]["own_findings"] and not process_failures
     report["status"] = "pass" if passed else "fail"
     return (0 if passed else 1), report
+
+
+def _anchor_pn(obligation: str) -> str | None:
+    """The PN an obligation id (family@PN[.COMP][/op][#feature]) is about, else None."""
+    match = re.match(r"^[^@]+@([A-Z]{2,5}-[0-9]{4})(?![0-9])", obligation)
+    return match.group(1) if match else None
 
 
 def delivery_tree(root: Path) -> tuple[dict[str, str], set[str]]:
@@ -288,8 +323,8 @@ def validate_delivery(baseline: dict[str, Any], authorized: set[str], files: dic
     for path in sorted(set(files) | set(old_files)):
         if files.get(path) != old_files.get(path):
             match = layout.classify(f"hw/{path}")
-            pn = path.split("/")[1] if path.startswith("parts/") else None
-            if match is None or match.entry.kind != "record" or match.params.get("PN") not in (None, pn):
+            owner = path.split("/")[1] if path.startswith("parts/") else None
+            if match is None or match.entry.kind != "record" or match.params.get("PN") not in (None, owner):
                 raise UsageError(f"cannot deliver changed non-record or non-canonical path {path}")
     for pn in authorized:
         prefix = f"parts/{pn}/"
@@ -323,7 +358,7 @@ def deliver(hw: Path, unit: str) -> tuple[int, dict[str, Any]]:
         return 1, {"status": "conflict", "unit": unit, "changed_since_init": conflicts,
                    "note": "another actor changed these part directories; nothing was delivered"}
 
-    delivered = []
+    delivered: list[str] = []
     for pn in sorted(authorized):
         target = hw / "parts" / pn
         staged = hw / "parts" / f".{pn}.deliver-{os.getpid()}"

@@ -181,9 +181,12 @@ class BlockShapeTests(unittest.TestCase):
             self.assertEqual((code, built["errors"]), (0, []))
             code, report = form_check(out, "F2")
 
+        # The lamp's joints name parts these stand-ins replace: those joint findings block; block_like never does.
         self.assertEqual(code, 1)
+        self.assertEqual({f["check"] for f in report["findings"] if f["blocking"]}, {"joint_bore_missing"})
         by_part = {row["part"]: row for row in report["findings"] if row["check"] == "block_like"}
         self.assertEqual(sorted(by_part), ["TST-0301", "TST-0303"])
+        self.assertEqual({row["blocking"] for row in by_part.values()}, {False})
         box = report["parts"]["TST-0301"]
         frame = report["parts"]["TST-0302"]
         pin = report["parts"]["TST-0303"]
@@ -209,7 +212,8 @@ class BlockShapeTests(unittest.TestCase):
             (hw / "product.yaml").write_text("id: fixture\nmanufacturing:\n  min_wall_mm: {fdm: 1.15}\n", encoding="utf-8")
             code, report = form_check(parts_dir, "F2", hw)
             wall = next(f for f in report["findings"] if f["check"] == "min_wall")
-            self.assertEqual((code, wall["part"], wall["min_mm"], wall["thickness_mm"]), (1, "TST-0301", 1.15, 1.1))
+            self.assertEqual((code, wall["part"], wall["min_mm"], wall["thickness_mm"], wall["blocking"]),
+                             (0, "TST-0301", 1.15, 1.1, False))
             self.assertEqual(len(wall["location_mm"]), 3)
 
     def test_solid_box_defaults_to_block_like_and_fdm_wall_minimum(self) -> None:
@@ -218,7 +222,8 @@ class BlockShapeTests(unittest.TestCase):
             code, report = form_check(parts_dir, "F2", hw)
             block = next(f for f in report["findings"] if f["check"] == "block_like")
             wall = next(f for f in report["findings"] if f["check"] == "min_wall")
-            self.assertEqual((code, block["part"], wall["min_mm"]), (1, "TST-0301", 1.2))
+            self.assertEqual((code, block["part"], wall["min_mm"]), (0, "TST-0301", 1.2))
+            self.assertEqual((block["blocking"], wall["blocking"], report["status"]), (False, False, "pass"))
             self.assertLess(wall["thickness_mm"], wall["min_mm"])
             self.assertEqual(len(wall["location_mm"]), 3)
 
@@ -335,7 +340,7 @@ class WallScanTests(unittest.TestCase):
         self.assertEqual(wall["tapered"], wall["samples"])  # the coverage shows why: every exit is a taper
         self.assertEqual(self.wall_findings("TST-0411"), [{"check": "min_wall_unmeasured", "part": "TST-0411",
                                                             "min_mm": 1.2, "faces": 2, "faces_sampled": 2,
-                                                            "samples": wall["samples"]}])
+                                                            "samples": wall["samples"], "blocking": False}])
 
     def test_bought_parts_and_processes_without_a_minimum_are_not_scanned(self) -> None:
         for pn in ("TST-0412", "TST-0413", "TST-0414"):
@@ -374,8 +379,8 @@ class WallOverrideTests(unittest.TestCase):
             product = hw / "product.yaml"
             product.write_text("id: fixture\nmanufacturing:\n  min_wall_mm: {cnc: 1.0}\n", encoding="utf-8")
             code, report = form_check(parts_dir, "F2", hw)
-            self.assertEqual((code, [(f["check"], f["thickness_mm"], f["min_mm"]) for f in report["findings"]]),
-                             (1, [("min_wall", 0.8, 1.0)]))
+            self.assertEqual((code, [(f["check"], f["thickness_mm"], f["min_mm"], f["blocking"]) for f in report["findings"]]),
+                             (0, [("min_wall", 0.8, 1.0, False)]))
             product.write_text("id: fixture\nmanufacturing:\n  min_wall_mm: {cnc: 0.5}\n", encoding="utf-8")
             code, report = form_check(parts_dir, "F2", hw)
             wall = report["parts"]["TST-0421"]["min_wall"]
@@ -428,8 +433,8 @@ class BlockDetectorTests(unittest.TestCase):
 
     def test_fixture_blocks_are_flagged_and_their_joints_still_pass(self) -> None:
         code, report = self.f2
-        self.assertEqual(code, 1)
-        flagged = sorted(f["part"] for f in report["findings"] if f["check"] == "block_like")
+        self.assertEqual(code, 0)  # block_like is a diagnostic: it never fails the check (decision 3)
+        flagged = sorted(f["part"] for f in report["findings"] if f["check"] == "block_like" and not f["blocking"])
         self.assertEqual(flagged, MADE_PARTS)
         self.assertEqual([f for f in report["findings"] if f["check"] != "block_like"], [])
 
@@ -450,9 +455,9 @@ class KernelDefectTests(unittest.TestCase):
             code, report = form_check(out, "F0")
         self.assertEqual(code, 1)
         self.assertTrue(all(row["valid"] for row in report["parts"].values()), report["parts"])
-        found = sorted((f["check"], f["part"], f.get("source")) for f in report["findings"])
-        self.assertEqual(found, [("brep_invalid", "TST-0101", "kernel"), ("step_readback", "TST-0101", None),
-                                 ("step_readback", "TST-0102", None)])
+        found = sorted((f["check"], f["part"], f.get("source"), f["blocking"]) for f in report["findings"])
+        self.assertEqual(found, [("brep_invalid", "TST-0101", "kernel", True), ("step_readback", "TST-0101", None, True),
+                                 ("step_readback", "TST-0102", None, True)])
 
 
 PARITY_MODELS = {

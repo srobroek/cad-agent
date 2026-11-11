@@ -1015,7 +1015,8 @@ def interference(shape_a: Any, shape_b: Any, box_gap: float = 0.0, threads: bool
     return distance, max(0.0, volume_properties(common.Shape()).Mass())
 
 
-def _read_single(path: Path) -> Any:
+def read_shape(path: Path) -> Any:
+    """The one shape of a STEP file, whatever its product names (a part body or a tool envelope)."""
     from OCP.IFSelect import IFSelect_RetDone
     from OCP.STEPControl import STEPControl_Reader
 
@@ -1136,7 +1137,7 @@ def load_definitions(hw: Path, parts_dir: Path, record_hw: Path | None = None) -
             found[pn] = Part(pn, part.name, shape, geometry_id)  # the file's own product name, PN first
         elif not named.definitions:
             title = records.get(pn, {}).get("title")
-            found[pn] = Part(pn, f"{pn} {title}" if isinstance(title, str) else pn, _read_single(path), geometry_id)
+            found[pn] = Part(pn, f"{pn} {title}" if isinstance(title, str) else pn, read_shape(path), geometry_id)
         else:
             raise MotionError(f"{path}: holds products of {sorted(named.definitions)}, expected only {pn}")
     return found

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import importlib.util
 import json
 import math
 import re
@@ -37,6 +38,14 @@ from sheet import TextureSymbol  # noqa: E402
 
 FREECADCMD = freecad_runtime.find_freecadcmd()
 FREECAD_PRESENT = FREECADCMD is not None and FREECADCMD.is_file()
+_FX_SPEC = importlib.util.spec_from_file_location("cad_record_mi_fixtures",
+                                                  HERE.parents[1] / "cad-record" / "tests" / "fixtures" / "manufacturing_intent.py")
+fx = sys.modules.get("cad_record_mi_fixtures")
+if fx is None:
+    assert _FX_SPEC and _FX_SPEC.loader
+    fx = importlib.util.module_from_spec(_FX_SPEC)
+    sys.modules["cad_record_mi_fixtures"] = fx
+    _FX_SPEC.loader.exec_module(fx)
 PN = "TST-0001"
 
 PRODUCT = {
@@ -76,6 +85,7 @@ def write_project(root: Path, *, features: bool = True) -> tuple[Path, Path]:
     for name, document in documents.items():
         (hw / name).write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
     (hw / "parts" / PN / "part.yaml").write_text(yaml.safe_dump(PART, sort_keys=False), encoding="utf-8")
+    fx.upgrade_record(hw)  # record version 2, every manufacturing-intent field unknown
     model = b'KERNEL = "cadquery"\nPARAMS = {}\n'
     (hw / "parts" / PN / "model.py").write_bytes(model)
     with (hw / "bom.csv").open("w", newline="", encoding="utf-8") as stream:

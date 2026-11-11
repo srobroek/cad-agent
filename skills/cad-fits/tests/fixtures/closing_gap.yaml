@@ -1,0 +1,63 @@
+# Plan §11 row 14: a cover closes over a reamed housing seat, a catalogue bearing and a coated
+# made-to-drawing spacer. Nominal gap +0.20 mm; worst case -0.10..+0.50 mm. Synthetic TST values.
+#   nominal = 20.22 - 10.00 - 10.00 - 0.02 - 0.00 = +0.20
+#   half    = 0.08 + 0.06 + 0.06 + 0.02 + 0.08      =  0.30
+intent_version: 2
+id: STK-014
+title: Cover closing gap over the bearing stack (TST fixture)
+units: mm
+subject: {interface: IF-001}
+requirements: [REQ-001]
+dimension_state: assembled
+consequence: collision
+relevant: [manufacture, coating, thermal]
+requirement:
+  min: 0.0
+  method: worst_case
+  source: {kind: user, reference: "REQ-001: the cover never loads the bearing stack", origin: TST fixture user}
+contributors:
+  - id: H
+    category: manufacture
+    description: housing seat depth after reaming, enforced by inspection
+    subject: {PN: TST-0001, feature: pivot_bore}
+    state: after_finish
+    direction: 1
+    nominal: 20.22
+    tol: 0.08
+    source: {kind: test, reference: TST bore inspection plan, url: "https://example.invalid/tst-inspection", accessed: "2026-01-01"}
+    operation: ream
+    inspection: bore_check
+  - id: B
+    category: manufacture
+    description: catalogue bearing width
+    subject: {PN: TST-0003, feature: width}
+    state: as_manufactured
+    direction: -1
+    nominal: 10.0
+    tol: 0.06
+    source: {kind: datasheet, reference: TST bearing datasheet, url: "https://example.invalid/tst-bearing", accessed: "2026-01-01"}
+  - id: S
+    category: manufacture
+    description: spacer shoulder length as turned by the supplier
+    subject: {PN: TST-0002, feature: shoulder_length}
+    state: as_manufactured
+    direction: -1
+    nominal: 10.0
+    tol: 0.06
+    source: {kind: supplier, reference: TST machining supplier capability statement, url: "https://example.invalid/tst-supplier", accessed: "2026-01-01"}
+    operation: turn
+  - id: C
+    category: coating
+    description: anodise build-up on both shoulder faces
+    subject: {PN: TST-0002, feature: shoulder_length}
+    direction: -1
+    nominal: 0.02
+    tol: 0.02
+    source: {kind: datasheet, reference: TST anodise datasheet, url: "https://example.invalid/tst-anodise", accessed: "2026-01-01"}
+  - id: T
+    category: thermal
+    description: differential expansion of housing against the stack over the service range
+    direction: -1
+    nominal: 0.0
+    tol: 0.08
+    source: {kind: calculation, reference: TST thermal expansion calculation, reason: synthetic test fixture value}

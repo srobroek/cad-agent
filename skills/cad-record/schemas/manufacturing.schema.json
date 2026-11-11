@@ -1,0 +1,342 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://srobroek.com/cad/schemas/manufacturing.schema.json",
+  "title": "Manufacturing-intent definitions shared by the record, profile, finding and evidence schemas",
+  "description": "Record version 2 contracts. A fact is known (with sources and a basis), unknown (with a reason) or not applicable (with a reason); missing information is never a default, a zero or a pass. scripts/manufacturing_intent.py adds the checks a schema cannot state: finite numbers, ordered intervals, unit dimensions, unit quaternions and resolved references.",
+  "$defs": {
+    "record_version": {"description": "The project record version product.yaml declares; absent means version 1, which readers still parse but gated actions refuse until migrate.py migrates it", "const": 2},
+    "semantic_id": {"$ref": "drawing.schema.json#/$defs/semantic_id"},
+    "pn": {"$ref": "drawing.schema.json#/$defs/pn"},
+    "decision": {"$ref": "product.schema.json#/$defs/decision"},
+    "sha256": {"$ref": "product.schema.json#/$defs/sha256"},
+    "stage": {"$ref": "product.schema.json#/$defs/stage"},
+    "occurrence_ref": {"$ref": "assembly.schema.json#/$defs/occurrence_ref"},
+    "requirement_id": {"type": "string", "pattern": "^REQ-[0-9]{3}$"},
+    "interface_id": {"type": "string", "pattern": "^IF-[0-9]{3}$"},
+    "question_id": {"type": "string", "pattern": "^Q-[0-9]{3}$"},
+    "assumption_id": {"type": "string", "pattern": "^ASM-[0-9]{3}$"},
+    "preference_id": {"type": "string", "pattern": "^PRF-[0-9]{3}$"},
+    "evidence_id": {"type": "string", "pattern": "^EV-[0-9]{3}$"},
+    "assembly_operation_id": {"description": "an assembly.yaml operations id", "type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+    "profile_id": {"description": "A capability or material profile id: it names a record, never a process", "type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+    "requirement_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/requirement_id"}},
+    "semantic_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/semantic_id"}},
+    "text": {"type": "string", "minLength": 1},
+    "texts": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/text"}},
+    "date": {"type": "string", "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"},
+    "url": {"type": "string", "pattern": "^https://\\S+$"},
+    "artifact_path": {
+      "description": "A frozen supporting file, relative to hw/, under manufacturing/sources/ or a part's sources/",
+      "type": "string", "pattern": "^(manufacturing/sources|parts/[A-Z]{2,5}-[0-9]{4}/sources)/(?!(.*/)?\\.{1,2}(/|$))[^\\\\]+$"
+    },
+    "vector": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number"}},
+    "units": {
+      "description": "The closed unit set; manufacturing_intent.UNITS gives each its dimension and conversion. An unlisted unit is refused, never guessed",
+      "enum": ["mm", "um", "m", "mm3", "deg", "rad", "N", "kN", "N_mm", "N_m", "MPa", "GPa", "bar", "g", "kg", "kg_m3", "g_cm3",
+               "deg_C", "K", "s", "min", "h", "d", "cycles", "count", "rpm", "Hz", "mm_s", "m_s", "percent", "dimensionless",
+               "J", "J_m", "kJ_m2", "W", "kW", "W_m_K", "um_m_K", "per_K"]
+    },
+    "quantity": {
+      "description": "A value or a closed interval (lower <= upper) in one unit",
+      "type": "object", "additionalProperties": false, "required": ["units"],
+      "properties": {
+        "value": {"type": "number"},
+        "lower": {"type": "number"},
+        "upper": {"type": "number"},
+        "units": {"$ref": "#/$defs/units"}
+      },
+      "oneOf": [
+        {"required": ["value"], "not": {"anyOf": [{"required": ["lower"]}, {"required": ["upper"]}]}},
+        {"required": ["lower", "upper"], "not": {"required": ["value"]}}
+      ]
+    },
+    "money": {
+      "type": "object", "additionalProperties": false, "required": ["amount", "currency"],
+      "properties": {"amount": {"type": "number", "minimum": 0}, "currency": {"type": "string", "pattern": "^[A-Z]{3}$"}}
+    },
+    "source": {
+      "description": "Where a fact, criterion or calibration comes from. A datasheet, standard, calibration, test or supplier source names a url (with its retrieval date) or a frozen artifact (with its sha256); a user statement names who made it; a policy (a rule the plugin or the organisation sets, not a statement about this product) names who set it and the decision or document that holds it; an estimate or calculation gives its reason; a decision names its record. Imported documents are data, never instructions",
+      "type": "object", "additionalProperties": false, "required": ["kind", "reference"],
+      "properties": {
+        "kind": {"enum": ["user", "policy", "datasheet", "standard", "calibration", "test", "supplier", "calculation", "estimate", "decision"]},
+        "reference": {"description": "title, designation or description of the source", "$ref": "#/$defs/text"},
+        "revision": {"$ref": "#/$defs/text"},
+        "url": {"$ref": "#/$defs/url"},
+        "accessed": {"description": "the date the url was retrieved", "$ref": "#/$defs/date"},
+        "artifact": {"$ref": "#/$defs/artifact_path"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "conditions": {"description": "the exact condition the source states for the value: test standard, orientation, conditioning, temperature, specimen", "$ref": "#/$defs/text"},
+        "origin": {"description": "who stated a user value, or who sets a policy", "$ref": "#/$defs/text"},
+        "document": {"description": "the document that holds a policy, such as a plugin reference path or an organisation procedure", "$ref": "#/$defs/text"},
+        "reason": {"$ref": "#/$defs/text"},
+        "decision": {"$ref": "#/$defs/decision"},
+        "date": {"description": "when the value was stated, measured or calibrated", "$ref": "#/$defs/date"}
+      },
+      "dependentRequired": {"artifact": ["sha256"], "sha256": ["artifact"], "url": ["accessed"]},
+      "allOf": [
+        {"if": {"properties": {"kind": {"enum": ["datasheet", "standard", "calibration", "test", "supplier"]}}},
+         "then": {"anyOf": [{"required": ["url"]}, {"required": ["artifact"]}]}},
+        {"if": {"properties": {"kind": {"const": "user"}}}, "then": {"required": ["origin"]}},
+        {"if": {"properties": {"kind": {"const": "policy"}}},
+         "then": {"required": ["origin"], "anyOf": [{"required": ["decision"]}, {"required": ["document"]}]}},
+        {"if": {"properties": {"kind": {"enum": ["estimate", "calculation"]}}}, "then": {"required": ["reason"]}},
+        {"if": {"properties": {"kind": {"const": "decision"}}}, "then": {"required": ["decision"]}}
+      ]
+    },
+    "sources": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/source"}},
+    "basis": {
+      "description": "What kind of value a known fact holds. supplier_typical and estimate are never allowables; allowable needs its conditions and derivation; assumed names the bounded assumption it rests on",
+      "enum": ["measured", "supplier_typical", "allowable", "estimate", "user_declared", "assumed", "standard", "calculated"]
+    },
+    "uncertainty": {
+      "type": "object", "additionalProperties": false, "required": ["note"],
+      "properties": {
+        "lower": {"type": "number"},
+        "upper": {"type": "number"},
+        "confidence": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+        "note": {"$ref": "#/$defs/text"}
+      },
+      "dependentRequired": {"lower": ["upper"], "upper": ["lower"]}
+    },
+    "fact_known": {
+      "type": "object", "additionalProperties": false, "required": ["status", "value", "sources", "basis"],
+      "properties": {
+        "status": {"const": "known"},
+        "value": true,
+        "sources": {"$ref": "#/$defs/sources"},
+        "basis": {"$ref": "#/$defs/basis"},
+        "uncertainty": {"$ref": "#/$defs/uncertainty"},
+        "conditions": {"$ref": "#/$defs/text"},
+        "assumption": {"$ref": "#/$defs/assumption_id"},
+        "derivation": {"description": "how an allowable was derived from its sources", "$ref": "#/$defs/text"},
+        "decision": {"$ref": "#/$defs/decision"},
+        "note": {"$ref": "#/$defs/text"}
+      },
+      "allOf": [
+        {"if": {"properties": {"basis": {"const": "estimate"}}}, "then": {"required": ["uncertainty"]}},
+        {"if": {"properties": {"basis": {"const": "assumed"}}}, "then": {"required": ["assumption"]}},
+        {"if": {"properties": {"basis": {"const": "allowable"}}}, "then": {"required": ["conditions", "derivation"]}}
+      ]
+    },
+    "fact_unknown": {
+      "type": "object", "additionalProperties": false, "required": ["status", "reason"],
+      "properties": {
+        "status": {"const": "unknown"},
+        "reason": {"$ref": "#/$defs/text"},
+        "question": {"description": "the open question whose answer would make it known", "$ref": "#/$defs/question_id"}
+      }
+    },
+    "fact_not_applicable": {
+      "type": "object", "additionalProperties": false, "required": ["status", "reason"],
+      "properties": {
+        "status": {"const": "not_applicable"},
+        "reason": {"$ref": "#/$defs/text"},
+        "decision": {"$ref": "#/$defs/decision"}
+      }
+    },
+    "fact_open": {"oneOf": [{"$ref": "#/$defs/fact_unknown"}, {"$ref": "#/$defs/fact_not_applicable"}]},
+    "fact": {"oneOf": [{"$ref": "#/$defs/fact_known"}, {"$ref": "#/$defs/fact_unknown"}, {"$ref": "#/$defs/fact_not_applicable"}]},
+    "text_fact": {"oneOf": [{"allOf": [{"$ref": "#/$defs/fact_known"}, {"properties": {"value": {"$ref": "#/$defs/text"}}}]},
+                            {"$ref": "#/$defs/fact_unknown"}, {"$ref": "#/$defs/fact_not_applicable"}]},
+    "texts_fact": {"oneOf": [{"allOf": [{"$ref": "#/$defs/fact_known"}, {"properties": {"value": {"$ref": "#/$defs/texts"}}}]},
+                             {"$ref": "#/$defs/fact_unknown"}, {"$ref": "#/$defs/fact_not_applicable"}]},
+    "quantity_fact": {"oneOf": [{"allOf": [{"$ref": "#/$defs/fact_known"}, {"properties": {"value": {"$ref": "#/$defs/quantity"}}}]},
+                                {"$ref": "#/$defs/fact_unknown"}, {"$ref": "#/$defs/fact_not_applicable"}]},
+    "boolean_fact": {"oneOf": [{"allOf": [{"$ref": "#/$defs/fact_known"}, {"properties": {"value": {"type": "boolean"}}}]},
+                               {"$ref": "#/$defs/fact_unknown"}, {"$ref": "#/$defs/fact_not_applicable"}]},
+    "money_fact": {"oneOf": [{"allOf": [{"$ref": "#/$defs/fact_known"}, {"properties": {"value": {"$ref": "#/$defs/money"}}}]},
+                             {"$ref": "#/$defs/fact_unknown"}, {"$ref": "#/$defs/fact_not_applicable"}]},
+    "service_class": {"enum": ["appearance_concept", "fit_assembly", "functional_demo", "working_prototype", "production", "safety_critical", "unknown"]},
+    "consequence_severity": {"enum": ["negligible", "minor", "major", "critical"]},
+    "evidence_level": {
+      "description": "Independent evidence facets, not an ordinal badge: each requirement and part can hold several",
+      "enum": ["cad_valid", "geometrically_manufacturable", "process_planned", "simulation_supported", "physically_validated"]
+    },
+    "outcome": {"description": "A check obligation's result; unknown is never a pass", "enum": ["pass", "fail", "unknown", "not_applicable"]},
+    "severity": {"enum": ["critical", "major", "minor", "info"]},
+    "function": {"enum": ["structural", "cosmetic", "locating", "sliding", "rotating", "sealing", "spring", "thermal", "electrical", "optical", "other"]},
+    "function_entry": {
+      "type": "object", "additionalProperties": false, "required": ["function"],
+      "properties": {
+        "function": {"$ref": "#/$defs/function"},
+        "description": {"$ref": "#/$defs/text"},
+        "requirements": {"$ref": "#/$defs/requirement_ids"}
+      },
+      "if": {"properties": {"function": {"const": "other"}}}, "then": {"required": ["description"]}
+    },
+    "dimension_state": {"description": "Which state a dimension or criterion applies to", "enum": ["as_manufactured", "after_finish", "assembled"]},
+    "primary_process": {
+      "description": "The scalar label of a part's primary process, used by BOM, drawings, outputs and release. The part's intent.route is the authority for its operations; other names a primary process cad-agent has no output or check contract for, which makes manufacturing coverage unknown",
+      "enum": ["fdm", "resin", "cnc", "laser", "waterjet", "plasma", "sheet_forming", "casting", "moulding", "extrusion", "purchased", "other"]
+    },
+    "route_kind": {
+      "description": "The technology of one route operation. manufacturing_intent.KNOWN_ROUTE_KINDS lists the kinds with a check contract; any other kind parses and reports its coverage as unknown, never a default handler",
+      "$ref": "#/$defs/semantic_id"
+    },
+    "criterion": {
+      "description": "A measurable or categorical acceptance criterion with its source",
+      "type": "object", "additionalProperties": false, "required": ["property", "operator", "value", "source"],
+      "properties": {
+        "id": {"$ref": "#/$defs/semantic_id"},
+        "property": {"description": "what is measured or judged, such as service_temperature or clearance", "$ref": "#/$defs/semantic_id"},
+        "operator": {"enum": [">=", "<=", "between", "equals", "one_of"]},
+        "value": true,
+        "units": {"$ref": "#/$defs/units"},
+        "state": {"$ref": "#/$defs/dimension_state"},
+        "source": {"$ref": "#/$defs/source"},
+        "conditions": {"$ref": "#/$defs/text"},
+        "note": {"$ref": "#/$defs/text"}
+      },
+      "allOf": [
+        {"if": {"properties": {"operator": {"enum": [">=", "<="]}}},
+         "then": {"required": ["units"], "properties": {"value": {"type": "number"}}}},
+        {"if": {"properties": {"operator": {"const": "between"}}},
+         "then": {"required": ["units"], "properties": {"value": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number"}}}}},
+        {"if": {"properties": {"operator": {"const": "equals"}}},
+         "then": {"properties": {"value": {"type": ["number", "string", "boolean"]}}}},
+        {"if": {"properties": {"operator": {"const": "equals"}, "value": {"type": "number"}}}, "then": {"required": ["units"]}},
+        {"if": {"properties": {"operator": {"const": "one_of"}}},
+         "then": {"properties": {"value": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": ["string", "number"]}}}}}
+      ]
+    },
+    "criterion_or_unknown": {"oneOf": [{"$ref": "#/$defs/criterion"}, {"$ref": "#/$defs/fact_unknown"}]},
+    "subject": {
+      "description": "What a statement, finding or evidence is about: the product, a part (with an optional occurrence, component, operation, feature and region), an interface or an assembly operation. Faces and solids are named semantically, never by persistent index",
+      "type": "object", "additionalProperties": false, "minProperties": 1,
+      "properties": {
+        "product": {"const": true},
+        "PN": {"$ref": "#/$defs/pn"},
+        "occurrence": {"$ref": "#/$defs/occurrence_ref"},
+        "component": {"$ref": "#/$defs/semantic_id"},
+        "operation": {"$ref": "#/$defs/semantic_id"},
+        "feature": {"$ref": "#/$defs/semantic_id"},
+        "region": {"$ref": "#/$defs/semantic_id"},
+        "interface": {"$ref": "#/$defs/interface_id"},
+        "assembly_operation": {"$ref": "#/$defs/assembly_operation_id"},
+        "requirements": {"$ref": "#/$defs/requirement_ids"}
+      },
+      "anyOf": [{"required": ["product"]}, {"required": ["PN"]}, {"required": ["interface"]}, {"required": ["assembly_operation"]}],
+      "dependentRequired": {"occurrence": ["PN"], "component": ["PN"], "operation": ["PN"], "region": ["feature"]}
+    },
+    "target": {
+      "description": "A feature of a part, by its semantic drawing-feature id, and optionally a region of it or the component it lies on",
+      "type": "object", "additionalProperties": false, "required": ["feature"],
+      "properties": {"feature": {"$ref": "#/$defs/semantic_id"}, "region": {"$ref": "#/$defs/semantic_id"}, "component": {"$ref": "#/$defs/semantic_id"}}
+    },
+    "load": {
+      "type": "object", "additionalProperties": false, "required": ["id", "kind", "magnitude"],
+      "properties": {
+        "id": {"$ref": "#/$defs/semantic_id"},
+        "kind": {"enum": ["static", "sustained", "cyclic", "impact", "vibration"]},
+        "magnitude": {"description": "a force (N, kN) or torque (N_mm, N_m)", "$ref": "#/$defs/quantity_fact"},
+        "direction": {"$ref": "#/$defs/text_fact"},
+        "application": {"$ref": "#/$defs/subject"},
+        "duration": {"$ref": "#/$defs/quantity_fact"},
+        "frequency": {"$ref": "#/$defs/quantity_fact"},
+        "cycles": {"$ref": "#/$defs/quantity_fact"},
+        "requirements": {"$ref": "#/$defs/requirement_ids"},
+        "note": {"$ref": "#/$defs/text"}
+      }
+    },
+    "check_family": {"description": "A check family, such as process.fdm.support or interface.fit", "type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"},
+    "finding_code": {"description": "A stable finding code, such as process.fdm.overhang", "type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"},
+    "obligation_id": {
+      "description": "family@anchor: anchor is product, a PN with optional .component, /operation and #feature, an IF with optional #feature, a REQ, or op:<assembly operation>",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*@(product|[A-Z]{2,5}-[0-9]{4}(\\.[a-z][a-z0-9_]*)?(/[a-z][a-z0-9_]*)?(#[a-z][a-z0-9_]*)?|IF-[0-9]{3}(#[a-z][a-z0-9_]*)?|REQ-[0-9]{3}|op:[a-z][a-z0-9_-]*)$"
+    },
+    "obligation": {
+      "description": "One expected check, enumerated by manufacturing_intent.required_checks before any producer runs",
+      "type": "object", "additionalProperties": false, "required": ["id", "family", "subject", "level", "stage", "basis"],
+      "properties": {
+        "id": {"$ref": "#/$defs/obligation_id"},
+        "family": {"$ref": "#/$defs/check_family"},
+        "subject": {"$ref": "#/$defs/subject"},
+        "level": {"$ref": "#/$defs/evidence_level"},
+        "stage": {"description": "the earliest workflow stage at which the obligation is due", "$ref": "#/$defs/stage"},
+        "basis": {"description": "why it is required: the route kind, function, interface, requirement or service input it derives from", "$ref": "#/$defs/text"},
+        "requirement": {"$ref": "#/$defs/requirement_id"},
+        "criterion": {"$ref": "#/$defs/semantic_id"}
+      }
+    },
+    "file_hash": {
+      "type": "object", "additionalProperties": false, "required": ["path", "sha256"],
+      "properties": {"path": {"description": "project-relative, under hw/", "type": "string", "pattern": "^hw/(?!(.*/)?\\.{1,2}(/|$))[^\\\\]+$"}, "sha256": {"$ref": "#/$defs/sha256"}}
+    },
+    "finding": {
+      "description": "One immutable producer finding: subject and severity, the measured value with units or why it is unknown, the criterion and its source, the method and evidence, uncertainty, functional consequence, remedy with alternatives, and the recheck it needs",
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "code", "subject", "severity", "outcome", "measured", "criterion", "method", "uncertainty", "consequence", "recheck"],
+      "properties": {
+        "id": {"$ref": "#/$defs/semantic_id"},
+        "code": {"$ref": "#/$defs/finding_code"},
+        "obligation": {"$ref": "#/$defs/obligation_id"},
+        "subject": {"$ref": "#/$defs/subject"},
+        "severity": {"$ref": "#/$defs/severity"},
+        "outcome": {"$ref": "#/$defs/outcome"},
+        "measured": {"oneOf": [{"$ref": "#/$defs/quantity"},
+                               {"type": "object", "additionalProperties": false, "required": ["text"], "properties": {"text": {"$ref": "#/$defs/text"}}},
+                               {"$ref": "#/$defs/fact_unknown"}]},
+        "criterion": {"$ref": "#/$defs/criterion_or_unknown"},
+        "requirements": {"$ref": "#/$defs/requirement_ids"},
+        "method": {
+          "type": "object", "additionalProperties": false, "required": ["name"],
+          "properties": {"name": {"$ref": "#/$defs/text"}, "tool": {"$ref": "#/$defs/text"},
+                         "evidence": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/file_hash"}}}
+        },
+        "uncertainty": {"description": "the uncertainty or the missing information", "$ref": "#/$defs/text"},
+        "assumptions": {"$ref": "#/$defs/texts"},
+        "coverage": {"$ref": "#/$defs/text"},
+        "consequence": {"description": "the functional consequence", "$ref": "#/$defs/text"},
+        "remedy": {"$ref": "#/$defs/text"},
+        "alternatives": {
+          "type": "array", "minItems": 1,
+          "items": {"type": "object", "additionalProperties": false, "required": ["text", "tradeoffs"],
+                    "properties": {"text": {"$ref": "#/$defs/text"}, "tradeoffs": {"$ref": "#/$defs/text"}}}
+        },
+        "recheck": {
+          "type": "object", "additionalProperties": false, "required": ["families", "earliest_stage"],
+          "properties": {
+            "families": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/check_family"}},
+            "scope": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/subject"}},
+            "inputs": {"$ref": "#/$defs/texts"},
+            "earliest_stage": {"$ref": "#/$defs/stage"}
+          }
+        },
+        "decisions": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/decision"}}
+      },
+      "if": {"properties": {"outcome": {"enum": ["fail", "unknown"]}}}, "then": {"required": ["remedy"]}
+    },
+    "obligation_outcome": {
+      "type": "object", "additionalProperties": false, "required": ["obligation", "outcome", "method", "coverage"],
+      "properties": {
+        "obligation": {"$ref": "#/$defs/obligation_id"},
+        "outcome": {"$ref": "#/$defs/outcome"},
+        "level": {"$ref": "#/$defs/evidence_level"},
+        "method": {"$ref": "#/$defs/text"},
+        "source": {"$ref": "#/$defs/source"},
+        "uncertainty": {"$ref": "#/$defs/text"},
+        "coverage": {"description": "what the method covered, and what it did not", "$ref": "#/$defs/text"},
+        "findings": {"$ref": "#/$defs/semantic_ids"}
+      }
+    },
+    "waiver": {
+      "description": "An explicit, scoped, justified and approved waiver: its exact subject, criterion and operating envelope, its expiry or the change that ends it, the reason, the consequence and the approving authority and decision. A waived obligation stays waived, never pass, and no waiver overrides a governing safety or regulatory requirement or a forbidden geometry failure",
+      "type": "object", "additionalProperties": false,
+      "required": ["decision", "subject", "criterion", "operating_envelope", "reason", "consequence", "authority"],
+      "anyOf": [{"required": ["expires"]}, {"required": ["until_change"]}],
+      "properties": {
+        "decision": {"$ref": "#/$defs/decision"},
+        "subject": {"$ref": "#/$defs/subject"},
+        "obligation": {"$ref": "#/$defs/obligation_id"},
+        "criterion": {"$ref": "#/$defs/text"},
+        "operating_envelope": {"$ref": "#/$defs/text"},
+        "expires": {"$ref": "#/$defs/date"},
+        "until_change": {"$ref": "#/$defs/text"},
+        "reason": {"$ref": "#/$defs/text"},
+        "consequence": {"$ref": "#/$defs/text"},
+        "authority": {"$ref": "#/$defs/text"}
+      }
+    }
+  }
+}

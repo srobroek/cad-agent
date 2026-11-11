@@ -17,7 +17,8 @@ and reads one JSON result from that file once the runner exits, identical in sha
                             "kernel_solids": 1, "kernel_valid": true, "kernel_errors": [], "build_s": 0.4,
                             "drawing_features": {"elbow_bore": {...}} or null,
                             "manufacture": {"kernel_volume_mm3": 1234.5, "kernel_solids": 1,
-                                            "kernel_valid": true, "kernel_errors": []} or null},
+                                            "kernel_valid": true, "kernel_errors": []} or null,
+                            "manufacture_features": {"flat_slot": {...}} or null},
                "LMP-0004": {"ok": false, "error": {"type": "SafeEditError", "message": "...",
                                                    "where": "model.py:42 in build"}}}}
 
@@ -39,6 +40,11 @@ request omits it), the frame build returns its shape in and the per-part STEP ke
 manufacturing state, such as a bent strap's flat blank, and runs exactly when it is `different`:
 the runner writes that shape to `manufacture_step` and reports its kernel facts under `manufacture`
 (null without the hook). The orchestrator places and exports it; the hook writes no files.
+`manufacture_features` is the optional `manufacture_features(params, manufacture_shape)` hook's
+result for that state, checked by the same `feature_locators` with frame `manufacture` (the native
+frame build_manufacture returns its shape in); null without the hook. It is refused beside a part
+made as installed, whose drawing_features locators already locate its manufactured features, and a
+missing hook leaves a different state's features unknown, never mapped from the installed ones.
 
 A part that fails never stops the others. stdout and stderr are console output only: model output
 and OCCT's console messages land there and never reach the result, whenever they are flushed.
@@ -61,7 +67,7 @@ import sys
 import time
 import traceback
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 
 from cadmodel import occ, provenance
 from cadmodel.fonts import osifont_path
@@ -70,6 +76,7 @@ from cadmodel.motion import load_pose
 CONTRACT = "model.py must define KERNEL (str), PARAMS (JSON-serialisable dict), and build(params) -> shape"
 FEATURE_ID = re.compile(r"[a-z][a-z0-9_]*")
 FEATURE_FRAMES = ("assembly_zero", "part_local")  # part.yaml model_frame: the coordinates build returns
+MANUFACTURE_FRAME = "manufacture"  # the native frame build_manufacture returns its state in
 SUPPORT_TYPES = frozenset({"plane", "cylinder", "cone", "sphere", "torus", "bezier", "bspline",
                            "revolution", "extrusion", "offset", "other"})
 LOCATOR_KEYS = frozenset({"kind", "frame", "patches", "anchors", "relations"})
@@ -133,7 +140,7 @@ def _params(module: Any) -> dict[str, Any]:
     if not isinstance(params, dict):
         raise ContractError(f"PARAMS is {type(params).__name__}, expected a dict; {CONTRACT}")
     try:
-        return json.loads(json.dumps(params, allow_nan=False))
+        return cast(dict[str, Any], json.loads(json.dumps(params, allow_nan=False)))
     except (TypeError, ValueError) as error:
         raise ContractError(f"PARAMS is not JSON-serialisable: {error}") from error
 
@@ -157,28 +164,34 @@ def _keys(value: Any, allowed: frozenset[str], required: frozenset[str], where: 
     return value
 
 
-def feature_locators(value: Any, frame: str = "assembly_zero") -> dict[str, Any]:
-    """Check a drawing_features result and return its JSON copy: semantic ID -> FeatureLocator.
+def feature_locators(value: Any, frame: str = "assembly_zero", hook: str = "drawing_features") -> dict[str, Any]:
+    """Check a drawing_features (or manufacture_features) result and return its JSON copy: semantic ID
+    -> FeatureLocator.
 
-    FeatureLocator: `kind` (str), `frame` (the part's model frame, `frame`), `patches` (non-empty
-    list of `support_type`, `point_mm`, unit `normal`, optional `region` id), optional `anchors`
-    (id -> `point_mm`, optional unit `direction`), optional `relations` (name -> feature ids of
-    this result). Points are final-surface witnesses, not dimensions, in that frame.
+    FeatureLocator: `kind` (str), `frame` (the part's model frame, `frame`; `manufacture` for the
+    manufacture_features of a different state), `patches` (non-empty list of `support_type`,
+    `point_mm`, unit `normal`, optional `region` id), optional `anchors` (id -> `point_mm`, optional
+    unit `direction`), optional `relations` (name -> feature ids of this result). Points are
+    final-surface witnesses, not dimensions, in that frame.
     """
-    if frame not in FEATURE_FRAMES:
-        raise ContractError(f"model_frame {frame!r} must be one of {list(FEATURE_FRAMES)}")
+    manufacture = hook == "manufacture_features"
+    allowed = (MANUFACTURE_FRAME,) if manufacture else FEATURE_FRAMES
+    if frame not in allowed:
+        raise ContractError(f"model_frame {frame!r} must be one of {list(allowed)}")
     if not isinstance(value, dict) or not value:
-        raise ContractError("drawing_features must return a non-empty dict of semantic ID -> locator")
+        raise ContractError(f"{hook} must return a non-empty dict of semantic ID -> locator")
+    meaning = ("the native frame build_manufacture returns its state in" if manufacture
+               else "the part's model_frame: the coordinates build returns")
     features: dict[str, Any] = {}
     for feature_id, locator in value.items():
-        where = f"drawing_features[{feature_id!r}]"
+        where = f"{hook}[{feature_id!r}]"
         if not isinstance(feature_id, str) or not FEATURE_ID.fullmatch(feature_id):
             raise ContractError(f"{where}: a semantic ID is lower_snake_case")
         _keys(locator, LOCATOR_KEYS, frozenset({"kind", "frame", "patches"}), where)
         if not isinstance(locator["kind"], str) or not FEATURE_ID.fullmatch(locator["kind"]):
             raise ContractError(f"{where}.kind must be a lower_snake_case string")
         if locator["frame"] != frame:
-            raise ContractError(f"{where}.frame must be {frame!r}, the part's model_frame: the coordinates build returns")
+            raise ContractError(f"{where}.frame must be {frame!r}, {meaning}")
         patches = locator["patches"]
         if not isinstance(patches, list) or not patches:
             raise ContractError(f"{where}.patches must be a non-empty list")
@@ -247,6 +260,19 @@ def _manufacture_hook(module: Any, declared: str | None) -> Any:
     return hook
 
 
+def _manufacture_features_hook(module: Any, declared: str | None) -> Any:
+    """`manufacture_features`, allowed only beside `build_manufacture`: a part made as installed binds
+    its manufacturing features through its installed drawing_features locators."""
+    hook = getattr(module, "manufacture_features", None)
+    if hook is not None and not callable(hook):
+        raise ContractError("manufacture_features is defined but not callable; expected "
+                            "manufacture_features(params, manufacture_shape)")
+    if hook is not None and declared != "different":
+        raise ContractError("model.py defines manufacture_features(params, shape), but part.yaml does not declare "
+                            "manufacture.relationship: different; a part made as installed reuses drawing_features")
+    return hook
+
+
 def build_part(kernel: str, request: Mapping[str, Any]) -> dict[str, Any]:
     warnings: list[str] = []
 
@@ -286,6 +312,7 @@ def _build_part(kernel: str, request: Mapping[str, Any]) -> dict[str, Any]:
     if hook is not None and not callable(hook):
         raise ContractError("drawing_features is defined but not callable; expected drawing_features(params, shape)")
     manufacture_hook = _manufacture_hook(module, request.get("manufacture"))
+    state_hook = _manufacture_features_hook(module, request.get("manufacture"))
     build_params = json.loads(json.dumps(params))
     if getattr(module, "REQUIRES_OSIFONT", False):
         build_params["font_path"] = osifont_path()
@@ -296,17 +323,21 @@ def _build_part(kernel: str, request: Mapping[str, Any]) -> dict[str, Any]:
     features = feature_locators(hook(json.loads(json.dumps(params)), value), frame) if hook is not None else None
     pose.write_part_step(Path(request["step"]), pose.Part(request["pn"], request["name"], shape))
     errors = occ.check_statuses(shape)  # STEP export can hide an invalid solid (an open shell becomes a surface model)
-    manufacture = None
+    manufacture = state_features = None
     if manufacture_hook is not None:
-        state, state_solids = _shape(manufacture_hook(json.loads(json.dumps(params))), kernel, "build_manufacture")
+        state_value = manufacture_hook(json.loads(json.dumps(params)))
+        state, state_solids = _shape(state_value, kernel, "build_manufacture")
         pose.write_part_step(Path(request["manufacture_step"]), pose.Part(request["pn"], request["name"], state))
         state_errors = occ.check_statuses(state)
         manufacture = {"kernel_volume_mm3": occ.volume(state), "kernel_solids": state_solids,
                        "kernel_valid": not state_errors, "kernel_errors": state_errors}
+        if state_hook is not None:  # it sees build_manufacture's own result and its own copy of the parameters
+            state_features = feature_locators(state_hook(json.loads(json.dumps(params)), state_value),
+                                              MANUFACTURE_FRAME, "manufacture_features")
     return {"ok": True, "params": params, "kernel_volume_mm3": occ.volume(shape), "kernel_solids": solids,
             "kernel_valid": not errors, "kernel_errors": errors, "build_s": round(time.perf_counter() - started, 3),
-            "drawing_features": features, "manufacture": manufacture, "inputs": inputs,
-            "inputs_stable": provenance.folder_inputs(model.parent) == inputs}
+            "drawing_features": features, "manufacture": manufacture, "manufacture_features": state_features,
+            "inputs": inputs, "inputs_stable": provenance.folder_inputs(model.parent) == inputs}
 
 def _failure(error: BaseException, model: str) -> dict[str, Any]:
     frames = [f for f in traceback.extract_tb(error.__traceback__) if f.filename == model]

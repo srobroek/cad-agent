@@ -16,10 +16,30 @@ TRIGGER
 
 1. On a batch commit only, read the staged `hw/product.yaml` fields `flow.stage` and `flow.recheck_from`.
 2. Before the threshold, build and render only; do not run checks or write a stamp.
-3. At or after the threshold, recheck changed parts and their dependents (see Changed parts and dependents), including this stage's checks and every earlier stage's checks.
-4. Write the check results as JSON, then run `uv run --script scripts/stamp.py --stage <stage> --checks <json-file> --passed` only when all required checks passed. Omit `--passed` for a failed result.
-5. Stage the design changes and `hw/.cad/recheck.json`. The pre-commit hook accepts only a passing stamp for the exact staged `hw/` tree.
-6. Install the hook in a hardware project's repository with `uv run --script scripts/install-hook.py --project <project-directory>`.
+3. At or after the threshold, run the producers for the changed inputs and all impacted dependents, then recompute the gate packet from the evidence producer:
+
+   ```sh
+   uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-record/scripts/evidence.py check --hw hw --version vN --stage <stage> --out .cad-work/recheck/evidence.json
+   uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-recheck/scripts/stamp.py --stage <stage> --checks .cad-work/recheck/evidence.json [--passed]
+   ```
+
+   The evidence input MUST be the JSON packet printed/written by `evidence.py check`, not a `cad_model.py check` result. Include `--passed` only when every blocking obligation passes; omit it for a failed gate. A record v1 must be migrated and rebuilt before it can be stamped.
+4. Stage the design changes and `hw/.cad/recheck.json`. The pre-commit hook accepts only a passing stamp for the exact staged `hw/` tree.
+5. Install the hook in a hardware project's repository:
+
+   ```sh
+   uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-recheck/scripts/install-hook.py --project <project-directory>
+   ```
+
+   The installer refuses a conflicting repository-local `core.hooksPath` or ignores no-sample hooks unless `--force` is explicit. Commit the generated `.githooks/` directory. A system/global `core.hooksPath` makes it exit 3 with no installation, even with `--force`; another refusal exits 2.
+
+For an absent or uninstalled hook, stage the hardware change then verify the staged index from the project root:
+
+```sh
+uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-recheck/scripts/stamp.py --verify
+```
+
+Exit 0 permits the commit; exit 2 means do not commit. Fix stderr's reason, restamp, and verify again.
 
 The installer refuses to replace a different repository-local `core.hooksPath` or ignore non-sample hooks in `.git/hooks/`. Integrate the CAD hook with existing hooks, or explicitly pass `--force` to replace or ignore them. Commit the generated `.githooks/` directory so the hook and its stamp verifier are available to other checkouts.
 

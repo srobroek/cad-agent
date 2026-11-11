@@ -7,9 +7,7 @@ Resolve `$CAD_SKILLS` as the parent directory of this skill's directory; it cont
 
 # CAD Concept (L0)
 
-Stage L0 CONCEPT of `cad-flow`: rough primitive variants the user compares, refines,
-merges, or drops until the VARIANT gate, then a handoff manifest for L1 LAYOUT. Joints describe
-the mechanism at its nominal configuration and are passed to L1 LAYOUT in the handoff.
+Stage L0 CONCEPT of `cad-flow`: rough primitive variants the user compares, refines, merges or drops until the VARIANT gate. The gate produces a handoff manifest for L1 LAYOUT. Joints describe the mechanism at its nominal configuration and the handoff carries them to L1 LAYOUT.
 Paths below are relative to this skill's directory.
 + "sketch some concepts", "show me a few options", "compare variants", "pick a variant"
 + `hw/product.yaml` has `flow.stage: concept`
@@ -17,35 +15,24 @@ Paths below are relative to this skill's directory.
 - real geometry in CadQuery or build123d -> L2 PARTS in `cad-flow`
 
 GATES
-ASK which live variant passes the VARIANT gate; record nothing as chosen until the user names it.
+ASK which live variant passes the VARIANT gate. The lead records the user's named choice.
 
 ## Workflow
 
-1. Read `hw/product.yaml` and `hw/requirements.yaml`, then LOAD `references/scene-format.md`.
-2. DRAFT 2-4 variants in `hw/concept/<product-id>.scene.json`, each a different answer to
-   the main trade-off, with that trade-off in `params` and one-line `summary`. Put the process
-   and material each variant assumes in `params` (e.g. `window_material: "cast acrylic"`), from
-   `hw/product.yaml` `manufacturing.processes`. A variant that needs what its process cannot
-   make, such as a see-through part printed in FDM, names that conflict in its `summary`.
-3. Run `uv run --script scripts/concept.py check <scene>` after every edit. -> exit 0, `"ok": true`.
-4. Start the preview once as the harness's background job or service:
-   `uv run --script scripts/serve.py --scene-dir hw/concept`. Read the first stdout JSON line
-   and send its `url` to the user; it reports the chosen free port. Use `--port N` only when a
-   fixed port is needed. Each saved edit reloads the open viewer.
-5. Collect feedback. Drive the viewer yourself when the harness has a browser; otherwise ask
-   the user which nominal variant best addresses the trade-off. Save a screenshot for each
-   live variant when useful; screenshots land in `hw/concept/screenshots/`.
-6. Apply each request as one operation from the table, then re-run step 3.
-7. On "commit batch": run step 3 and save one screenshot per live variant. No other checks
-   run before LAYOUT freeze. Hand the batch to `cad-flow` for COMMIT.
-8. "More detail?" -> back to step 5. Otherwise ASK the VARIANT gate, naming each variant's
-   process or material conflict. Set `chosen` only after approval is recorded in a `DR-###`
-   decision in `hw/decisions/`, then run `concept.py handoff <scene>`.
-9. MUST stop the concept server when the user is done: after the VARIANT gate passes or the session
-   ends. Stop it through the harness job or service handle. If none exists, start it with `&`, keep `$!`,
-   and run `kill <pid>`. Tell the user which viewer URL is going away.
-   The 30-minute idle timeout stops abandoned servers after inactivity. Report the handoff path
-   to `cad-flow`, which opens L1 LAYOUT.
+1. Read the approved use case, mandatory requirements, preferences, open questions and recorded selection. Variants propose geometry against that scope. LOAD `references/scene-format.md` before authoring a scene.
+2. Draft 2-4 variants as distinct architecture/design proposals. Mark unknown material/process dependencies in each option; do not imply capability or final selection.
+3. Run `uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-concept/scripts/concept.py check hw/concept/<product-id>.scene.json` after each edit. Exit 0 means the scene contract passes.
+4. Start one project-root viewer job for the complete scene directory:
+
+   ```sh
+   uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-concept/scripts/serve.py --project-root . --scene-dir hw/concept
+   ```
+
+   Read the first stdout JSON line and share its `url` with the user. Each saved edit reloads the open viewer.
+5. Collect feedback. Use the existing variant table for shared scene changes only after user approval. The preview proves neither CAD validity nor manufacturability.
+6. On "commit batch", run the check again and save one screenshot for each live variant; screenshots publish under `hw/concept/screenshots/`. Hand the batch to `cad-flow` for COMMIT.
+7. At VARIANT, show unresolved process/material dependencies and ask the user to select. Record the approved `chosen` variant only after its `Status: APPROVED` DR exists; then run `uv run --script "$CAD_SKILLS/cad-flow/scripts/run.py" cad-concept/scripts/concept.py handoff hw/concept/<product-id>.scene.json`.
+8. After VARIANT passes or the session ends, tell the user the viewer URL is going away and stop the serving job with the harness's job/service handle; if none exists, start it as a background job with `&`, retain `$!`, and run `kill <pid>`. Report the handoff path to `cad-flow`.
 
 | user says | operation |
 |---|---|
@@ -54,20 +41,17 @@ ASK which live variant passes the VARIANT gate; record nothing as chosen until t
 | "drop C" | DROP: move C to `retired` with `dropped` and the user's reason |
 | "one more option" | ADD: a new variant; at most 4 stay live |
 
+The viewer pins three@0.186.1 by import map with SRI digests. `serve.py` may need network on first load, then serves verified modules from `~/.cache/cad-concept/vendor` (or `$XDG_CACHE_HOME`) offline. Its ready JSON reports the URL and `idle_timeout_min` (30 minutes by default).
+
 ## Rules
 
 MUST Keep node ids stable across edits and variants: the same concept part carries the same id everywhere. The handoff and L1 key on them.
 MUST Retire a variant into `retired` with a reason; never delete it.
-MUST Fix every `concept.py check` error before pointing the user at the viewer.
-DEFAULT One scene file per product; joint limits from the requirements, else the user's numbers.
+MUST Fix every `concept.py check` error before showing the viewer.
+MUST Treat optical requirements as hard selection constraints; follow [manufacturing-selection.md](../cad-flow/references/manufacturing-selection.md) for the one canonical optical-route rule.
+MUST State material/process dependencies as proposals, not capability or manufacturing claims.
 NOT Model fits, fasteners, fillets, or tolerances here; that is L3 DETAIL.
-NOT Export a handoff before the user names the chosen variant.
-
-The viewer pins three@0.186.1 by import map with SRI digests. `serve.py` needs network on
-first load, then serves the verified modules from `~/.cache/cad-concept/vendor`
-(`$XDG_CACHE_HOME` when set) offline. `--idle-timeout MIN` defaults to 30 minutes and exits
-after that long without an HTTP request or connected live-reload client; 0 disables it. An open
-viewer tab keeps its live-reload connection open. The ready JSON reports `idle_timeout_min`.
+NOT Export a handoff before the user names the chosen variant and its approval DR is recorded.
 
 ```text
 L1 CONCEPT: {scene path} -- {live variant count} live, {retired count} retired, gate PENDING|PASSED {chosen id}
@@ -75,3 +59,4 @@ L1 CONCEPT: {scene path} -- {live variant count} live, {retired count} retired, 
    Handoff -- {path and node/joint counts, only after the gate}
 ```
 CAP 80w
+

@@ -54,3 +54,5 @@ jobs:
         run: |
           python3 -m unittest discover -s harness -p 'test_*.py'
           python3 harness/generate.py --check
+      - name: Scoped Python type check
+        run: uv run --no-project --locked --script scripts/typecheck.py

@@ -32,6 +32,7 @@ import feature_geometry as fg
 from feature_geometry import Face, ResolvedFeature, Vector
 
 FITS = Path(__file__).resolve().parents[2] / "cad-fits" / "scripts" / "fits.py"
+INTENT = Path(__file__).resolve().parents[2] / "cad-record" / "scripts" / "manufacturing_intent.py"
 EPS = fg.GEOMETRY_EPS
 FIT_KEYS = ("press_fit", "running_fit", "locating_fit")
 VENDOR_TYPES = ("vendor_specification", "source_control")
@@ -70,6 +71,46 @@ def _fits() -> Any:
 
 def finding(code: str, message: str, **where: Any) -> dict[str, Any]:
     return {"code": code, "message": message, **where}
+
+
+@cache
+def _intent() -> Any:
+    """cad-record's manufacturing_intent.py, the one reader of the record version."""
+    module = sys.modules.get("cad_record_manufacturing_intent")
+    if module is None:
+        spec = importlib.util.spec_from_file_location("cad_record_manufacturing_intent", INTENT)
+        if spec is None or spec.loader is None:
+            raise RuntimeError(f"cannot load cad-record at {INTENT}")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+    return module
+
+
+def finished_state_findings(pn: str, part: Mapping[str, Any], feature: str, source: str) -> list[dict[str, Any]]:
+    """Record version 2: a drawn fit is the desired limit, never the precision of a process or a
+    general-tolerance policy. The part's route must make the feature's finished state and inspect it
+    there: the last route operation that targets the feature finishes it (after_finish), else it stays
+    as manufactured, and an inspection of the feature in that state verifies the drawn limits."""
+    route = (part.get("intent") or {}).get("route")
+    if not isinstance(route, list):
+        return [finding("fit_route_unknown", f"{feature}: {source} is a desired limit, and the route that makes {pn} "
+                        "is unknown: no operation is planned to achieve it", feature=feature)]
+    steps = [op for op in route if isinstance(op, Mapping)]
+    finishing = [op for op in steps
+                 if any(isinstance(t, Mapping) and t.get("feature") == feature for t in op.get("targets") or ())]
+    state = "after_finish" if finishing else "as_manufactured"
+    made = f"after {finishing[-1].get('id')}" if finishing else "as made"
+    inspections = [i for op in steps for i in op.get("inspection") or () if isinstance(i, Mapping) and i.get("feature") == feature]
+    if not inspections:
+        return [finding("fit_unverified", f"{feature}: {source} is a desired limit, and no inspection in {pn}'s route "
+                        f"checks {feature} {made}: neither the drawing nor a process label establishes the achieved size",
+                        feature=feature)]
+    if not any(i.get("state") == state for i in inspections):
+        stated = ", ".join(sorted({str(i.get("state")) for i in inspections}))
+        return [finding("fit_state_mismatch", f"{feature}: {pn}'s route leaves it {state} ({made}), but its inspection "
+                        f"checks the {stated} state", feature=feature)]
+    return []
 
 
 # --- tolerances ------------------------------------------------------------------------------------
@@ -795,6 +836,15 @@ class Measurer:
         return tolerance
 
     def _post_process_check(self, feature: ResolvedFeature, tolerance: Tolerance) -> None:
+        """Whether the drawn fit is planned to be achieved. Record version 2 judges the feature's own route
+        operations and inspection (finished_state_findings); a version 1 record keeps its legacy diagnostic,
+        an FDM interface tighter than its tolerance policy left as printed."""
+        if self.vendor:
+            return  # a vendor item's specification states its limits
+        if _intent().record_version(self.product) == _intent().RECORD_VERSION:
+            for item in finished_state_findings(self.pn, self.part, feature.id, tolerance.source):
+                self.add(item)
+            return
         if self.part["process"] != "fdm":
             return
         policy = self.policy(feature.id)

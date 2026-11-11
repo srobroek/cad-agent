@@ -18,7 +18,7 @@ import re
 import sys
 from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 from jsonschema import Draft202012Validator, FormatChecker
@@ -44,6 +44,10 @@ def _load_module(name: str, path: Path) -> Any:
 coupling = _load_module("cad_motion_coupling", Path(__file__).resolve().parents[2] / "cad-motion" / "scripts" / "coupling.py")
 # The canonical hw/ layout (layout.json beside schemas/), the one reader of where record and output files live.
 layout = _load_module("cad_record_layout", Path(__file__).resolve().parent / "layout.py")
+# The record version 2 manufacturing intent (the one reader of use case, routes and profiles) and the
+# evidence model on it: waivers, typed verification and the acceptance digest.
+intent = _load_module("cad_record_manufacturing_intent", Path(__file__).resolve().parent / "manufacturing_intent.py")
+evidence = _load_module("cad_record_evidence", Path(__file__).resolve().parent / "evidence.py")
 # cad-motion's pose.py and plan.py, loaded only for a record with authored motion cases.
 MOTION_SCRIPTS = Path(__file__).resolve().parents[2] / "cad-motion" / "scripts"
 
@@ -124,10 +128,10 @@ def validate_document(
         findings.append(finding(str(schema_path), f"cannot load schema: {error}"))
         return False
     validator = Draft202012Validator(schema, registry=schema_registry(), format_checker=FormatChecker())
-    errors = sorted(validator.iter_errors(data), key=lambda error: list(error.absolute_path))
-    for error in errors:
-        location = "/".join(str(part) for part in error.absolute_path)
-        findings.append(finding(path, f"{location + ': ' if location else ''}{error.message}"))
+    errors = sorted(validator.iter_errors(data), key=lambda item: list(item.absolute_path))
+    for item in errors:
+        location = "/".join(str(part) for part in item.absolute_path)
+        findings.append(finding(path, f"{location + ': ' if location else ''}{item.message}"))
     return not errors
 
 
@@ -165,7 +169,20 @@ def stated_general_tolerance(policy: dict[str, Any]) -> str | float:
     """The `general_tolerance` text or number that states a structured tolerance policy."""
     if policy["kind"] == "standard":
         return f"ISO 2768-{policy['class']}"  # the only standard policy the schema admits is ISO 2768-1:1989
-    return policy["linear_mm"]
+    return cast("str | float", policy["linear_mm"])
+
+
+# sheets that state "per specification" instead of a general tolerance (cad-drawings drawing_intent.VENDOR_TYPES)
+VENDOR_DRAWINGS = ("vendor_specification", "source_control")
+
+
+def open_general_tolerance(product: Any) -> str | None:
+    """How product.yaml leaves `general_tolerance` open ("unknown (question Q-013)"), or None when it is stated.
+    A general tolerance is never defaulted: until it is recorded, no drawing can state it."""
+    value = product.get("general_tolerance") if isinstance(product, dict) else None
+    if not isinstance(value, dict):
+        return None
+    return f"unknown (question {value['question']})" if value.get("question") else "unknown"
 
 
 def check_product_drawing(product: dict[str, Any], path: str, findings: list[dict[str, str]]) -> None:
@@ -176,6 +193,9 @@ def check_product_drawing(product: dict[str, Any], path: str, findings: list[dic
     policy = drawing["tolerance_policies"].get(name)
     if policy is None:
         findings.append(finding(path, f"drawing/general_tolerance_policy {name!r} is not in drawing/tolerance_policies"))
+    elif (open_tolerance := open_general_tolerance(product)) is not None:
+        findings.append(finding(path, f"general_tolerance is {open_tolerance}: the {name} policy cannot state it until "
+                                      "the user records it"))
     elif product["general_tolerance"] != stated_general_tolerance(policy):
         findings.append(finding(path, f"general_tolerance {product['general_tolerance']!r} does not state the {name} "
                                       f"policy; expected {stated_general_tolerance(policy)!r}"))
@@ -207,7 +227,7 @@ def spdx_expression_problem(expression: str) -> str | None:
     binding tighter than `OR`, and balanced parentheses; operators are case-sensitive. No SPDX license
     list is bundled, so it cannot tell a listed identifier (CERN-OHL-S-2.0) from an unlisted one
     (CERN-OHL-S)."""
-    tokens = re.findall(r"\(|\)|[^\s()]+", expression)
+    tokens: list[str] = re.findall(r"\(|\)|[^\s()]+", expression)
     position = 0
 
     def peek() -> str | None:
@@ -247,7 +267,7 @@ def spdx_expression_problem(expression: str) -> str | None:
         return problem
 
     def chain(operand: Any, operator: str) -> str | None:
-        problem = operand()
+        problem: str | None = operand()
         while problem is None and peek() == operator:
             take()
             problem = operand()
@@ -619,6 +639,14 @@ def not_an_approval(record: Path) -> str | None:
             "`Status: PROVISIONAL` or `Status: VOID`")
 
 
+def decision_approves(hw: Path, decision: str | None) -> bool:
+    """Whether decision `decision` exists under hw/decisions/ and is the user's approval (`not_an_approval`)."""
+    if not isinstance(decision, str) or re.fullmatch(r"DR-[0-9]{3}", decision) is None:
+        return False
+    record = hw / "decisions" / f"{decision}.md"
+    return record.is_file() and not_an_approval(record) is None
+
+
 def check_flow(product: dict[str, Any], path: str, hw: Path, part_records: dict[str, Any],
                findings: list[dict[str, str]]) -> None:
     """The frozen anchor names a built version by its exact manifest, and an open change starts from it."""
@@ -704,16 +732,13 @@ def check_design_rules(hw: Path, documents: Mapping[str, Any], valid: Mapping[st
                        part_records: Mapping[str, tuple[dict[str, Any], str]],
                        inventory: assembly_data.Inventory | None, findings: list[dict[str, Any]]) -> None:
     """design_rules.py over the schema-valid record: visibility bindings resolve at every stage; the
-    retention rules are errors from stage parts on and unreported before it; a structured transparent-FDM
-    contradiction is a warning before stage parts and an error from it on; a transparency claim in prose is
-    only ever a warning."""
+    retention rules are errors from stage parts on and unreported before it."""
     product = documents.get("product.yaml") if valid.get("product.yaml") else None
     at_parts = stage_reached(product, "parts")
 
-    def report(path: Path | str, items: Iterable[design_rules.RuleFinding], severity: str = "error") -> None:
+    def report(path: Path | str, items: Iterable[design_rules.RuleFinding]) -> None:
         for item in items:
-            graded = "warning" if item.code == design_rules.TRANSPARENCY_CLAIM_CODE else severity
-            findings.append({**finding(f"{path}#/{item.location}", item.message, severity=graded), "code": item.code})
+            findings.append({**finding(f"{path}#/{item.location}", item.message), "code": item.code})
 
     def resolve(ref: str) -> str | None:
         try:
@@ -730,12 +755,77 @@ def check_design_rules(hw: Path, documents: Mapping[str, Any], valid: Mapping[st
     if inventory is not None and requirements is not None:
         report(hw / "requirements.yaml", design_rules.visibility_findings(requirements, resolve))
 
-    feasibility = "error" if at_parts else "warning"
-    for part, part_path in part_records.values():
-        report(part_path, design_rules.part_feasibility_findings(part), feasibility)
-    if requirements is not None and product is not None:
-        report(hw / "requirements.yaml", design_rules.requirement_feasibility_findings(
-            requirements, product, (part for part, _ in part_records.values())), feasibility)
+
+def _intent_finding(hw: Path, item: Mapping[str, Any]) -> dict[str, Any]:
+    """A manufacturing_intent or evidence finding, its project-relative `hw/...` path made a path below `hw`."""
+    location, _, pointer = str(item["path"]).partition("#")
+    path = str(hw / location.removeprefix("hw/")) if location.startswith("hw/") else location
+    return {**item, "path": path + (f"#{pointer}" if pointer else "")}
+
+
+def check_manufacturing_intent(hw: Path, documents: Mapping[str, Any],
+                               part_records: Mapping[str, tuple[dict[str, Any], str]],
+                               verification: list[dict[str, str]], findings: list[dict[str, Any]]) -> Any:
+    """The record version and its manufacturing intent, through manufacturing_intent.py, over the
+    documents validate_project already read. A version 1 record stays readable: every other finding is
+    reported, plus the blocking record.migration_required that names the migration command, so stage
+    advance, freeze, release and record-writing builds refuse it. A version 2 record: its
+    hw/manufacturing/ documents against their schemas, the normalization problems (references, units,
+    routes, profiles, completeness), the waivers of its ledgers, and verification rows that state a
+    result its ledger does not hold (an error from the design freeze on). Returns the normalized record."""
+    parsed = {name: data for name, data in documents.items() if data is not None}
+    parsed.update({f"parts/{pn}/part.yaml": part for pn, (part, _) in part_records.items()})
+    manufacturing = {}
+    for rel, schema in intent.DOCUMENT_SCHEMAS:
+        path = hw / rel
+        if rel.startswith("manufacturing/") and path.is_file():
+            manufacturing[rel] = (schema, load_yaml(path, findings))
+            if manufacturing[rel][1] is not None:
+                parsed[rel] = manufacturing[rel][1]
+    record = intent.normalize_record(parsed, hw=hw)
+    findings.extend(_intent_finding(hw, problem.finding()) for problem in record.problems)
+    if record.version != intent.RECORD_VERSION:
+        return record
+    for rel, (schema, data) in manufacturing.items():
+        validate_document(data, schema, str(hw / rel), findings)
+    product = documents.get("product.yaml")
+    flow = product.get("flow") if isinstance(product, dict) else None
+    stage = flow.get("stage") if isinstance(flow, dict) else None
+    items = evidence.ledger_findings(record, approved=functools.partial(decision_approves, hw))
+    items += evidence.csv_findings(record, verification, stage)
+    findings.extend(_intent_finding(hw, item.as_dict()) for item in items)
+    return record
+
+
+def check_acceptance_anchor(hw: Path, record: Any, findings: list[dict[str, Any]]) -> None:
+    """A record version 2 freeze anchors its acceptance evidence: flow.frozen.evidence_sha256 is the
+    acceptance digest (evidence.py) of the frozen version's inventory as it stands now. A changed ledger,
+    verification table, relied-on bundle or source needs a new anchor approved by the user, or a change."""
+    if record.version != intent.RECORD_VERSION:
+        return
+    flow = record.product.get("flow")
+    frozen = flow.get("frozen") if isinstance(flow, Mapping) else None
+    if not isinstance(frozen, Mapping) or "evidence_sha256" not in frozen:
+        return  # manufacturing_intent reports a freeze without an anchor as record.legacy_freeze
+    manifest = layout.version_dir(hw, frozen["version"]) / "manifest.json"
+    if not manifest.is_file():
+        return  # check_flow reports a frozen version that is not built
+    path = str(hw / "product.yaml")
+    packets, _ = evidence.collect_packets(hw, frozen["version"], hashlib.sha256(manifest.read_bytes()).hexdigest())
+    try:
+        digest = evidence.acceptance_digest(evidence.acceptance_inventory(hw, record, packets))
+    except evidence.EvidenceError as error:
+        findings.append(finding(path, f"flow/frozen/evidence_sha256: the acceptance inventory cannot be formed: {error}",
+                                code="record.evidence_anchor", canonical_location=None,
+                                action="Restore the file, or record the change through an engineering change."))
+        return
+    if digest != frozen["evidence_sha256"]:
+        findings.append(finding(path, f"flow/frozen/evidence_sha256 is not the acceptance digest of {frozen['version']} as it "
+                                      f"stands ({digest}): the evidence, dispositions, verification, relied-on bundles or "
+                                      "sources changed after the freeze",
+                                code="record.evidence_anchor", canonical_location=None,
+                                action="Re-anchor the freeze with `evidence.py digest` and a decision the user approves, "
+                                       "or open an engineering change."))
 
 
 def check_layout(hw: Path, product: Any, part_records: dict[str, Any], findings: list[dict[str, str]]) -> None:
@@ -854,6 +944,12 @@ def validate_project(project_dir: Path) -> list[dict[str, str]]:
                 if not decision_path.is_file():
                     findings.append(finding(str(part_path), f"decision {decision} does not exist at decisions/{decision}.md"))
             check_part_drawing(part, str(part_path), product_drawing, findings)
+            open_tolerance = open_general_tolerance(documents.get("product.yaml")) if valid.get("product.yaml") else None
+            part_drawing = part.get("drawing")
+            if (open_tolerance is not None and isinstance(part_drawing, dict)
+                    and part_drawing.get("type", "detail") not in VENDOR_DRAWINGS):
+                findings.append(finding(str(part_path), f"drawing: product.yaml general_tolerance is {open_tolerance}; "
+                                                        "record it before a drawing states general tolerances"))
             check_procurement(part, str(part_path), hw, findings)
             check_manufacture(part, str(part_path), hw, findings)
             part_records[pn] = (part, str(part_path))
@@ -903,33 +999,33 @@ def validate_project(project_dir: Path) -> list[dict[str, str]]:
         has_children = level == 0 or (
             level is not None
             and position + 1 < len(bom_levels)
-            and bom_levels[position + 1] is not None
-            and bom_levels[position + 1] > level
+            and (next_level := bom_levels[position + 1]) is not None
+            and next_level > level
         )
         pn = row.get("PN", "")
         if pn not in part_records:
             if not has_children:
                 findings.append(finding(row_path, f"BOM PN {pn!r} has no matching parts/<PN>/part.yaml and is not an assembly"))
             continue
-        part, part_path = part_records[pn]
+        part, part_file = part_records[pn]
         for field, part_field in (("rev", "rev"), ("title", "title"), ("material", "material"),
                                   ("process", "process"), ("make_buy", "make_buy"),
                                   ("supplier", "supplier")):
             bom_value = row.get(field) or None
             part_value = part.get(part_field)
             if bom_value != part_value:
-                findings.append(finding(row_path, f"{field} {bom_value!r} does not match {part_path} ({part_value!r})"))
+                findings.append(finding(row_path, f"{field} {bom_value!r} does not match {part_file} ({part_value!r})"))
         try:
             mass = float(row["mass"]) if row.get("mass") else None
         except ValueError:
             mass = None
         if mass != part.get("mass_target"):
-            findings.append(finding(row_path, f"mass {mass!r} does not match {part_path} mass_target ({part.get('mass_target')!r})"))
+            findings.append(finding(row_path, f"mass {mass!r} does not match {part_file} mass_target ({part.get('mass_target')!r})"))
         if "unit" in row:
             for field, part_value in procurement_cells(part).items():
                 bom_value = row.get(field) or None
                 if bom_value != part_value:
-                    findings.append(finding(row_path, f"{field} {bom_value!r} does not match {part_path} ({part_value!r})"))
+                    findings.append(finding(row_path, f"{field} {bom_value!r} does not match {part_file} ({part_value!r})"))
 
     previous_level: int | None = None
     for index, level in enumerate(bom_levels, start=2):
@@ -963,7 +1059,7 @@ def validate_project(project_dir: Path) -> list[dict[str, str]]:
             findings.append(finding(row_path, f"duplicate verification for {req_id}"))
         seen_requirement_ids.add(req_id)
     if isinstance(requirements, dict):
-        known = {item.get("id") for item in requirements.get("requirements", []) if isinstance(item, dict)}
+        known: set[Any] = {item.get("id") for item in requirements.get("requirements", []) if isinstance(item, dict)}
         for req_id in sorted(known - seen_requirement_ids):
             findings.append(finding(str(hw / "verification.csv"), f"requirement {req_id} has no verification row"))
         for req_id in sorted(seen_requirement_ids - known):
@@ -999,6 +1095,8 @@ def validate_project(project_dir: Path) -> list[dict[str, str]]:
             check_release_readiness(hw, verification, part_records, str(path), findings)
     if valid.get("product.yaml"):
         check_flow(documents["product.yaml"], str(hw / "product.yaml"), hw, part_records, findings)
+    record = check_manufacturing_intent(hw, documents, part_records, verification, findings)
+    check_acceptance_anchor(hw, record, findings)
     check_design_rules(hw, documents, valid, part_records, inventory, findings)
     check_layout(hw, documents.get("product.yaml"), part_records, findings)
     return findings
@@ -1015,7 +1113,7 @@ def sealed_owner(rel: str) -> tuple[Any, dict[str, str]] | None:
     while path and path != layout.HW:
         found = layout.load().sealed(path)
         if found is not None:
-            return found
+            return cast("tuple[Any, dict[str, str]]", found)
         path = posixpath.dirname(path)
     return None
 
@@ -1051,11 +1149,12 @@ def plan_item(hw: Path, item: Mapping[str, Any], records: Mapping[str, Mapping[s
         operation = "review"
     else:
         operation = "rebuild" if rebuild else "move"
-    if operation == "remove" or (operation == "move" and classification != "data" and "<" not in destination):
+    if operation == "remove" or (operation == "move" and classification != "data"
+                                       and destination is not None and "<" not in destination):
         confidence = "high"  # a determined place the bytes move to unchanged, or a leftover to delete
     elif operation == "rebuild":
         # a rebuild lands it; geometry needs the PN it names to be a custom-made part record
-        found = re.search(lay.tokens["PN"]["pattern"], destination)
+        found = re.search(lay.tokens["PN"]["pattern"], cast(str, destination))
         known = found is not None and found.group(0) in records and layout.custom_made(records[found.group(0)])
         confidence = "low" if classification == "geometry" and not known else "medium"
     else:
@@ -1090,19 +1189,38 @@ def legacy_items(hw: Path) -> list[dict[str, Any]]:
                           "action": f"Release {path.parent.name} lists project files in place (manifest version 1). "
                                     "Keep it for inspection and recovery; it is never reissued. Issue the next "
                                     "revision with release.py from a frozen version. Nothing was changed."})
+        elif isinstance(manifest, dict) and manifest.get("schema_version") == 2:
+            items.append({"path": layout.relative(hw, path.parent), "code": None, "severity": "info",
+                          "classification": "legacy release", "operation": "keep", "destination": None,
+                          "rebuild": lay.entry("release.package").writer, "confidence": "high",
+                          "action": f"Release {path.parent.name} seals byte copies (manifest version 2) without an "
+                                    "acceptance anchor: it stays readable and verifiable as sealed, but certifies no "
+                                    "intended service. The next revision is a version 3 release of a record version 2 "
+                                    "freeze. Nothing was changed."})
     return items
 
 
+def record_items(findings: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """The record migration (manufacturing_intent migration_problem) as a plan step: migrate.py, run by
+    the user, never by this plan."""
+    return [{"path": f"{layout.HW}/product.yaml", "code": item["code"], "severity": item["severity"],
+             "classification": "record version", "operation": "migrate", "destination": None,
+             "rebuild": intent.MIGRATE_SCRIPT, "confidence": "high", "action": item.get("action")}
+            for item in findings if item.get("code") in (intent.MIGRATION_REQUIRED, intent.VERSION_UNSUPPORTED)]
+
+
 def migration_plan(project_dir: Path) -> dict[str, Any]:
-    """Every layout finding of the record, plus legacy versions and releases, as a move and rebuild
-    plan. Reads only; nothing is moved, deleted or rebuilt."""
+    """Every layout finding of the record, plus the record version migration, legacy versions and
+    releases, as a move, migrate and rebuild plan. Reads only; nothing is moved, deleted, migrated or rebuilt."""
     hw = project_dir / "hw" if (project_dir / "hw").is_dir() else project_dir
     records = {}
     for path in sorted((hw / "parts").glob("*/part.yaml")):
         data = load_yaml(path, [])
         if isinstance(data, dict):
             records[path.parent.name] = data
-    items = [plan_item(hw, item, records) for item in validate_project(project_dir) if is_layout_finding(item)]
+    findings = validate_project(project_dir)
+    items = [plan_item(hw, item, records) for item in findings if is_layout_finding(item)]
+    items += record_items(findings)
     items += legacy_items(hw)
     targets: dict[str, list[str]] = {}
     for item in items:

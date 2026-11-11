@@ -135,7 +135,11 @@ class LayoutData(TempProject):
                      "hw/drawings/v3/LMP-0001/sheet-0.svg", "hw/drawings/v3/LMP-0001/old/sheet-1.svg",
                      "hw/drawings/LMP-0001/sheet-1.svg", "hw/print/LMP-0001_flat.step", "hw/docs/flat.step",
                      "hw/docs/notes/export.py", "hw/decisions/DR-01.md", "hw/releases/I/manifest.json",
-                     "hw/renders/v3/iso.png", "hw/checks/v3/LMP-0001/result.json.bak"):
+                     "hw/renders/v3/iso.png", "hw/checks/v3/LMP-0001/result.json.bak",
+                     "hw/versions/v3/manufacturing/LMP-0001/components/Left/part.step",
+                     "hw/versions/v3/manufacturing/LMP-0001/components/left/manufacturing.json",
+                     "hw/versions/v3/record/manufacturing/findings.yaml", "hw/versions/v3/record/manufacturing/evidence.yaml",
+                     "hw/manufacturing/notes.yaml"):
             with self.subTest(path=path):
                 self.assertIsNone(layout.classify(path))
 
@@ -146,6 +150,19 @@ class LayoutData(TempProject):
         self.assertEqual(layout.bundle_dir(self.hw, "drawings", "v3", "LMP-0001"), self.hw / "drawings" / "v3" / "LMP-0001")
         self.assertEqual(layout.resolve(self.hw, "record.part_sources", PN="LMP-0005"),
                          self.hw / "parts" / "LMP-0005" / "sources")
+        self.assertEqual(layout.manufacturing_component_dir(self.hw, "v3", "LMP-0001", "left_cheek"),
+                         self.hw / "versions" / "v3" / "manufacturing" / "LMP-0001" / "components" / "left_cheek")
+        for rel, entry in (("hw/manufacturing/capabilities.yaml", "record.manufacturing_capabilities"),
+                           ("hw/manufacturing/sources/datasheets/sheet.pdf", "record.manufacturing_sources"),
+                           ("hw/manufacturing/evidence.yaml", "record.manufacturing_evidence"),
+                           ("hw/versions/v3/record/requirements.yaml", "version.record"),
+                           ("hw/versions/v3/record/manufacturing/sources/sheet.pdf", "version.record"),
+                           ("hw/versions/v3/manufacturing-features.json", "version.core"),
+                           ("hw/versions/v3/manufacturing/LMP-0001/components/left/part.stl", "version.manufacturing"),
+                           ("hw/checks/v3/LMP-0001/evidence/coupon.csv", "bundle.checks"),
+                           ("hw/releases/A/acceptance/evidence.yaml", "release.package")):
+            with self.subTest(rel=rel):
+                self.assertEqual(layout.classify(rel).entry.id, entry)
         self.assertEqual(layout.bundle_kinds(), ("checks", "drawings", "renders", "captures", "motion", "analysis"))
         self.assertEqual(layout.classify(self.hw / "versions" / "v3" / "parts" / "LMP-0001.step", self.hw).entry.id,
                          "version.core")
@@ -154,7 +171,9 @@ class LayoutData(TempProject):
                      lambda: layout.bundle_dir(self.hw, "print", "v3", "LMP-0001"),
                      lambda: layout.bundle_dir(self.hw, "drawings", "v3", "../x"),
                      lambda: layout.resolve(self.hw, "bundle.renders", V="v3"),
-                     lambda: layout.relative(self.hw, self.root / "elsewhere")):
+                     lambda: layout.relative(self.hw, self.root / "elsewhere"),
+                     lambda: layout.manufacturing_component_dir(self.hw, "v3", "LMP-0001", "Left"),
+                     lambda: layout.manufacturing_component_dir(self.hw, "v3", "LMP-0001", "../x")):
             with self.assertRaises(layout.LayoutError):
                 call()
 
@@ -192,6 +211,27 @@ class LayoutData(TempProject):
             layout.manufacture_policy(catalogue)
         with self.assertRaisesRegex(layout.LayoutError, "without a volume tolerance"):
             layout.manufacture_policy({**printed, "manufacture": {"relationship": "different"}})
+        self.assertEqual(layout.manufacture_policy({**printed, "process": "resin"}).outputs,
+                         ("part.step", "part.stl", "manufacturing.json"), "an additive process gets its STL")
+        self.assertEqual(layout.manufacture_policy({**printed, "process": "laser"}).outputs, ("part.step", "manufacturing.json"))
+        with self.assertRaisesRegex(layout.UnsupportedProcess, "no manufacturing output contract"):
+            layout.manufacture_policy({**printed, "process": "other"})
+        self.assertTrue(issubclass(layout.UnsupportedProcess, layout.LayoutError), "existing callers still catch it")
+
+    def test_snapshot_names_follow_the_version_record_entry(self) -> None:
+        for rel in ("product.yaml", "requirements.yaml", "interfaces.yaml", "assembly.yaml", "parts/LMP-0001/part.yaml",
+                    "parts/LMP-0002/part.yaml", "manufacturing/capabilities.yaml", "manufacturing/materials.yaml",
+                    "manufacturing/selection.yaml", "manufacturing/findings.yaml", "manufacturing/evidence.yaml",
+                    "manufacturing/sources/a/sheet.pdf", "manufacturing/sources/coupon.csv", "bom.csv", "verification.csv"):
+            write(self.hw / rel)
+        (self.hw / "manufacturing" / "sources" / "link.pdf").symlink_to(self.hw / "bom.csv")
+        self.assertEqual(layout.snapshot_names(self.hw, ["LMP-0001"]), [
+            "assembly.yaml", "interfaces.yaml", "manufacturing/capabilities.yaml", "manufacturing/materials.yaml",
+            "manufacturing/selection.yaml", "manufacturing/sources/a/sheet.pdf", "manufacturing/sources/coupon.csv",
+            "parts/LMP-0001/part.yaml", "product.yaml", "requirements.yaml"],
+            "design inputs only: never the evidence or finding ledgers, the BOM or verification, or a symlink")
+        with self.assertRaises(layout.LayoutError):
+            layout.snapshot_names(self.hw, ["lmp-1"])
 
 
 class Publication(TempProject):
@@ -479,7 +519,7 @@ class ValidatorLayout(TempProject):
 
     def setUp(self) -> None:
         super().setUp()
-        shutil.copytree(LAMP, self.hw)
+        load("cad_record_mi_fixtures", Path(__file__).resolve().parent / "fixtures" / "manufacturing_intent.py").migrated_copy(LAMP, self.hw)
 
     def set_flow(self, **flow: Any) -> None:
         path = self.hw / "product.yaml"
@@ -488,8 +528,13 @@ class ValidatorLayout(TempProject):
         path.write_text(yaml.safe_dump(product, sort_keys=False), encoding="utf-8")
 
     def freeze(self, stage: str) -> None:
+        """A record version 2 freeze of v1: its manifest and its acceptance digest (evidence.py digest)."""
         manifest = seal_version(self.hw, "v1") / "manifest.json"
-        self.set_flow(stage=stage, frozen={"version": "v1", "manifest_sha256": sha(manifest), "decision": "DR-001"})
+        evidence = sys.modules["cad_record_evidence"]
+        record = sys.modules["cad_record_manufacturing_intent"].load_record(self.hw)
+        anchor = evidence.acceptance_digest(evidence.acceptance_inventory(self.hw, record))
+        self.set_flow(stage=stage, frozen={"version": "v1", "manifest_sha256": sha(manifest), "decision": "DR-001",
+                                           "evidence_sha256": anchor})
 
     def run_validator(self) -> tuple[int, dict[str, Any]]:
         result = subprocess.run([sys.executable, str(VALIDATOR), str(self.project)], capture_output=True, text=True,
@@ -527,7 +572,7 @@ class ValidatorLayout(TempProject):
 
     def test_symlink_escape_is_an_error_at_every_stage(self) -> None:
         outside = write(self.root / "outside.md")
-        (self.hw / "docs").mkdir()
+        (self.hw / "docs").mkdir(exist_ok=True)  # the migration note already lives there
         (self.hw / "docs" / "outside.md").symlink_to(outside)
         (self.hw / "docs" / "inside.md").symlink_to(self.hw / "bom.csv")
         (self.hw / "docs" / "escape").symlink_to(self.root, target_is_directory=True)
@@ -541,7 +586,7 @@ class ValidatorLayout(TempProject):
     def test_empty_unknown_directory_is_reported(self) -> None:
         (self.hw / "print").mkdir()
         (self.hw / "decisions" / "drafts").mkdir()
-        (self.hw / "docs").mkdir()  # an empty canonical folder is fine
+        (self.hw / "manufacturing" / "sources").mkdir()  # an empty canonical folder is fine
         code, found = self.layout_findings()
         self.assertEqual(code, 0)
         self.assertEqual({path: item["code"] for path, item in found.items()},

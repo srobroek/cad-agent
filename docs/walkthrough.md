@@ -38,33 +38,33 @@ FreeCAD 1.1.4 and its TechDraw templates are required. If a check fails, resolve
 
 ## GROUND
 
-**Type:** `Inspect the lamp-arm example [or <product>]. Establish the product identity, intended use, design rigor, units, standards regime, tolerance policy, and known constraints. Identify missing inputs and propose an initial scope. Do not assume unanswered requirements.`
+**Type:** `Establish the product purpose and users, intended-use service class (concept, fit/assembly prototype, supervised functional demo, working prototype, production, safety-critical/regulated), operating environment, loads and motion, service life, required accuracy/finish, consequences/standards, quantity/cost/lead time, maintenance, operators/equipment and willingness to outsource. Keep service class separate from rigor (maker/pro/regulated documentation depth); prototype is service class, never rigor. For each unknown, identify its owner and whether it changes material/process choice or safety. Inspect the existing record; for a v1 record, run the migration dry run and review the exact per-file diff.`
 
-**Review:** existing records, available parts and project context, open questions, initial requirements, and the proposed product record. For a new project, establish `hw/product.yaml` and add context under `hw/docs/`.
+**Review:** requirements, preferences, assumptions and open questions separately; cited sources; evidence and scope gaps. Capability availability is not a product requirement. Do not infer operating conditions from illustrative CAD geometry or a lamp example.
 
-**Approve:** confirm the problem and scope before intent is fixed. Record substantive approvals and their rationale as decisions. A preview alone does not count as geometry or verification evidence.
+**Approve:** confirm the use case, unknowns and scope before a consequential selection. Only the explicit owner applies a migration (`migrate.py --apply`) or changes shared design records. A preview is not CAD, process or verification evidence.
 
-**Files:** `hw/product.yaml`, initial `hw/requirements.yaml` and `hw/interfaces.yaml` as known, `hw/decisions/DR-###.md`, and optional `hw/docs/` notes. Existing-project migration plans are read-only. They move no files.
+**Files:** `hw/product.yaml`, `hw/requirements.yaml`, the migration report/note when relevant, and `hw/decisions/DR-###.md`.
 
 ## INTENT
 
-**Type:** `State the product purpose, users, use environment, envelope, constraints, success measures, and unknowns for the agreed scope. Show conflicts and assumptions before changing the record.`
+**Type:** `Compare credible complete architecture, per-part material and ordered process routes against each mandatory requirement. Include sourced property/condition evidence, real capability, setup, secondary operations, finishing, inspection, interfaces, assembly, quantity-specific cost/time, maintenance and accepted tradeoffs. Eliminate any mandatory FAIL before preference scoring. Mark UNKNOWN conditional and do not rank it as feasible. Present primary, prototype, end-use and fallback routes as useful, with evidence limits and what would change the recommendation. Do not invent prices, ratings, properties, capability or life. Do not silently change requirements or the product.`
 
-**Review:** each intent with its source, rationale, priority, and unresolved questions.
+**Review:** comparison rows show requirement outcome, method, criterion/source, value/units, uncertainty, route/capability evidence, pros/cons/tradeoffs and unresolved questions. A prototype service class may use a route different from end use; state what it can validate and what it cannot. Rigor (maker/pro/regulated) remains a separate documentation-depth choice.
 
-**Approve:** approve the intent or request changes. Add approved intent and its decision to the record before proceeding.
+**Approve:** approve, revise or decline consequential choices explicitly. An optical/transparency requirement eliminates opaque routes; consider only identified transparent purchased parts or identified stock on an appropriate sourced/capable route. No see-through FDM or unidentified clear plastic.
 
-**Files:** updated `hw/product.yaml`, `hw/requirements.yaml`, and `hw/decisions/DR-###.md`.
+**Files:** `hw/product.yaml`, `hw/requirements.yaml`, `hw/manufacturing/selection.yaml`, affected per-part intent, source/profile evidence, and `hw/decisions/DR-###.md`.
 
 ## SPECIFY
 
-**Type:** `Turn the approved intent into measurable requirements with sources, rationale, priority, verification method, and pass criteria. Identify interfaces and uncertainties. Do not invent values for unresolved constraints.`
+**Type:** `Turn the approved use case and chosen direction into sourced measurable requirements and evidence obligations. Specify functional interfaces, datum/fit/tolerance and dimension state, worst-case stack contributors where function depends on them, contacting materials, assembly order/closure and tool/service access. Capture per-part function, material profile or unknown, ordered process, capability, setup/orientation, critical surfaces, supports/removal, finish, allowances and inspection. Keep capabilities separate from requirements. Do not copy a fit-table class as demonstrated process accuracy.`
 
-**Review:** requirement-to-verification mapping, proposed interfaces and tolerances, and unresolved items.
+**Review:** each criterion and evidence method, interface/assembly assessment, route obligation and unknown. Distinguish worst-case results from statistically justified RSS; do not hide a forbidden collision with score or statistics. Use the deterministic fit and process check tools.
 
-**Approve:** confirm requirements and interface assumptions. Mark open items explicitly instead of treating them as satisfied.
+**Approve:** confirm acceptance criteria, remaining open questions and scope before requirements are used to approve design.
 
-**Files:** `hw/requirements.yaml`, `hw/interfaces.yaml`, `hw/verification.csv`, and decisions for approved choices.
+**Files:** `hw/requirements.yaml`, `hw/interfaces.yaml`, `hw/assembly.yaml`, part intent, `hw/verification.csv` and decisions.
 
 ## L0 CONCEPT and VARIANT gate
 
@@ -88,23 +88,23 @@ FreeCAD 1.1.4 and its TechDraw templates are required. If a check fails, resolve
 
 ## L2 PARTS and PARTS gate
 
-**Type:** `Design parts for the approved layout. Resolve purchased-part identities, materials, processes, finishes, and mass targets. Build and check an integrated version. Run the F2 form check, render the version, and present the PARTS gate.`
+**Type:** `Plan each part's function, material grade/form/condition, process route, capability, component identity, setup/orientation, critical features, support/removal, finish, inspection and alternatives from the approved requirements. Verify purchased-part identity and ratings against the actual catalogue/datasheet. Check every declared route and required operation; unknown profile/coverage remains UNKNOWN. Keep sourced facts and uncertain cost/time estimates distinct. Build and check an integrated version and present the PARTS gate; form-level review is not process capability or physical evidence.`
 
-**Review:** made-part proposals, sourcing evidence, integrated build and checks, F2 findings, version renders, and the light mechanical and DFM review that runs beside the full check. The lead dispatches subassembly and sourcing workers together, then integrates their results.
+**Review:** part-intent/route proposals, exact buy identities and evidence, per-component/per-operation check outcomes, unknowns and process-plan gaps, geometry/form diagnostics, version renders, and evidence from the scoped mechanical/DFM review.
 
-**Approve:** approve the part architecture and sourcing direction, or identify changes for detail design.
+**Approve:** select or revise part architecture, procurement and routes explicitly. No silent substitutions. Record remaining unknowns; approval cannot convert them to PASS.
 
-**Files:** `hw/parts/<PN>/part.yaml` and applicable `model.py`, accepted procurement evidence under `hw/parts/<PN>/sources/`, `hw/versions/vN/`, `hw/checks/vN/`, `hw/renders/vN/`, and `hw/decisions/DR-###.md`.
+**Files:** `hw/parts/<PN>/part.yaml`, model, accepted procurement sources, manufacturing profiles/selection, version and scoped check bundles, renders and decision.
 
 ## L3 DETAIL, drawings, and DETAIL gate
 
-**Type:** `Detail each made part with its fits, fasteners, tolerances, and manufacturing rules. Build and check the integrated version. Pass the F3 form check. Draft and review part and assembly drawings for that version.`
+**Type:** `Complete functional interfaces, datums, worst-case fits/stacks, manufactured versus finished dimensions, operation order, support/finish allowances, tool and fastener access, assembly/closure/service access and inspection. Check every route operation using its own capability evidence. Drawings state required dimensions and tolerances; neither a fit class nor general tolerance proves achieved precision.`
 
-**Review:** detailed geometry, fit decisions, checks, F3 findings, drawing previews, and completeness results. Rejected drawing drafts remain scratch outputs. Accepted drawings are versioned evidence.
+**Review:** design checks and route checks. For every critical feature, show the datum, fit and evidence state. Include the worst-case stack and any assembly/tool access issue. List finishing, inspection obligations and drawing-preview limits. Keep appearance fidelity separate from manufacturability.
 
-**Approve:** at the DETAIL gate, approve the detailed design and drawings or request corrections. Record the decision and drawing evidence.
+**Approve:** approve details and residual evidence obligations at the existing gates; request changes for any mandatory failure or unknown needed for the claimed service.
 
-**Files:** updated `hw/parts/<PN>/` records and models, `hw/versions/vN/`, `hw/checks/vN/`, `hw/renders/vN/`, `hw/drawings/vN/<PN>/` and assembly package as applicable, plus `hw/decisions/DR-###.md`.
+**Files:** updated per-part/interface/assembly intent, route evidence, version/check bundles, drawings, verification and decisions.
 
 ## BOM
 
@@ -128,13 +128,13 @@ FreeCAD 1.1.4 and its TechDraw templates are required. If a check fails, resolve
 
 ## CRITIQUE and RECONCILE
 
-**Type:** `Run independent read-only mechanical and FDM/CNC design-for-manufacture critiques on the integrated candidate. Reconcile each finding as accepted, resolved, or declined with a reason. Rerun checks affected by changes.`
+**Type:** `Run independent, read-only mechanical and DFM premise challenges against the approved use case, requirements, every scoped part/route/buy, interface, assembly, profile and evidence. Reconcile findings as resolved, accepted, or declined with reason and required recheck. Rerun affected evidence after changes.`
 
-**Review:** both critique reports and their evidence, the disposition for every finding, changed records, and rerun checks. Reviewers work in parallel. The lead owns shared record edits.
+**Review:** both reports with subject, severity, measured/derived value and units or UNKNOWN, criterion/source, method/evidence, uncertainty, functional consequence, remedy/alternatives/tradeoffs and recheck; separate untested coverage from findings. Reviewers challenge the premise conditionally; no blanket material/process rules and no silent requirement changes.
 
-**Approve:** confirm dispositions and remaining risks before freezing the design. Resolve blocking findings before release.
+**Approve:** confirm dispositions, changed evidence and residual risks. A disposition is not PASS or physical validation.
 
-**Files:** `hw/decisions/DR-###.md`, updated part/interface/requirement records where needed, rerun version/check/render/analysis bundles, and `hw/verification.csv`.
+**Files:** decisions/dispositions, updated part/interface/requirements as approved, and rerun version/check/render/analysis evidence.
 
 ## DESIGN freeze
 

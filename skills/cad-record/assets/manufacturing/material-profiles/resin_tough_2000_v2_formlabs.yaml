@@ -1,0 +1,384 @@
+profiles:
+- id: resin_tough_2000_v2_formlabs
+  revision: 1
+  title: Tough 2000 Resin V2
+  level: grade
+  family: Vat photopolymer resin / tough
+  grade:
+    status: known
+    value: Tough 2000 Resin V2
+    sources:
+    - kind: datasheet
+      reference: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev. 01,
+        prepared 10/06/2025
+      revision: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev. 01,
+        prepared 10/06/2025
+      url: https://formlabs-media.formlabs.com/datasheets/25011072-TDS-ENUS-0.pdf
+      accessed: '2026-11-02'
+      conditions: 'test_standard: ASTM D638-14; source_condition: Form 4 100 μm; washed
+        in ≥99% IPA; post-cured at 70 °C for 12 min; orientation not stated; statistic:
+        typical; quoted_source_value: Ultimate Tensile Strength | 40.4 MPa | Post-Cured
+        ... ASTM D638-14'
+    basis: supplier_typical
+  manufacturer:
+    status: known
+    value: Formlabs
+    sources:
+    - kind: datasheet
+      reference: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev. 01,
+        prepared 10/06/2025
+      revision: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev. 01,
+        prepared 10/06/2025
+      url: https://formlabs-media.formlabs.com/datasheets/25011072-TDS-ENUS-0.pdf
+      accessed: '2026-11-02'
+      conditions: 'test_standard: ASTM D638-14; source_condition: Form 4 100 μm; washed
+        in ≥99% IPA; post-cured at 70 °C for 12 min; orientation not stated; statistic:
+        typical; quoted_source_value: Ultimate Tensile Strength | 40.4 MPa | Post-Cured
+        ... ASTM D638-14'
+    basis: supplier_typical
+  form: printed
+  process_state:
+    process: resin
+    conditioning: unknown
+    notes: 'Form 4, 100 μm settings. Green parts are washed 10+5 minutes in ≥99% IPA. Post-cured property values are additionally cured at 70 °C for 12 min in Form Cure V2; these are not one undifferentiated condition. Property-specific conditioning is stated per value. Orientation not stated.'
+  typical_not_allowable: true
+  properties:
+  - name: tensile_strength
+    value:
+      status: known
+      value:
+        value: 40.4
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+          01, prepared 10/06/2025
+        revision: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+          01, prepared 10/06/2025
+        url: https://formlabs-media.formlabs.com/datasheets/25011072-TDS-ENUS-0.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ASTM D638-14; source_condition: Form 4 100 μm;
+          washed in ≥99% IPA; post-cured at 70 °C for 12 min; orientation not stated;
+          statistic: typical; quoted_source_value: Ultimate Tensile Strength | 40.4
+          MPa | Post-Cured ... ASTM D638-14'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ASTM D638-14
+        sources:
+        - kind: datasheet
+          reference: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+            01, prepared 10/06/2025
+          revision: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+            01, prepared 10/06/2025
+          url: https://formlabs-media.formlabs.com/datasheets/25011072-TDS-ENUS-0.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D638-14; source_condition: Form 4 100 μm;
+            washed in ≥99% IPA; post-cured at 70 °C for 12 min; orientation not stated;
+            statistic: typical; quoted_source_value: Ultimate Tensile Strength | 40.4
+            MPa | Post-Cured ... ASTM D638-14'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          value: 70.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+            01, prepared 10/06/2025
+          revision: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+            01, prepared 10/06/2025
+          url: https://formlabs-media.formlabs.com/datasheets/25011072-TDS-ENUS-0.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D638-14; source_condition: Form 4 100 μm;
+            washed in ≥99% IPA; post-cured at 70 °C for 12 min; orientation not stated;
+            statistic: typical; quoted_source_value: Ultimate Tensile Strength | 40.4
+            MPa | Post-Cured ... ASTM D638-14'
+        basis: supplier_typical
+      conditioning: conditioned
+      notes: 'Research property tensile_strength_post_cured; source condition: Form
+        4 100 μm; washed in ≥99% IPA; post-cured at 70 °C for 12 min; orientation
+        not stated; reported statistic: typical'
+      orientation:
+        status: unknown
+        reason: Source does not state specimen orientation; it remains unknown.
+  - name: youngs_modulus
+    value:
+      status: known
+      value:
+        value: 1800
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+          01, prepared 10/06/2025
+        revision: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+          01, prepared 10/06/2025
+        url: https://formlabs-media.formlabs.com/datasheets/25011072-TDS-ENUS-0.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ASTM D638-14; source_condition: Form 4 100 μm;
+          washed in ≥99% IPA; post-cured at 70 °C for 12 min; orientation not stated;
+          statistic: typical; quoted_source_value: Tensile Modulus | 1800 MPa | Post-Cured
+          ... ASTM D638-14'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ASTM D638-14
+        sources:
+        - kind: datasheet
+          reference: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+            01, prepared 10/06/2025
+          revision: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+            01, prepared 10/06/2025
+          url: https://formlabs-media.formlabs.com/datasheets/25011072-TDS-ENUS-0.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D638-14; source_condition: Form 4 100 μm;
+            washed in ≥99% IPA; post-cured at 70 °C for 12 min; orientation not stated;
+            statistic: typical; quoted_source_value: Tensile Modulus | 1800 MPa |
+            Post-Cured ... ASTM D638-14'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          value: 70.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+            01, prepared 10/06/2025
+          revision: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+            01, prepared 10/06/2025
+          url: https://formlabs-media.formlabs.com/datasheets/25011072-TDS-ENUS-0.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D638-14; source_condition: Form 4 100 μm;
+            washed in ≥99% IPA; post-cured at 70 °C for 12 min; orientation not stated;
+            statistic: typical; quoted_source_value: Tensile Modulus | 1800 MPa |
+            Post-Cured ... ASTM D638-14'
+        basis: supplier_typical
+      conditioning: conditioned
+      notes: 'Research property tensile_modulus_post_cured; source condition: Form
+        4 100 μm; washed in ≥99% IPA; post-cured at 70 °C for 12 min; orientation
+        not stated; reported statistic: typical'
+      orientation:
+        status: unknown
+        reason: Source does not state specimen orientation; it remains unknown.
+  - name: elongation_at_break
+    value:
+      status: known
+      value:
+        value: 79
+        units: percent
+      sources:
+      - kind: datasheet
+        reference: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+          01, prepared 10/06/2025
+        revision: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+          01, prepared 10/06/2025
+        url: https://formlabs-media.formlabs.com/datasheets/25011072-TDS-ENUS-0.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ASTM D638-14; source_condition: Form 4 100 μm;
+          washed in ≥99% IPA; post-cured at 70 °C for 12 min; orientation not stated;
+          statistic: typical; quoted_source_value: Elongation at Break | 79% | Post-Cured
+          ... ASTM D638-14'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ASTM D638-14
+        sources:
+        - kind: datasheet
+          reference: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+            01, prepared 10/06/2025
+          revision: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+            01, prepared 10/06/2025
+          url: https://formlabs-media.formlabs.com/datasheets/25011072-TDS-ENUS-0.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D638-14; source_condition: Form 4 100 μm;
+            washed in ≥99% IPA; post-cured at 70 °C for 12 min; orientation not stated;
+            statistic: typical; quoted_source_value: Elongation at Break | 79% | Post-Cured
+            ... ASTM D638-14'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          value: 70.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+            01, prepared 10/06/2025
+          revision: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+            01, prepared 10/06/2025
+          url: https://formlabs-media.formlabs.com/datasheets/25011072-TDS-ENUS-0.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D638-14; source_condition: Form 4 100 μm;
+            washed in ≥99% IPA; post-cured at 70 °C for 12 min; orientation not stated;
+            statistic: typical; quoted_source_value: Elongation at Break | 79% | Post-Cured
+            ... ASTM D638-14'
+        basis: supplier_typical
+      conditioning: conditioned
+      notes: 'Research property elongation_at_break_post_cured; source condition:
+        Form 4 100 μm; washed in ≥99% IPA; post-cured at 70 °C for 12 min; orientation
+        not stated; reported statistic: typical'
+      orientation:
+        status: unknown
+        reason: Source does not state specimen orientation; it remains unknown.
+  - name: flexural_strength
+    value:
+      status: known
+      value:
+        value: 67
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+          01, prepared 10/06/2025
+        revision: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+          01, prepared 10/06/2025
+        url: https://formlabs-media.formlabs.com/datasheets/25011072-TDS-ENUS-0.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ASTM D790-17; source_condition: Form 4 100 μm;
+          post-cured; orientation not stated; statistic: typical; quoted_source_value:
+          Flexural Strength | 67 MPa | Post-Cured | ASTM D790-17'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ASTM D790-17
+        sources:
+        - kind: datasheet
+          reference: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+            01, prepared 10/06/2025
+          revision: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+            01, prepared 10/06/2025
+          url: https://formlabs-media.formlabs.com/datasheets/25011072-TDS-ENUS-0.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D790-17; source_condition: Form 4 100 μm;
+            post-cured; orientation not stated; statistic: typical; quoted_source_value:
+            Flexural Strength | 67 MPa | Post-Cured | ASTM D790-17'
+        basis: supplier_typical
+      temperature:
+        status: unknown
+        reason: The source does not state one numeric test temperature; retain the
+          exact test condition in the cited source conditions.
+      conditioning: conditioned
+      notes: 'Research property flexural_strength_post_cured; source condition: Form
+        4 100 μm; post-cured; orientation not stated; reported statistic: typical'
+      orientation:
+        status: unknown
+        reason: Source does not state specimen orientation; it remains unknown.
+  - name: heat_deflection_temperature
+    value:
+      status: known
+      value:
+        value: 70
+        units: deg_C
+      sources:
+      - kind: datasheet
+        reference: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+          01, prepared 10/06/2025
+        revision: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+          01, prepared 10/06/2025
+        url: https://formlabs-media.formlabs.com/datasheets/25011072-TDS-ENUS-0.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ASTM D648-16; source_condition: post-cured; 0.45
+          MPa; statistic: typical; quoted_source_value: Heat Deflection Temp. @ 0.45
+          MPa | 70 °C | Post-Cured | ASTM D648-16'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ASTM D648-16
+        sources:
+        - kind: datasheet
+          reference: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+            01, prepared 10/06/2025
+          revision: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+            01, prepared 10/06/2025
+          url: https://formlabs-media.formlabs.com/datasheets/25011072-TDS-ENUS-0.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM D648-16; source_condition: post-cured;
+            0.45 MPa; statistic: typical; quoted_source_value: Heat Deflection Temp.
+            @ 0.45 MPa | 70 °C | Post-Cured | ASTM D648-16'
+        basis: supplier_typical
+      temperature:
+        status: unknown
+        reason: The source does not state one numeric test temperature; retain the
+          exact test condition in the cited source conditions.
+      conditioning: conditioned
+      notes: 'Research property heat_deflection_temperature_post_cured_0_45_mpa; source
+        condition: post-cured; 0.45 MPa; reported statistic: typical'
+      orientation:
+        status: unknown
+        reason: Source does not state specimen orientation; it remains unknown.
+  - name: thermal_expansion
+    value:
+      status: known
+      value:
+        value: 134.2
+        units: um_m_K
+      sources:
+      - kind: datasheet
+        reference: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+          01, prepared 10/06/2025
+        revision: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+          01, prepared 10/06/2025
+        url: https://formlabs-media.formlabs.com/datasheets/25011072-TDS-ENUS-0.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ASTM E831-19; source_condition: 0–150 °C; post-cured;
+          statistic: typical; quoted_source_value: Thermal Expansion (0-150 °C) |
+          134.2 µm/m/°C | Post-Cured | ASTM E 831-19'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ASTM E831-19
+        sources:
+        - kind: datasheet
+          reference: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+            01, prepared 10/06/2025
+          revision: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+            01, prepared 10/06/2025
+          url: https://formlabs-media.formlabs.com/datasheets/25011072-TDS-ENUS-0.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM E831-19; source_condition: 0–150 °C; post-cured;
+            statistic: typical; quoted_source_value: Thermal Expansion (0-150 °C)
+            | 134.2 µm/m/°C | Post-Cured | ASTM E 831-19'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          lower: 0.0
+          upper: 150.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+            01, prepared 10/06/2025
+          revision: Formlabs Tough 2000 Resin V2 Engineering Resin Data Sheet, Rev.
+            01, prepared 10/06/2025
+          url: https://formlabs-media.formlabs.com/datasheets/25011072-TDS-ENUS-0.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ASTM E831-19; source_condition: 0–150 °C; post-cured;
+            statistic: typical; quoted_source_value: Thermal Expansion (0-150 °C)
+            | 134.2 µm/m/°C | Post-Cured | ASTM E 831-19'
+        basis: supplier_typical
+      conditioning: conditioned
+      notes: 'Research property thermal_expansion_post_cured; source condition: 0–150
+        °C; post-cured; reported statistic: typical'
+      orientation:
+        status: unknown
+        reason: Source does not state specimen orientation; it remains unknown.
+  note: Every numeric research property represented as sourced typed data. Profile-specific
+    unknowns and source cautions are explicit in guidance.
+  guidance:
+  - 'Unknown (not established by the cited research; not zero or absent): yield strength'
+  - 'Unknown (not established by the cited research; not zero or absent): density
+    of printed material'
+  - 'Unknown (not established by the cited research; not zero or absent): moisture
+    absorption'
+  - 'Unknown (not established by the cited research; not zero or absent): glass transition
+    temperature'

@@ -2,10 +2,74 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://srobroek.com/cad/schemas/requirements.schema.json",
   "title": "CAD requirements record",
+  "description": "Requirements, preferences, assumptions and open questions, kept apart: a mandatory requirement is never downgraded into a preference or an assumption to pass, and an unknown with a filled-in reason is still unknown. Record version 2 carries all four lists; preferences, assumptions and open_questions may be empty.",
   "type": "object",
   "additionalProperties": false,
   "required": ["requirements"],
   "properties": {
+    "preferences": {
+      "description": "What ranks feasible options; a preference never compensates a mandatory failure",
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["id", "text", "source", "weight"],
+        "properties": {
+          "id": {"$ref": "manufacturing.schema.json#/$defs/preference_id"},
+          "text": {"$ref": "manufacturing.schema.json#/$defs/text"},
+          "source": {"$ref": "manufacturing.schema.json#/$defs/source"},
+          "weight": {"type": "number", "exclusiveMinimum": 0},
+          "criterion": {"$ref": "manufacturing.schema.json#/$defs/criterion"},
+          "subjects": {"type": "array", "minItems": 1, "items": {"$ref": "manufacturing.schema.json#/$defs/subject"}}
+        }
+      }
+    },
+    "assumptions": {
+      "description": "Bounded statements taken as true for now, each with its owner and the obligation that would validate it",
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["id", "text", "origin", "reason", "owner", "validation", "status"],
+        "properties": {
+          "id": {"$ref": "manufacturing.schema.json#/$defs/assumption_id"},
+          "text": {"$ref": "manufacturing.schema.json#/$defs/text"},
+          "origin": {"$ref": "manufacturing.schema.json#/$defs/text"},
+          "reason": {"$ref": "manufacturing.schema.json#/$defs/text"},
+          "bounds": {"oneOf": [{"$ref": "manufacturing.schema.json#/$defs/quantity"}, {"$ref": "manufacturing.schema.json#/$defs/text"}]},
+          "requirements": {"$ref": "manufacturing.schema.json#/$defs/requirement_ids"},
+          "owner": {"$ref": "manufacturing.schema.json#/$defs/text"},
+          "validation": {"description": "the check, test or answer that would confirm or refute it", "$ref": "manufacturing.schema.json#/$defs/text"},
+          "status": {"enum": ["open", "validated", "invalidated"]},
+          "decision": {"$ref": "manufacturing.schema.json#/$defs/decision"}
+        },
+        "if": {"properties": {"status": {"enum": ["validated", "invalidated"]}}}, "then": {"required": ["decision"]}
+      }
+    },
+    "open_questions": {
+      "description": "Questions still to answer; material_to_choice or safety_relevant open questions block a final material/process recommendation",
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "question", "owner", "material_to_choice", "safety_relevant", "status"],
+        "properties": {
+          "id": {"$ref": "manufacturing.schema.json#/$defs/question_id"},
+          "question": {"$ref": "manufacturing.schema.json#/$defs/text"},
+          "subjects": {"type": "array", "minItems": 1, "items": {"$ref": "manufacturing.schema.json#/$defs/subject"}},
+          "owner": {"$ref": "manufacturing.schema.json#/$defs/text"},
+          "material_to_choice": {"type": "boolean"},
+          "safety_relevant": {"type": "boolean"},
+          "status": {"enum": ["open", "resolved"]},
+          "resolution": {
+            "type": "object", "additionalProperties": false, "required": ["answer"],
+            "anyOf": [{"required": ["source"]}, {"required": ["decision"]}],
+            "properties": {
+              "answer": {"$ref": "manufacturing.schema.json#/$defs/text"},
+              "source": {"$ref": "manufacturing.schema.json#/$defs/source"},
+              "decision": {"$ref": "manufacturing.schema.json#/$defs/decision"}
+            }
+          }
+        },
+        "if": {"properties": {"status": {"const": "resolved"}}}, "then": {"required": ["resolution"]},
+        "else": {"not": {"required": ["resolution"]}}
+      }
+    },
     "requirements": {
       "type": "array", "minItems": 1,
       "items": {
@@ -25,6 +89,24 @@
               "criteria": {"type": "string", "minLength": 1}
             }
           },
+          "subjects": {"type": "array", "minItems": 1, "items": {"$ref": "manufacturing.schema.json#/$defs/subject"}},
+          "acceptance": {
+            "description": "Structured acceptance criteria; the prose criteria stay, and a final selection evaluates these, never an automatic reading of prose",
+            "type": "array", "minItems": 1, "items": {"$ref": "manufacturing.schema.json#/$defs/criterion"}
+          },
+          "conditions": {"description": "the service conditions the requirement holds under", "$ref": "manufacturing.schema.json#/$defs/text"},
+          "risk": {
+            "type": "object", "additionalProperties": false, "required": ["severity", "consequence"],
+            "properties": {
+              "severity": {"$ref": "manufacturing.schema.json#/$defs/consequence_severity"},
+              "consequence": {"$ref": "manufacturing.schema.json#/$defs/text"}
+            }
+          },
+          "evidence_required": {
+            "description": "The evidence levels a pass needs",
+            "type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "manufacturing.schema.json#/$defs/evidence_level"}
+          },
+          "waiver_policy": {"enum": ["forbidden", "approval_required"]},
           "visibility": {
             "description": "Show-the-motion checks: from view, rendering only the window and target parts at the nominal pose, each target's own visible share of its projected area must reach min_visible_fraction (default 0.5); the check fails when any target falls short. Only transparency: transparent window parts are see-through",
             "type": "array", "minItems": 1,

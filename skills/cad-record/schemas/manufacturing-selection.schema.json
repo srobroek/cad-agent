@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://srobroek.com/cad/schemas/manufacturing-selection.schema.json",
+  "title": "CAD material, process and architecture selection (hw/manufacturing/selection.yaml)",
+  "description": "Whole candidate routes compared together: architecture, per-part material profile and complete route with capabilities, an evaluation of every mandatory requirement, the changes each introduces, cost and lead time at quantity, maintenance, evidence confidence, pros, cons and tradeoffs. A mandatory fail eliminates a candidate and an unknown keeps it conditional; preferences rank only feasible candidates. A final recommendation needs the confirming decision; the selection never writes product records",
+  "type": "object", "additionalProperties": false, "required": ["status", "candidates"],
+  "properties": {
+    "status": {"enum": ["not_assessed", "assessed", "confirmed"]},
+    "assessment": {
+      "type": "object", "additionalProperties": false, "required": ["input_sha256", "method", "date"],
+      "properties": {
+        "input_sha256": {"description": "selection.py input_digest of the record inputs the assessment read (its DIGEST_SCOPE); a different current digest makes the assessment stale", "$ref": "manufacturing.schema.json#/$defs/sha256"},
+        "method": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "date": {"$ref": "manufacturing.schema.json#/$defs/date"},
+        "decision": {"$ref": "manufacturing.schema.json#/$defs/decision"}
+      }
+    },
+    "candidates": {"type": "array", "items": {"$ref": "#/$defs/candidate"}},
+    "recommendation": {"$ref": "#/$defs/recommendation"}
+  },
+  "allOf": [
+    {"if": {"properties": {"status": {"const": "not_assessed"}}},
+     "then": {"properties": {"candidates": {"maxItems": 0}}, "not": {"anyOf": [{"required": ["assessment"]}, {"required": ["recommendation"]}]}}},
+    {"if": {"properties": {"status": {"enum": ["assessed", "confirmed"]}}}, "then": {"required": ["assessment"], "properties": {"candidates": {"minItems": 1}}}},
+    {"if": {"properties": {"status": {"const": "confirmed"}}},
+     "then": {"required": ["recommendation"], "properties": {"assessment": {"required": ["decision"]}, "recommendation": {"properties": {"status": {"const": "final"}}}}}}
+  ],
+  "$defs": {
+    "candidate": {
+      "type": "object", "additionalProperties": false, "required": ["id", "title", "architecture", "parts", "evaluations", "pros", "cons", "tradeoffs"],
+      "properties": {
+        "id": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "title": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "architecture": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "parts": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/candidate_part"}},
+        "interfaces": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "manufacturing.schema.json#/$defs/interface_id"}},
+        "evaluations": {"type": "array", "items": {
+          "type": "object", "additionalProperties": false, "required": ["requirement", "outcome", "method"],
+          "properties": {
+            "requirement": {"$ref": "manufacturing.schema.json#/$defs/requirement_id"},
+            "outcome": {"$ref": "manufacturing.schema.json#/$defs/outcome"},
+            "method": {"$ref": "manufacturing.schema.json#/$defs/text"},
+            "criterion": {"$ref": "manufacturing.schema.json#/$defs/criterion"},
+            "value": {"oneOf": [{"$ref": "manufacturing.schema.json#/$defs/quantity"}, {"$ref": "manufacturing.schema.json#/$defs/text"}]},
+            "uncertainty": {"$ref": "manufacturing.schema.json#/$defs/text"},
+            "source": {"$ref": "manufacturing.schema.json#/$defs/source"},
+            "note": {"$ref": "manufacturing.schema.json#/$defs/text"}
+          },
+          "if": {"properties": {"outcome": {"enum": ["pass", "fail"]}}}, "then": {"required": ["criterion", "source"]}
+        }},
+        "changes": {
+          "type": "object", "additionalProperties": false, "minProperties": 1,
+          "properties": {
+            "design": {"$ref": "manufacturing.schema.json#/$defs/texts"},
+            "equipment": {"$ref": "manufacturing.schema.json#/$defs/texts"},
+            "finishing": {"$ref": "manufacturing.schema.json#/$defs/texts"},
+            "inspection": {"$ref": "manufacturing.schema.json#/$defs/texts"},
+            "interfaces": {"$ref": "manufacturing.schema.json#/$defs/texts"},
+            "assembly": {"$ref": "manufacturing.schema.json#/$defs/texts"}
+          }
+        },
+        "quantity": {"description": "the quantity cost and lead time are stated at", "$ref": "manufacturing.schema.json#/$defs/quantity_fact"},
+        "cost": {"$ref": "manufacturing.schema.json#/$defs/money_fact"},
+        "lead_time": {"$ref": "manufacturing.schema.json#/$defs/quantity_fact"},
+        "maintenance": {"$ref": "manufacturing.schema.json#/$defs/text_fact"},
+        "evidence_confidence": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "obligations": {"description": "validation still outstanding", "$ref": "manufacturing.schema.json#/$defs/texts"},
+        "pros": {"$ref": "manufacturing.schema.json#/$defs/texts"},
+        "cons": {"$ref": "manufacturing.schema.json#/$defs/texts"},
+        "tradeoffs": {"$ref": "manufacturing.schema.json#/$defs/texts"},
+        "preference_scores": {"type": "array", "minItems": 1, "items": {
+          "type": "object", "additionalProperties": false, "required": ["preference", "score"],
+          "properties": {
+            "preference": {"$ref": "manufacturing.schema.json#/$defs/preference_id"},
+            "score": {"type": "number"},
+            "note": {"$ref": "manufacturing.schema.json#/$defs/text"}
+          }}}
+      }
+    },
+    "candidate_part": {
+      "description": "One part of a candidate: a declared part (hw/parts/<PN>/part.yaml) or, with `proposed`, a part the candidate introduces that the record does not hold yet",
+      "type": "object", "additionalProperties": false, "required": ["PN", "material_profile", "route"],
+      "properties": {
+        "PN": {"$ref": "manufacturing.schema.json#/$defs/pn"},
+        "material_profile": {"oneOf": [{"$ref": "manufacturing.schema.json#/$defs/profile_id"}, {"$ref": "manufacturing.schema.json#/$defs/fact_open"}]},
+        "route": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/step"}},
+        "proposed": {"$ref": "#/$defs/proposed_part"},
+        "note": {"$ref": "manufacturing.schema.json#/$defs/text"}
+      },
+      "allOf": [
+        {"if": {"required": ["proposed"], "properties": {"proposed": {"properties": {"sourcing": {"const": "catalogue"}}}}},
+         "then": {"properties": {"route": {"items": {"properties": {"kind": {"enum": ["purchased", "inspection"]}}},
+                                           "contains": {"required": ["purchase"], "properties": {"kind": {"const": "purchased"}}}}}}},
+        {"if": {"required": ["proposed"], "properties": {"proposed": {"properties": {"sourcing": {"enum": ["make", "made_to_drawing"]}}}}},
+         "then": {"properties": {"route": {"items": {"properties": {"kind": {"not": {"const": "purchased"}}}}}}}}
+      ]
+    },
+    "step": {
+      "description": "One route step of a candidate part. A purchased step may carry the purchase criteria of the bought item, so a purchased alternative to a made part can be assessed before any part record holds them",
+      "type": "object", "additionalProperties": false, "required": ["kind", "capability"],
+      "properties": {
+        "kind": {"$ref": "manufacturing.schema.json#/$defs/route_kind"},
+        "capability": {"oneOf": [{"$ref": "manufacturing.schema.json#/$defs/profile_id"}, {"$ref": "manufacturing.schema.json#/$defs/fact_open"}]},
+        "provider": {"enum": ["local", "outsourced"]},
+        "purchase": {"$ref": "part.schema.json#/$defs/purchase"}
+      },
+      "if": {"required": ["purchase"]}, "then": {"properties": {"kind": {"const": "purchased"}}}
+    },
+    "proposed_part": {
+      "description": "Marks a candidate part as proposed: a new purchased or made part the candidate's architecture introduces. Its PN must not be declared under hw/parts; it is never an existing record, gets no check obligations, and becomes a part only when the approved change creates its part.yaml. A catalogue proposal is bought (its route is the purchase, whose criteria identify the item); a made or made-to-drawing proposal lists the operations that make it",
+      "type": "object", "additionalProperties": false, "required": ["title", "sourcing", "reason"],
+      "properties": {
+        "title": {"$ref": "manufacturing.schema.json#/$defs/text"},
+        "sourcing": {"description": "make, made_to_drawing (bought to this drawing) or catalogue (bought as listed)", "enum": ["make", "made_to_drawing", "catalogue"]},
+        "reason": {"description": "why the candidate needs the new part", "$ref": "manufacturing.schema.json#/$defs/text"},
+        "functions": {"description": "what the new part does, so function-driven constraints (optical, structural) apply to it", "type": "array", "minItems": 1,
+                      "items": {"$ref": "manufacturing.schema.json#/$defs/function_entry"}},
+        "transparency": {"$ref": "part.schema.json#/properties/transparency"}
+      }
+    },
+    "recommendation": {
+      "type": "object", "additionalProperties": false, "required": ["status", "primary", "reasons", "limits", "what_would_change"],
+      "properties": {
+        "status": {"description": "conditional while material-to-choice or safety inputs are missing", "enum": ["conditional", "final"]},
+        "primary": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "prototype": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "end_use": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "fallback": {"$ref": "manufacturing.schema.json#/$defs/semantic_id"},
+        "governing_requirements": {"$ref": "manufacturing.schema.json#/$defs/requirement_ids"},
+        "reasons": {"$ref": "manufacturing.schema.json#/$defs/texts"},
+        "limits": {"$ref": "manufacturing.schema.json#/$defs/texts"},
+        "prototype_validates": {"description": "what the prototype route can and cannot validate", "$ref": "manufacturing.schema.json#/$defs/texts"},
+        "what_would_change": {"$ref": "manufacturing.schema.json#/$defs/texts"},
+        "proposed_changes": {"$ref": "manufacturing.schema.json#/$defs/texts"}
+      }
+    }
+  }
+}

@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextlib
 import csv
 import hashlib
+import importlib.util
 import itertools
 import json
 import math
@@ -519,7 +520,8 @@ class KernelChecks:
         self.assertEqual((section["status"], section["complete"], section["blocking_failures"]), ("pass", True, []))
         rows = section["parts"][STRAP]["checks"]
         self.assertEqual({name: row["status"] for name, row in rows.items()},
-                         dict.fromkeys(("outputs", "record", "native", "identity", "step", "mesh", "placement"), "pass"))
+                         dict.fromkeys(("outputs", "record", "native", "identity", "step", "mesh", "placement",
+                                        "components"), "pass"))
         self.assertEqual((rows["step"]["units"], rows["step"]["product"], rows["step"]["solids"]), (["mm"], f"{STRAP} Strap", 1))
         self.assertLessEqual(rows["step"]["rel_error"], 1e-6)
         self.assertAlmostEqual(rows["identity"]["allowed_mm3"], STRAP_V * 1e-6, places=10)
@@ -1303,6 +1305,39 @@ def fdm_record(tmp: str, build_volume: str) -> Path:
 
 class CheckRuleTests(unittest.TestCase):
     """check's verdicts on given measurements; needs no OCP."""
+    @staticmethod
+    def readback_checks(*, valid: bool = True, ok: bool = True, integrity: str = "pass", made: dict | None = None) -> dict:
+        row = {"checks": {"native": {"status": "pass"}, "identity": {"status": "pass"}, "step": {"status": "pass"},
+                          "components": {"components": {"left": {"checks": {"binding": {"status": "pass"}}},
+                                                        "right": {"checks": {"binding": {"status": "fail"}}}}}}}
+        return {"brep_validity": {"parts": {"TST-0001": {"valid": valid, "kernel_errors": [], "step_errors": [] if valid else ["BRepCheck_NotClosed"]}}},
+                "step_readback": {"parts": {"TST-0001": {"ok": ok}}}, "artifact_integrity": {"status": integrity},
+                "manufacturing": {"parts": {"TST-0001": row} if made is None else made}}
+
+    def test_readback_outcomes_judge_each_component_on_validity_readback_state_and_binding(self) -> None:
+        """cad.readback is the cad-model check producer: an invalid B-rep or read-back fails, a component that
+        does not bind fails alone, a part without a manufacturing output stays unknown, never passed."""
+        def obligation(component: str | None) -> mock.Mock:
+            subject = {"PN": "TST-0001", **({"component": component} if component else {})}
+            return mock.Mock(id="cad.readback@TST-0001" + (f".{component}" if component else ""), subject=subject,
+                             level="cad_valid")
+
+        def outcomes(checks: dict, *components: str | None) -> dict:
+            return {row["obligation"]: row["outcome"] for row in check.readback_outcomes([obligation(c) for c in components], checks)}
+
+        self.assertEqual(outcomes(self.readback_checks(), "left", "right"),
+                         {"cad.readback@TST-0001.left": "pass", "cad.readback@TST-0001.right": "fail"})
+        self.assertEqual(outcomes(self.readback_checks(), None), {"cad.readback@TST-0001": "fail"})
+        self.assertEqual(outcomes(self.readback_checks(valid=False), "left"), {"cad.readback@TST-0001.left": "fail"})
+        self.assertEqual(outcomes(self.readback_checks(ok=False), "left"), {"cad.readback@TST-0001.left": "fail"})
+        self.assertEqual(outcomes(self.readback_checks(integrity="fail"), "left"), {"cad.readback@TST-0001.left": "fail"})
+        [row] = check.readback_outcomes([obligation(None)], self.readback_checks(made={}))
+        self.assertEqual(row["outcome"], "unknown")
+        self.assertIn("no manufacturing output", row["uncertainty"])
+        legacy = self.readback_checks()
+        legacy["manufacturing"]["parts"]["TST-0001"]["checks"]["identity"]["status"] = "warn"
+        self.assertEqual(outcomes(legacy, "left"), {"cad.readback@TST-0001.left": "unknown"})
+
     def test_build_volume_accepts_axis_permutation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             hw = fdm_record(tmp, "build_volume: {x_mm: 35, y_mm: 10, z_mm: 5, margin_mm: 0}\n")
@@ -1335,16 +1370,36 @@ class CheckRuleTests(unittest.TestCase):
         self.assertEqual(row["axes"][2], [0.0, 0.0, 1.0])
         self.assertAlmostEqual(row["determinant"], 1.0, places=12)
 
-    def test_build_volume_fails_if_aabb_and_oriented_box_do_not_fit(self) -> None:
+    def test_build_volume_warns_without_blocking_if_aabb_and_oriented_box_do_not_fit(self) -> None:
+        """An envelope fit is a diagnostic, never process feasibility: an oversized part warns, never blocks."""
         with tempfile.TemporaryDirectory() as tmp:
             hw = fdm_record(tmp, "build_volume: {x_mm: 256, y_mm: 256, z_mm: 256, margin_mm: 5}\n")
             with BoxPart((300.0, 20.0, 20.0)).measured():
                 result = check.build_volume(hw, {"TST-0001": mock.Mock(shape=mock.Mock())})
-        self.assertEqual((result["status"], result["blocking_failures"]), ("fail", ["TST-0001"]))
-        message = result["parts"]["TST-0001"]["message"]
-        self.assertIn("TST-0001", message)
-        self.assertIn("(300.0, 20.0, 20.0)", message)
-        self.assertIn("oriented box", message)
+        self.assertEqual((result["status"], result["blocking"], result["blocking_failures"], result["warned"]),
+                         ("warn", False, [], ["TST-0001"]))
+        self.assertIn("never process feasibility", result["note"])
+        row = result["parts"]["TST-0001"]
+        self.assertEqual((row["status"], row["approved"], row["pose"]), ("warn", False, "auto_fit_proposal"))
+        self.assertIn("TST-0001", row["message"])
+        self.assertIn("(300.0, 20.0, 20.0)", row["message"])
+        self.assertIn("oriented box", row["message"])
+
+    def test_build_volume_measures_the_approved_pose_and_tries_no_other(self) -> None:
+        envelope = orientation.BuildVolume((50.0, 50.0, 20.0), 0.0, orientation.ORIENTATIONS, "capability tst envelope")
+        for size, status in (((40.0, 30.0, 10.0), "pass"), ((40.0, 30.0, 30.0), "warn")):
+            with self.subTest(size=size), tempfile.TemporaryDirectory() as tmp:
+                hw = fdm_record(tmp, "id: test\n")
+                placement = {"approved": True, "pose": "approved", "operation": "print",
+                             "build_volume": envelope.describe()}
+                low, high = (0.0, 0.0, 0.0), size
+                with mock.patch.object(occ, "bbox", return_value=(low, high)), \
+                     mock.patch.object(orientation, "fit", side_effect=AssertionError("an approved pose is not searched")):
+                    result = check.build_volume(hw, {"TST-0001": mock.Mock(shape=mock.Mock())},
+                                                {"TST-0001": {"placement": placement}})
+                row = result["parts"]["TST-0001"]
+                self.assertEqual((result["blocking"], row["status"], row["approved"], row["envelope_source"]),
+                                 (False, status, True, "capability tst envelope"))
 
     def test_build_volume_warns_when_not_declared(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1602,6 +1657,15 @@ class OrientationRuleTests(unittest.TestCase):
             orientation.BuildVolume.declared({"build_volume": {"x_mm": "wide", "y_mm": 1, "z_mm": 1}})
 
 
+def snapshot_of(records: dict, product: dict | None = None):
+    """The record snapshot of `records` (PN -> part.yaml document) and `product`, as `run` reads one."""
+    import yaml
+
+    files = {f"parts/{pn}/part.yaml": yaml.safe_dump(data).encode() for pn, data in records.items()}
+    files["product.yaml"] = yaml.safe_dump(product or {"id": "test"}).encode()
+    return build.record.read_snapshot(files)
+
+
 class ManufactureRuleTests(unittest.TestCase):
     """Which parts get manufacturing outputs and which declarations are refused; needs no OCP."""
 
@@ -1615,8 +1679,8 @@ class ManufactureRuleTests(unittest.TestCase):
                    "TST-0002": self.part("TST-0002", make_buy="buy", process="cnc",
                                          procurement={"mode": "made_to_drawing"}),
                    "TST-0003": self.part("TST-0003", make_buy="buy", process="purchased", procurement={"mode": "catalog"})}
-        plans, refused = manufacture.plan(records)
-        self.assertEqual((sorted(plans), refused), (["TST-0001", "TST-0002"], []))
+        plans, refused, uncovered = manufacture.plan(snapshot_of(records))
+        self.assertEqual((sorted(plans), refused, uncovered), (["TST-0001", "TST-0002"], [], {}))
         self.assertEqual(plans["TST-0001"].policy.outputs, ("part.step", "part.stl", "manufacturing.json"))
         self.assertEqual(plans["TST-0002"].policy.outputs, ("part.step", "manufacturing.json"))
         self.assertEqual((plans["TST-0001"].policy.relationship, plans["TST-0001"].policy.volume_tolerance_mm3(1000.0)),
@@ -1628,7 +1692,7 @@ class ManufactureRuleTests(unittest.TestCase):
                    "TST-0002": self.part("TST-0002", manufacture={**state, "decision": None, "volume_rel_tolerance": 1e-6}),
                    "TST-0003": self.part("TST-0003", manufacture={**state, "volume_rel_tolerance": 0.0}),
                    "TST-0004": self.part("TST-0004", manufacture={**state, "volume_abs_tolerance_mm3": 0.5})}
-        plans, refused = manufacture.plan(records)
+        plans, refused, _ = manufacture.plan(snapshot_of(records))
         self.assertEqual(sorted(plans), ["TST-0004"])
         reasons = dict(refused)
         self.assertIn("without a volume tolerance", reasons["TST-0001"])
@@ -1654,6 +1718,290 @@ class ManufactureRuleTests(unittest.TestCase):
         latest = build.latest_pointer("v3", manifest)
         self.assertEqual(latest["manufacturing"], {"TST-0001": "versions/v3/manufacturing/TST-0001"})
         self.assertEqual(latest["parts"], {"TST-0001": "versions/v3/parts/TST-0001.step"})
+
+
+def projects():
+    """fixtures/manufacturing_projects.py: record version 2 projects written with cad-record's fixture builder."""
+    name = "cad_model_manufacturing_projects"
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, FIXTURES / "manufacturing_projects.py")
+        sys.modules[name] = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sys.modules[name])
+    return sys.modules[name]
+
+
+HALF = math.sqrt(0.5)
+TURNED = {"status": "approved", "rotation": {"quaternion": [HALF, HALF, 0, 0]}, "decision": "DR-001"}  # +90 deg about X
+TURNED_ROWS = ((1.0, 0.0, 0.0), (0.0, 0.0, -1.0), (0.0, 1.0, 0.0))
+
+
+class ManufacturingIntentRuleTests(unittest.TestCase):
+    """Record version 2 snapshots, manufacturing plans and their keys, export poses and profile mass on
+    synthetic TST records; needs PyYAML, no OCP."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.hw = Path(self.tmp.name) / "hw"
+
+    def write(self, documents: dict) -> Any:
+        """Write `documents` as the loose project and return its snapshot as `run` reads it."""
+        mp = projects()
+        shutil.rmtree(self.hw, ignore_errors=True)
+        mp.shared().write_record(self.hw, documents)
+        mp.set_model(self.hw, "cadquery", [])
+        return build.record.read_snapshot(build.record.snapshot(self.hw, [mp.PN]))
+
+    def plan(self, **record: Any) -> tuple[Any, dict, list, dict]:
+        snapshot = self.write(projects().documents(**record))
+        return (snapshot, *manufacture.plan(snapshot))
+
+    def test_a_version_snapshots_requirements_design_records_and_source_bytes_but_no_ledger(self) -> None:
+        mp = projects()
+        mp.loose_project(self.hw, "cadquery", [])
+        for ledger in ("findings.yaml", "evidence.yaml"):
+            (self.hw / "manufacturing" / ledger).write_text("entries: []\n", encoding="utf-8")
+        files = build.record.snapshot(self.hw, [mp.PN])
+        self.assertEqual(sorted(files), ["assembly.yaml", "interfaces.yaml", "manufacturing/capabilities.yaml",
+                                         "manufacturing/materials.yaml", "manufacturing/selection.yaml", mp.SOURCE,
+                                         f"parts/{mp.PN}/part.yaml", "product.yaml", "requirements.yaml"])
+        self.assertEqual(files[mp.SOURCE], mp.SOURCE_BYTES)
+        self.assertEqual(build.record.read_snapshot(files).version, 2)
+
+    def test_the_outputs_key_covers_material_capability_route_orientation_and_source_inputs(self) -> None:
+        mp = projects()
+        base = self.plan()[1][mp.PN].intent["inputs_sha256"]
+        variants = {"density": {"density": 1.3}, "no density": {"with_density": False}, "orientation": {"orientation": TURNED},
+                    "process and route": {"process": "cnc"}, "components": {"parts_of": mp.components()}}
+        seen = {base}
+        for name, record in variants.items():
+            with self.subTest(change=name):
+                inputs = self.plan(**record)[1][mp.PN].intent["inputs_sha256"]
+                self.assertNotIn(inputs, seen)
+                seen.add(inputs)
+        documents = mp.documents()
+        documents["manufacturing/capabilities.yaml"]["profiles"][0]["envelope"]["z"] = \
+            mp.shared().known(mp.shared().quantity(60.0, "mm"), "measured", [mp.shared().source("calibration")])
+        self.assertNotIn(manufacture.plan(self.write(documents))[0][mp.PN].intent["inputs_sha256"], seen)
+        documents = mp.documents()
+        documents["_sources"] = {mp.SOURCE: b"%PDF-1.4 a different datasheet revision\n"}
+        self.assertNotIn(manufacture.plan(self.write(documents))[0][mp.PN].intent["inputs_sha256"], seen)
+        self.plan()
+        for ledger in ("findings.yaml", "evidence.yaml"):  # post-check ledgers never enter a version's inputs
+            (self.hw / "manufacturing" / ledger).write_text("entries: [{id: EV-001}]\n", encoding="utf-8")
+        snapshot = build.record.read_snapshot(build.record.snapshot(self.hw, [mp.PN]))
+        self.assertEqual(manufacture.plan(snapshot)[0][mp.PN].intent["inputs_sha256"], base)
+
+    def test_an_approved_orientation_is_the_export_pose_and_nothing_else_is_approved(self) -> None:
+        mp = projects()
+        _, plans, refused, _ = self.plan(orientation=TURNED)
+        self.assertEqual(refused, [])
+        chosen, volume = manufacture.pose(plans[mp.PN], None, None)
+        self.assertEqual((chosen.status, chosen.approved, chosen.operation, chosen.decision),
+                         ("approved", True, "print", "DR-001"))
+        for got, want in zip(chosen.rotation, TURNED_ROWS):
+            assert_vectors(self, list(got), list(want), places=12)
+        self.assertEqual((volume.size_mm, volume.source), (mp.ENVELOPE_MM, "capability tst_printer envelope"))
+        cases = {"proposed": ({"orientation": {"status": "proposed", "rotation": {"axis": [0, 0, 1], "angle_deg": 90}}},
+                              None, "proposed"),
+                 "unknown": ({"orientation": mp.shared().unknown("orientation not decided")}, None, "unknown"),
+                 "unplanned": ({"parts_of": mp.components(), "print_components": ["body"]}, "tab", "unknown")}
+        for name, (record, component, status) in cases.items():
+            with self.subTest(case=name):
+                chosen, _ = manufacture.pose(self.plan(**record)[1][mp.PN], component, None)
+                self.assertEqual((chosen.status, chosen.approved), (status, False))
+        self.assertIn("no additive operation", manufacture.pose(
+            self.plan(parts_of=mp.components(), print_components=["body"])[1][mp.PN], "tab", None)[0].reason)
+        chosen, volume = manufacture.pose(self.plan(process="cnc")[1][mp.PN], None, None)
+        self.assertEqual((chosen.status, chosen.rotation, volume), ("model_frame", orientation.IDENTITY, None))
+
+    def test_a_multiprocess_route_plans_its_cut_state_with_no_print_output(self) -> None:
+        """Plan section 11 row 12, model part: laser, ream, coat and inspect plan one model-frame part.step;
+        no operation is additive, so nothing is meshed, oriented or set in an envelope."""
+        mp = projects()
+        _, plans, refused, uncovered = self.plan(process="laser")
+        self.assertEqual((refused, uncovered), ([], {}))
+        plan = plans[mp.PN]
+        self.assertEqual((plan.additive, plan.policy.outputs, plan.envelopes), (False, ("part.step", "manufacturing.json"), {}))
+        self.assertEqual([(op["id"], op["kind"], op["known_kind"]) for op in plan.intent["route"]],
+                         [(ident, kind, True) for ident, kind in mp.MULTIPROCESS_ROUTE])
+        chosen, volume = manufacture.pose(plan, None, None)
+        self.assertEqual((chosen.status, chosen.rotation, volume), ("model_frame", orientation.IDENTITY, None))
+
+    def test_a_rotation_that_is_not_proper_is_refused_before_any_kernel_runs(self) -> None:
+        for got in (orientation.rotation_of({"quaternion": [HALF, HALF, 0, 0]}),
+                    orientation.rotation_of({"axis": [2, 0, 0], "angle_deg": 90})):
+            for row, want in zip(got, TURNED_ROWS):
+                assert_vectors(self, list(row), list(want), places=12)
+        for bad in ({"quaternion": [1, 1, 0, 0]}, {"quaternion": [1, 0, 0]}, {"axis": [0, 0, 0], "angle_deg": 5}, {}):
+            with self.subTest(rotation=bad), self.assertRaises(ValueError):
+                orientation.rotation_of(bad)
+        _, plans, refused, _ = self.plan(orientation={**TURNED, "rotation": {"quaternion": [1, 1, 0, 0]}})
+        self.assertEqual(plans, {})
+        self.assertIn("print orientation: orientation quaternion norm", dict(refused)[projects().PN])
+
+    def test_a_record_version_1_part_keeps_its_auto_fit_labelled_unapproved(self) -> None:
+        part = ManufactureRuleTests.part("TST-0001")
+        snapshot = snapshot_of({"TST-0001": part}, {"id": "t", "build_volume": {"x_mm": 35, "y_mm": 10, "z_mm": 5}})
+        plans, _, _ = manufacture.plan(snapshot)
+        self.assertEqual(plans["TST-0001"].intent, {"record_version": 1, "status": "unknown",
+                                                   "reason": build.record.load_intent().LEGACY_REASON})
+        with BoxPart((35.0, 10.0, 5.0)).measured(oriented=False):
+            chosen, volume = manufacture.pose(plans["TST-0001"], None, mock.Mock())
+        self.assertEqual((chosen.status, chosen.approved, chosen.method, chosen.name, volume.source),
+                         ("unapproved_auto_fit", False, "axis_aligned", "xyz", "product.yaml build_volume"))
+        self.assertIn("never an approved orientation", chosen.reason)
+
+    def test_unbindable_solids_stay_unknown_for_a_version_1_part_and_refuse_a_version_2_part(self) -> None:
+        """A record version 1 part declares no components: its several solids still export whole, their
+        identity unknown (legacy) with every solid listed, never guessed; a version 2 part refuses."""
+        legacy = manufacture.plan(snapshot_of({"TST-0001": ManufactureRuleTests.part("TST-0001", process="cnc")}))[0]
+        entry = {"PN": "TST-0001", "product": "TST-0001 Part", "mesh": None, "outputs": ["part.step", "manufacturing.json"]}
+        solid = mock.Mock(facts=lambda: {"volume_mm3": 1.0})
+        refusal = manufacture.components.BindingError("TST-0001: 2 solids, but part.yaml intent.components declares none")
+        target = Path(self.tmp.name) / "out"
+        with mock.patch.object(manufacture.components, "bind", side_effect=refusal), \
+                mock.patch.object(manufacture.components, "solids", return_value=[solid, solid]), \
+                mock.patch.object(manufacture, "_write") as write:
+            found = manufacture.export(target, legacy["TST-0001"], entry, mock.Mock(), None)
+            write.assert_called_once()
+            identity = found["component_identity"]
+            self.assertEqual((identity["status"], identity["solids"]), ("unknown", [{"volume_mm3": 1.0}] * 2))
+            self.assertTrue(identity["reason"].startswith(build.record.load_intent().LEGACY_REASON), identity["reason"])
+            self.assertEqual((found["components"], found["component_outputs"], found["placement"]["pose"]),
+                             ({}, [], "model_frame"))
+            _, plans, _, _ = self.plan()
+            with self.assertRaisesRegex(manufacture.components.BindingError, "declares none"):
+                manufacture.export(target, plans[projects().PN], entry, mock.Mock(), None)
+
+    def test_declared_components_set_the_solid_count_check_expects(self) -> None:
+        """A record version 2 part made as installed declares its definition's solid count by its
+        components' multiplicities, which replaces the previous version's count; --expect-solids still
+        wins; a different state, a sole solid and a record version 1 snapshot declare none."""
+        import yaml
+
+        mp = projects()
+
+        def declared(files: dict) -> dict:
+            folder = Path(tempfile.mkdtemp(dir=self.tmp.name)) / "record"
+            build.record.write_snapshot(folder, files)
+            return check.declared_solids(folder)
+
+        kit = dict(self.write(mp.documents(parts_of=mp.components(tab_multiplicity=2))).files)
+        self.assertEqual(declared(kit), {mp.PN: 3})
+        part = yaml.safe_load(kit[f"parts/{mp.PN}/part.yaml"])
+        part["manufacture"] = {"relationship": "different", "state": "flat", "reason": "elastic_bending",
+                               "decision": "DR-001", "volume_rel_tolerance": 1e-6}
+        self.assertEqual(declared({**kit, f"parts/{mp.PN}/part.yaml": yaml.safe_dump(part).encode()}), {})
+        self.assertEqual(declared(dict(self.write(mp.documents()).files)), {})
+        self.assertEqual(declared(dict(snapshot_of({"TST-0001": ManufactureRuleTests.part("TST-0001")}).files)), {})
+        parts, baseline = {mp.PN: mock.Mock(shape="kit")}, {mp.PN: {"solids": 2}}
+        with mock.patch.object(check.occ, "count", return_value=3):
+            row = check.solid_structure(parts, {}, baseline, "v1", {mp.PN: 3})["parts"][mp.PN]
+            self.assertEqual((row["ok"], row["expected_solids"], row["baseline"]), (True, 3, "intent.components"))
+            row = check.solid_structure(parts, {mp.PN: 2}, baseline, "v1", {mp.PN: 3})["parts"][mp.PN]
+            self.assertEqual((row["ok"], row["expected_solids"], row["baseline"]), (False, 2, "expected"))
+            row = check.solid_structure(parts, {}, baseline, "v1")["parts"][mp.PN]
+            self.assertEqual((row["ok"], row["baseline"]), (False, "v1"))
+
+    def test_an_unsupported_process_builds_without_any_invented_file(self) -> None:
+        snapshot = snapshot_of({"TST-0001": ManufactureRuleTests.part("TST-0001", process="other")})
+        plans, refused, uncovered = manufacture.plan(snapshot)
+        self.assertEqual((plans, refused, sorted(uncovered)), ({}, [], ["TST-0001"]))
+        self.assertIn("coverage is unknown", uncovered["TST-0001"])
+        entries, rows, reused = manufacture.make(self.hw, self.hw, "v1", plans, uncovered, {}, {}, {}, {}, None, {}, {})
+        self.assertEqual({key: entries["TST-0001"][key] for key in ("path", "status", "complete", "coverage")},
+                         {"path": None, "status": "warn", "complete": False, "coverage": "unknown"})
+        self.assertEqual((rows["TST-0001"]["status"], reused), ("warn", set()))
+        self.assertFalse(self.hw.exists(), "no folder or file is written for it")
+
+    def test_mass_comes_from_the_profile_density_and_a_missing_density_stays_unknown(self) -> None:
+        mp = projects()
+        snapshot, *_ = self.plan(material="PETG")  # a legacy table name: a record version 2 part never reads the table
+        mass = build.profile_mass(snapshot, mp.PN, 8000.0, (20.0, 10.0, 5.0), None)
+        self.assertAlmostEqual(mass["mass_g"], 8000.0 * mp.DENSITY_G_CM3 / 1000.0, places=9)
+        self.assertEqual((mass["density_g_cm3"], mass["centre_of_mass_mm"], mass["mass"]["source"]),
+                         (mp.DENSITY_G_CM3, [20.0, 10.0, 5.0], "material_profiles"))
+        (density,) = mass["mass"]["densities"]
+        self.assertEqual((density["profile"], density["status"], density["basis"], density["value"]),
+                         ("tst_polymer", "resolved", "supplier_typical", {"value": mp.DENSITY_G_CM3, "units": "g_cm3"}))
+        self.assertEqual(density["sources"][0]["artifact"], mp.SOURCE)
+        snapshot, *_ = self.plan(material="PETG", with_density=False)
+        mass = build.profile_mass(snapshot, mp.PN, 8000.0, (20.0, 10.0, 5.0), None)
+        self.assertEqual((mass["mass_g"], mass["density_g_cm3"], mass["centre_of_mass_mm"], mass["mass"]["status"]),
+                         (None, None, None, "unknown"))
+        self.assertIn("records no known density", mass["mass"]["reasons"][0])
+        documents = mp.documents()
+        documents[f"parts/{mp.PN}/part.yaml"]["intent"]["material_profile"] = mp.shared().unknown("grade not chosen")
+        mass = build.profile_mass(self.write(documents), mp.PN, 8000.0, (20.0, 10.0, 5.0), None)
+        self.assertEqual((mass["mass_g"], mass["mass"]["densities"][0]["status"]), (None, "unknown"))
+        self.assertIn("grade not chosen", mass["mass"]["reasons"][0])
+
+    def test_components_of_different_profiles_weight_the_centre_of_mass_and_an_interval_bounds_mass(self) -> None:
+        mp, fx = projects(), projects().shared()
+        documents = mp.documents()
+        documents["manufacturing/materials.yaml"]["profiles"].append(
+            fx.material_profile("tst_metal", properties=[fx.material_property("density", 8.0, "g_cm3")]))
+        snapshot = self.write(documents)
+
+        def entry(state: str, tab_profile: str) -> dict:
+            def facts(profile: str, volume: float, centre: list[float]) -> dict:
+                return {"material_profile": profile, "volume_mm3": volume,
+                        "members": [{"volume_mm3": volume, "centre_of_volume_mm": centre}]}
+            return {"state": {"relationship": state}, "components": {
+                "body": facts("tst_polymer", 8000.0, [20.0, 10.0, 5.0]), "tab": facts(tab_profile, 100.0, [65.0, 2.5, 1.0])}}
+
+        mass = build.profile_mass(snapshot, mp.PN, 8100.0, (0.0, 0.0, 0.0), entry("same", "tst_metal"))
+        total = 8000.0 * 1.2 / 1000.0 + 100.0 * 8.0 / 1000.0
+        self.assertAlmostEqual(mass["mass_g"], total, places=9)
+        assert_vectors(self, mass["centre_of_mass_mm"],
+                       [(9.6 * c1 + 0.8 * c2) / total for c1, c2 in zip([20.0, 10.0, 5.0], [65.0, 2.5, 1.0])], places=9)
+        self.assertIsNone(mass["density_g_cm3"], "no one density describes the part")
+        different = build.profile_mass(snapshot, mp.PN, 8100.0, (0.0, 0.0, 0.0), entry("different", "tst_metal"))
+        self.assertAlmostEqual(different["mass_g"], total, places=9)
+        self.assertIsNone(different["centre_of_mass_mm"])
+        self.assertIn("no installed correspondence", different["mass"]["reasons"][0])
+        documents["manufacturing/materials.yaml"]["profiles"][0]["properties"][0]["value"]["value"] = \
+            fx.quantity(lower=1.1, upper=1.3, units="g_cm3")
+        bounded = build.profile_mass(self.write(documents), mp.PN, 8000.0, (20.0, 10.0, 5.0), None)
+        self.assertEqual((bounded["mass_g"], bounded["centre_of_mass_mm"]), (None, None))
+        self.assertAlmostEqual(bounded["mass"]["value_g"]["lower"], 8.8, places=9)
+        self.assertAlmostEqual(bounded["mass"]["value_g"]["upper"], 10.4, places=9)
+
+    def test_the_legacy_density_table_is_a_labelled_density_only_estimate(self) -> None:
+        import yaml
+
+        table = yaml.safe_load(build.LEGACY_DENSITIES.read_text(encoding="utf-8"))
+        self.assertEqual(sorted(table), ["densities_g_cm3"], "the table holds densities and nothing else")
+        mass = build.legacy_mass("PETG", 1000.0, (1.0, 2.0, 3.0), build.load_densities())
+        self.assertAlmostEqual(mass["mass_g"], 1.27, places=12)
+        self.assertEqual((mass["mass"]["source"], mass["mass"]["basis"], mass["centre_of_mass_mm"]),
+                         ("legacy_density_table", "estimate", [1.0, 2.0, 3.0]))
+        self.assertIn("never supplies strength", mass["mass"]["note"])
+        unknown = build.legacy_mass("TST unobtainium", 1000.0, (1.0, 2.0, 3.0), build.load_densities())
+        self.assertEqual((unknown["mass_g"], unknown["centre_of_mass_mm"], unknown["mass"]["status"]),
+                         (None, None, "unknown"))
+
+    def test_totals_give_an_assembly_centre_of_mass_only_when_every_occurrence_has_one(self) -> None:
+        metrics = {"TST-0001": {"volume_mm3": 10.0, "mass_g": 2.0}, "TST-0002": {"volume_mm3": 5.0, "mass_g": None}}
+        placed = {"a": {"PN": "TST-0001", "centre_of_mass_mm": [0.0, 0.0, 0.0]},
+                  "b": {"PN": "TST-0001", "centre_of_mass_mm": [10.0, 0.0, 0.0]}}
+        totals = build.totals(metrics, placed, {"TST-0001": 2})
+        self.assertEqual((totals["mass_g"], totals["centre_of_mass_mm"]), (4.0, [5.0, 0.0, 0.0]))
+        totals = build.totals(metrics, {**placed, "c": {"PN": "TST-0002", "centre_of_mass_mm": None}},
+                              {"TST-0001": 2, "TST-0002": 1})
+        self.assertEqual((totals["mass_g"], totals["centre_of_mass_mm"], totals["occurrences_without_density"]),
+                         (4.0, None, ["c"]))
+
+    def test_diff_names_an_intent_or_component_change(self) -> None:
+        entry = {"intent": {"inputs_sha256": "a" * 64}, "components": {"main": {"multiplicity": 1}}}
+        changed = diff.compare_manufacturing(
+            {"TST-0001": entry, "TST-0002": entry},
+            {"TST-0001": {**entry, "intent": {"inputs_sha256": "b" * 64}},
+             "TST-0002": {**entry, "components": {"main": {"multiplicity": 2}}}})
+        self.assertEqual((changed["parts"]["TST-0001"]["changed"], changed["parts"]["TST-0002"]["changed"]),
+                         (["intent"], ["components"]))
+
 
 
 class VersionLabelTests(unittest.TestCase):
@@ -1845,6 +2193,284 @@ class ContainmentTests(unittest.TestCase):
                     row = report[container][order]
                     self.assertEqual((row["clearance_mm"], row["status"]), (0.0, "fail"))
                     self.assertAlmostEqual(row["interference_mm3"], 8.0, places=6)
+
+
+@unittest.skipUnless(shutil.which("uv"), "uv is required for the OCP environment")
+class ComponentBindingTests(unittest.TestCase):
+    """cadmodel.components.bind on box compounds (fixtures/components_probe.py): every solid binds exactly
+    once by witness or feature locator, equivalent members group, and ambiguous identity is refused."""
+
+    def test_every_solid_binds_once_and_ambiguous_identity_is_refused(self) -> None:
+        proc = subprocess.run(["uv", "run", "--quiet", "--script", str(FIXTURES / "components_probe.py")],
+                              capture_output=True, text=True, check=False)
+        self.assertEqual(proc.returncode, 0, proc.stderr[-2000:])
+        report = json.loads(proc.stdout)
+        bound = {name: {ident: (row["binding"], row["members"], row["check"]) for ident, row in case["bound"].items()}
+                 for name, case in report.items() if "bound" in case}
+        self.assertEqual(bound, {
+            "sole_solid": {"main": ("implicit", [8000.0], True)},
+            "two_loose_solids": {"body": ("witness", [8000.0], True), "tab": ("witness", [100.0], True)},
+            "locator": {"body": ("witness", [8000.0], True), "tab": ("locator", [100.0], True)},
+            "equivalent_group": {"body": ("witness", [8000.0], True), "tab": ("witness", [100.0, 100.0], True)}})
+        refused = {name: case["refused"] for name, case in report.items() if "refused" in case}
+        expected = {"undeclared_solids": "declares none", "unbound_solid": "is bound by no component",
+                    "witness_on_surface": "of the surface of", "witness_outside": "inside no solid",
+                    "duplicate": "both bind", "missing_feature": "has no locator", "overlap": "overlap by 50 mm3",
+                    "non_equivalent_group": "non-equivalent grouping", "ambiguous_group": "ambiguous grouping"}
+        self.assertEqual(sorted(refused), sorted(expected))
+        for name, text in expected.items():
+            self.assertIn(text, refused[name], name)
+
+
+class LooseComponentChecks:
+    """Plan section 11 row 8 in one kernel: a part of two loose solids whose smaller one no route operation
+    plans is still bound, exported and judged on its own; non-equivalent grouping and an ambiguous
+    witness are refused and seal nothing; an equivalent group exports every member."""
+    kernel = ""
+    TABS = [[60.0, 10.0, 5.0, 2.0]]
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        mp = projects()
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.hw = hw = mp.loose_project(Path(cls.tmp.name) / "hw", cls.kernel, cls.TABS, parts_of=mp.components(),
+                                       print_components=["body"])
+        cls.runs = {"v1": cli("run", str(hw), "--label", "v1")}
+        mp.set_model(hw, cls.kernel, cls.TABS + [[80.0, 8.0, 5.0, 2.0]])
+        mp.rewrite_part(hw, parts_of=mp.components(tab_multiplicity=2), print_components=["body"])
+        cls.runs["non-equivalent"] = cli("run", str(hw), "--label", "v2")
+        mp.set_model(hw, cls.kernel, cls.TABS)
+        mp.rewrite_part(hw, parts_of=mp.components(tab_witness=[60.0, 2.5, 1.0]), print_components=["body"])
+        cls.runs["ambiguous"] = cli("run", str(hw), "--label", "v2")
+        cls.states = version_state(hw)
+        mp.set_model(hw, cls.kernel, cls.TABS + [[80.0, 10.0, 5.0, 2.0]])
+        mp.rewrite_part(hw, parts_of=mp.components(tab_multiplicity=2), print_components=["body"])
+        cls.runs["v2"] = cli("run", str(hw), "--label", "v2")
+        cls.checks = {label: cli("check", label, "--hw", str(hw)) for label in ("v1", "v2")}
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.tmp.cleanup()
+
+    def entry(self, label: str) -> dict:
+        manifest = json.loads((self.hw / "versions" / label / "manifest.json").read_text(encoding="utf-8"))
+        return manifest["manufacturing"]["TST-0001"]
+
+    def test_the_unplanned_smaller_solid_is_bound_exported_and_judged_on_its_own(self) -> None:
+        proc, result, _ = self.runs["v1"]
+        self.assertEqual(proc.returncode, 0, proc.stdout[-3000:] + proc.stderr[-3000:])
+        made = result["manufacturing"]["TST-0001"]
+        self.assertEqual((made["components"], made["status"], made["complete"]), (["body", "tab"], "warn", False))
+        entry = self.entry("v1")
+        self.assertEqual(entry["component_outputs"], ["components/body/part.step", "components/body/part.stl",
+                                                      "components/tab/part.step", "components/tab/part.stl"])
+        body, tab = entry["components"]["body"], entry["components"]["tab"]
+        self.assertEqual((body["operations"], body["planned"], body["placement"]["pose"]), (["print"], True, "approved"))
+        self.assertEqual((tab["operations"], tab["planned"], tab["placement"]["pose"]), ([], False, "unknown"))
+        self.assertAlmostEqual(tab["volume_mm3"], 100.0, places=6)
+        folder = self.hw / "versions" / "v1" / entry["path"]
+        for name in entry["component_outputs"]:
+            self.assertEqual(hashlib.sha256((folder / name).read_bytes()).hexdigest(), entry["files"][name], name)
+        metrics = json.loads((self.hw / "versions" / "v1" / "metrics.json").read_text(encoding="utf-8"))["parts"]["TST-0001"]
+        self.assertAlmostEqual(metrics["mass_g"], 8100.0 * projects().DENSITY_G_CM3 / 1000.0, places=6)
+        proc, checked, _ = self.checks["v1"]
+        self.assertEqual(proc.returncode, 0, proc.stdout[-3000:] + proc.stderr[-2000:])
+        rows = checked["checks"]["manufacturing"]["parts"]["TST-0001"]["checks"]["components"]["components"]
+        self.assertEqual(rows["body"]["status"], "pass")
+        self.assertEqual((rows["tab"]["status"], rows["tab"]["checks"]["placement"]["status"]), ("warn", "warn"))
+        self.assertEqual((rows["tab"]["checks"]["step"]["solids"], rows["tab"]["checks"]["binding"]["status"]), (1, "pass"))
+        self.assertEqual(checked["checks"]["artifact_integrity"]["status"], "pass")
+        self.assertFalse(checked["checks"]["build_volume"]["blocking"])
+
+    def test_non_equivalent_grouping_and_an_ambiguous_witness_are_refused(self) -> None:
+        for name, text in (("non-equivalent", "non-equivalent grouping"), ("ambiguous", "of the surface of")):
+            with self.subTest(run=name):
+                proc, result, _ = self.runs[name]
+                self.assertEqual(proc.returncode, 1, proc.stderr[-3000:])
+                (found,) = result["findings"]
+                self.assertEqual((found["pn"], found["check"]), ("TST-0001", "manufacture"))
+                self.assertIn(text, found["message"])
+        self.assertEqual(self.states, {"latest": "v1", "versions": ["latest.json", "v1"]})
+
+    def test_an_equivalent_group_exports_every_member(self) -> None:
+        """v2 adds a second congruent tab and declares the tab twice: every member is exported, and the
+        third solid is the count the record declares, not a change from v1's two."""
+        proc, _, _ = self.runs["v2"]
+        self.assertEqual(proc.returncode, 0, proc.stdout[-3000:] + proc.stderr[-3000:])
+        tab = self.entry("v2")["components"]["tab"]
+        self.assertEqual(tab["multiplicity"], 2)
+        assert_vectors(self, [member["volume_mm3"] for member in tab["members"]], [100.0, 100.0], places=6)
+        proc, checked, _ = self.checks["v2"]
+        self.assertEqual(proc.returncode, 0, json.dumps(checked.get("blocking_failures")) + proc.stderr[-2000:])
+        structure = checked["checks"]["solid_structure"]["parts"]["TST-0001"]
+        self.assertEqual((structure["solids"], structure["expected_solids"], structure["baseline"]),
+                         (3, 3, "intent.components"))
+        rows = checked["checks"]["manufacturing"]["parts"]["TST-0001"]["checks"]["components"]["components"]
+        self.assertEqual(rows["tab"]["checks"]["step"]["solids"], 2)
+
+
+@unittest.skipUnless(shutil.which("uv"), "uv is required for the kernel environments")
+class CadQueryLooseComponentTests(LooseComponentChecks, unittest.TestCase):
+    kernel = "cadquery"
+
+
+@unittest.skipUnless(shutil.which("uv"), "uv is required for the kernel environments")
+class Build123dLooseComponentTests(LooseComponentChecks, unittest.TestCase):
+    kernel = "build123d"
+
+
+@unittest.skipUnless(shutil.which("uv"), "uv is required for the kernel environments")
+class ManufacturingInputCacheTests(unittest.TestCase):
+    """A record version 2 part (CadQuery only): a material, orientation or process change remakes its
+    manufacturing outputs and never its B-rep; the post-check ledgers change nothing. v5 changes the
+    printed part to a laser cut that is reamed, coated and inspected (plan section 11 row 12, model part)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        mp = projects()
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.hw = hw = mp.loose_project(Path(cls.tmp.name) / "hw", "cadquery", [])
+        cls.runs = {"v1": cli("run", str(hw), "--label", "v1")}
+        mp.rewrite_part(hw, density=1.3)
+        cls.runs["v2"] = cli("run", str(hw), "--label", "v2")
+        mp.rewrite_part(hw, density=1.3, orientation=TURNED)
+        cls.runs["v3"] = cli("run", str(hw), "--label", "v3")
+        for ledger in ("findings.yaml", "evidence.yaml"):
+            (hw / "manufacturing" / ledger).write_text("dispositions: []\nentries: []\n", encoding="utf-8")
+        cls.runs["v4"] = cli("run", str(hw), "--label", "v4")
+        mp.rewrite_part(hw, density=1.3, process="laser")
+        cls.runs["v5"] = cli("run", str(hw), "--label", "v5")
+        cls.checks = {label: cli("check", label, "--hw", str(hw)) for label in ("v1", "v5")}
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.tmp.cleanup()
+
+    def manifest(self, label: str) -> dict:
+        return json.loads((self.hw / "versions" / label / "manifest.json").read_text(encoding="utf-8"))
+
+    def test_each_input_change_remakes_only_the_manufacturing_outputs(self) -> None:
+        for label in ("v1", "v2", "v3", "v4", "v5"):
+            self.assertEqual(self.runs[label][0].returncode, 0, label + self.runs[label][0].stderr[-3000:])
+        self.assertEqual(self.runs["v1"][1]["cache"]["manufacturing"], {"built": 1, "reused": 0})
+        for label in ("v2", "v3", "v5"):
+            with self.subTest(label=label):
+                self.assertEqual(self.runs[label][1]["cache"], {"parts": {"built": 0, "reused": 1},
+                                                                "manufacturing": {"built": 1, "reused": 0}})
+        self.assertEqual(self.runs["v4"][1]["cache"], {"parts": {"built": 0, "reused": 1},
+                                                       "manufacturing": {"built": 0, "reused": 1}})
+        masses = {label: self.runs[label][1]["parts"]["TST-0001"]["mass_g"] for label in ("v1", "v2")}
+        self.assertAlmostEqual(masses["v1"], 8000.0 * 1.2 / 1000.0, places=6)
+        self.assertAlmostEqual(masses["v2"], 8000.0 * 1.3 / 1000.0, places=6)
+        v3 = self.manifest("v3")["manufacturing"]["TST-0001"]["placement"]
+        for got, want in zip(v3["transform"], TURNED_ROWS):
+            assert_vectors(self, got[:3], list(want), places=9)
+        v5 = self.manifest("v5")["manufacturing"]["TST-0001"]
+        self.assertEqual((v5["outputs"], v5["placement"]["frame"]), (["part.step", "manufacturing.json"], "model"))
+        self.assertNotIn("record/manufacturing/evidence.yaml", self.manifest("v4")["record"])
+
+    def test_the_version_snapshot_and_approved_pose_bind_its_evidence(self) -> None:
+        manifest = self.manifest("v1")
+        self.assertEqual(manifest["record_version"], 2)
+        for name in ("requirements.yaml", "manufacturing/materials.yaml", projects().SOURCE):
+            self.assertIn(f"record/{name}", manifest["record"])
+        self.assertEqual((self.hw / "versions" / "v1" / "record" / projects().SOURCE).read_bytes(), projects().SOURCE_BYTES)
+        proc, checked, _ = self.checks["v1"]
+        self.assertEqual(proc.returncode, 0, proc.stdout[-3000:] + proc.stderr[-2000:])
+        section = checked["checks"]["manufacturing"]
+        self.assertEqual((section["status"], section["complete"]), ("pass", True))
+        row = checked["checks"]["build_volume"]["parts"]["TST-0001"]
+        self.assertEqual((row["status"], row["approved"], row["envelope_source"]),
+                         ("pass", True, "capability tst_printer envelope"))
+
+    def test_the_check_publishes_the_readback_packet_evidence_reads(self) -> None:
+        """check is the cad.readback producer: the passing version's sealed packet passes its expected
+        readback obligation, cad-record evidence.py collects it as the version's packet, and a second
+        check of the same version reuses the bundle."""
+        proc, checked, _ = self.checks["v1"]
+        self.assertEqual(proc.returncode, 0, proc.stdout[-3000:] + proc.stderr[-2000:])
+        self.assertEqual((checked["packet"]["bundle"], checked["packet"]["result"], checked["packet"]["complete"]),
+                         ("hw/checks/v1/cad", "pass", True))
+        packet = json.loads((self.hw / "checks" / "v1" / "cad" / "result.json").read_text(encoding="utf-8"))
+        self.assertEqual([(o["obligation"], o["outcome"]) for o in packet["outcomes"]], [("cad.readback@TST-0001", "pass")])
+        self.assertEqual([o["id"] for o in packet["expected"]], ["cad.readback@TST-0001"])
+        evidence = sys.modules.get("cad_record_evidence")
+        if evidence is None:
+            spec = importlib.util.spec_from_file_location("cad_record_evidence",
+                                                          HERE.parents[1] / "cad-record" / "scripts" / "evidence.py")
+            evidence = importlib.util.module_from_spec(spec)
+            sys.modules["cad_record_evidence"] = evidence
+            spec.loader.exec_module(evidence)
+        manifest_sha = hashlib.sha256((self.hw / "versions" / "v1" / "manifest.json").read_bytes()).hexdigest()
+        packets, findings = evidence.collect_packets(self.hw, "v1", manifest_sha)
+        self.assertEqual(findings, [])
+        self.assertIn("hw/checks/v1/cad", [p.bundle for p in packets])
+        again = cli("check", "v1", "--hw", str(self.hw))
+        self.assertEqual((again[0].returncode, again[1]["packet"]["reused"]), (0, True), again[0].stderr[-2000:])
+
+    def test_a_multiprocess_route_exports_its_state_once_naming_every_operation_in_order(self) -> None:
+        """The laser-cut, reamed, coated and inspected part exports one model-frame part.step and no print
+        file or pose: no FDM substitute; its component and intent name every route operation in order."""
+        self.assertEqual(self.runs["v5"][0].returncode, 0, self.runs["v5"][0].stderr[-3000:])
+        entry = self.manifest("v5")["manufacturing"]["TST-0001"]
+        route = projects().MULTIPROCESS_ROUTE
+        self.assertEqual([(op["id"], op["kind"]) for op in entry["intent"]["route"]], list(route))
+        self.assertEqual(entry["intent"]["route"][0]["capability"], "tst_laser")
+        main = entry["components"]["main"]
+        self.assertEqual((main["binding"], main["operations"], main["planned"], main["files"]),
+                         ("implicit", [ident for ident, _ in route], True, ["part.step"]))
+        self.assertEqual((main["placement"]["pose"], main["placement"]["frame"], main["placement"]["build_volume"]),
+                         ("model_frame", "model", None))
+        self.assertEqual(sorted(p.name for p in (self.hw / "versions" / "v5" / entry["path"]).iterdir()),
+                         ["manufacturing.json", "part.step"])
+        proc, checked, _ = self.checks["v5"]
+        self.assertEqual(proc.returncode, 0, proc.stdout[-3000:] + proc.stderr[-2000:])
+        section = checked["checks"]["manufacturing"]
+        self.assertEqual((section["status"], section["complete"]), ("pass", True))
+        rows = section["parts"]["TST-0001"]["checks"]
+        self.assertNotIn("mesh", rows)
+        self.assertEqual(rows["components"]["components"]["main"]["status"], "pass")
+        self.assertNotIn("TST-0001", checked["checks"]["build_volume"].get("parts", {}))
+
+
+@unittest.skipUnless(shutil.which("uv"), "uv is required for the kernel environments")
+class LegacyOutputTests(unittest.TestCase):
+    """Plan section 11 row 19, model part: a record version 1 build stays readable and claims nothing new."""
+
+    def test_a_legacy_build_is_labelled_and_an_older_manifest_still_checks(self) -> None:
+        runs = all_runs()["cadquery"]
+        _, result, _ = runs["flat"]
+        self.assertEqual([p["code"] for p in result["record"]["problems"]], ["record.migration_required"])
+        folder = runs["flat-hw"] / "versions" / "v1"
+        manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+        strap = manifest["manufacturing"][STRAP]
+        self.assertEqual((strap["intent"]["record_version"], strap["intent"]["status"]), (1, "unknown"))
+        self.assertEqual((strap["placement"]["pose"], strap["placement"]["approved"]), ("unapproved_auto_fit", False))
+        main = strap["components"]["main"]  # explicit unknown (legacy): no profile, route or plan is claimed
+        self.assertEqual((main["material_profile"], main["operations"], main["planned"], strap["component_identity"]),
+                         ({"status": "unknown", "reason": build.record.load_intent().LEGACY_REASON}, None, None,
+                          {"status": "bound"}))
+        self.assertEqual(json.loads((folder / "metrics.json").read_text(encoding="utf-8"))["mass_source"],
+                         "legacy_density_table")
+        features = json.loads((folder / manifest["manufacturing_features"]).read_text(encoding="utf-8"))
+        self.assertEqual((features["parts"][STRAP]["frame"], features["parts"][STRAP]["correspondence"]["manufacture_only"]),
+                         ("manufacture", ["outer_face"]))
+        with tempfile.TemporaryDirectory() as tmp:  # strip what sidecar schema 2 adds: an older version's manifest
+            older = Path(tmp) / "hw"
+            shutil.copytree(runs["flat-hw"], older, symlinks=True)
+            path = older / "versions" / "v1" / "manifest.json"
+            data = json.loads(path.read_text(encoding="utf-8"))
+            for entry in data["manufacturing"].values():
+                for key in ("intent", "components", "component_outputs", "component_identity"):
+                    entry.pop(key, None)
+                for key in ("frame", "pose", "approved", "operation", "decision", "reason", "build_volume"):
+                    entry["placement"].pop(key, None)
+            path.chmod(0o644)
+            path.write_text(json.dumps(data), encoding="utf-8")
+            proc, checked, _ = cli("check", "v1", "--hw", str(older))
+        self.assertEqual(proc.returncode, 0, proc.stdout[-3000:] + proc.stderr[-2000:])
+        self.assertEqual((checked["checks"]["manufacturing"]["status"], checked["checks"]["manufacturing"]["complete"]),
+                         ("pass", True))
 
 
 @unittest.skipUnless(shutil.which("uv"), "uv is required for the OCP environment")

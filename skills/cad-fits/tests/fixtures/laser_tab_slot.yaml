@@ -1,0 +1,58 @@
+# Plan §11 row 10: a laser-cut tab in a laser-cut slot, both plates powder coated after cutting.
+# Nominal clearance 3.10 - 3.00 = +0.10 mm, but the calibrated slot deviation, the stock thickness
+# tolerance and the coating build-up give a worst case of -0.15..+0.20 mm. Synthetic TST values.
+#   min = (3.10 - 0.05) - (3.00 + 0.08) - 0.06 - 0.06 = -0.15
+#   max = (3.10 + 0.05) - (3.00 - 0.05) - 0.00 - 0.00 = +0.20
+intent_version: 2
+id: STK-010
+title: Tab-and-slot assembly clearance (TST fixture)
+units: mm
+subject: {interface: IF-002}
+dimension_state: assembled
+consequence: binding
+relevant: [manufacture, coating]
+requirement:
+  min: 0.0
+  method: worst_case
+  source: {kind: user, reference: the tab must enter the slot by hand, origin: TST fixture user}
+contributors:
+  - id: W
+    category: manufacture
+    description: slot width as cut
+    subject: {PN: TST-0011, feature: slot}
+    state: as_manufactured
+    direction: 1
+    nominal: 3.10
+    tol: 0.05
+    source: {kind: calibration, reference: TST slot width coupon, url: "https://example.invalid/tst-slot-coupon", accessed: "2026-01-01"}
+    capability: {profile: tst_laser, characteristic: slot_width_deviation}
+    operation: cut
+  - id: T
+    category: manufacture
+    description: tab thickness, the stock sheet thickness
+    subject: {PN: TST-0012, feature: tab}
+    state: as_manufactured
+    direction: -1
+    nominal: 3.00
+    tol_plus: 0.08
+    tol_minus: 0.05
+    source: {kind: datasheet, reference: TST sheet stock thickness tolerance, url: "https://example.invalid/tst-sheet", accessed: "2026-01-01"}
+    operation: cut
+  - id: CS
+    category: coating
+    description: powder coat on both slot walls
+    subject: {PN: TST-0011, feature: slot}
+    direction: -1
+    nominal: 0.0
+    tol_plus: 0.06
+    tol_minus: 0.0
+    source: {kind: datasheet, reference: TST powder coat datasheet, url: "https://example.invalid/tst-powder", accessed: "2026-01-01"}
+  - id: CT
+    category: coating
+    description: powder coat on both tab faces
+    subject: {PN: TST-0012, feature: tab}
+    direction: -1
+    nominal: 0.0
+    tol_plus: 0.06
+    tol_minus: 0.0
+    source: {kind: datasheet, reference: TST powder coat datasheet, url: "https://example.invalid/tst-powder", accessed: "2026-01-01"}

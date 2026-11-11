@@ -17,7 +17,7 @@
       ]
     },
     "policy_name": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
-    "process": {"type": "string", "enum": ["fdm", "cnc", "purchased"]},
+    "process": {"$ref": "manufacturing.schema.json#/$defs/primary_process"},
     "sheet_size": {"type": "string", "enum": ["A4", "A3", "A2", "A1", "A0", "ANSI A", "ANSI B", "ANSI C", "ANSI D", "ANSI E"]},
     "scale": {
       "oneOf": [

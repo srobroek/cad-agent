@@ -1,0 +1,9 @@
+# Material evidence for analysis
+
+Resolve each analysis property to the exact material profile and property source for the part or occurrence. Match grade, form (printed, bulk, cast, wrought, moulded, sheet or purchased), process state, print orientation/layup, moisture conditioning, temperature and test/service conditions. Family guidance such as PLA+, nylon or aluminium is not a grade-specific property. Supplier typical values are not design allowables; an allowable needs explicit, justified derivation and conditions.
+
+Never infer strength or modulus from density, copy values from a different material, or let a display name populate numerical properties. Missing or mismatched property provenance is unknown/refused before a safety-acceptance claim. A valid solver run with caller-supplied numbers is still only a simulation within its declared assumptions.
+
+The static solver is linear, static and isotropic. Check and report constraints, loads, contacts, unit consistency, mesh/convergence evidence, solver warnings and applicability to the requirement. Unsupported anisotropy, dynamics, thermal response, nonlinearity, fatigue, buckling, creep, wear or lifetime remains unsupported/unknown; do not imply those results from static stress or yield factor. Simulation is not a physical test, demonstration, process validation or regulatory certification. Physical validation requires a representative as-built configuration, test protocol, calibrated instrument, measured results, scope, conditions and accountable approval; a coupon supports only its tested scope.
+
+Deterministic material profile resolution and condition matching belong to `manufacturing_intent.resolve_property`; this prose does not restate numeric acceptance limits. Record property source, basis and uncertainty with the requirement-level evidence.

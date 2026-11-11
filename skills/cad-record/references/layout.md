@@ -14,6 +14,7 @@ listed files and nothing else.
 |---|---|---|---|
 | `{V}` | `v[1-9][0-9]*` | `v3` | cad-model version label |
 | `{PN}` | `[A-Z]{2,5}-[0-9]{4}` | `LMP-0002` | part number |
+| `{COMP}` | `[a-z][a-z0-9_]*` | `left_cheek` | component id of one disconnected solid of a multi-solid part (part.yaml intent.components) |
 | `{S}` | `[A-Z]{2,5}-[0-9]{3,4}\|[a-z][a-z0-9_-]*` | `assembly` | bundle subject: a PN, a record id such as a stack-up (STK-101), a subassembly, check or case id, or assembly for the whole product |
 | `{ID}` | `[a-z][a-z0-9_-]*` | `arm-load` | analysis case id |
 | `{REV}` | `[A-HJ-NPRTUVWY]` | `A` | released revision letter |
@@ -43,22 +44,28 @@ listed files and nothing else.
 | `record.docs` | `hw/docs/` | record | `**` (document; never geometry or script) | user or lead | ground | free | human notes, guides and reference material |
 | `record.part` | `hw/parts/{PN}/` | record | `part.yaml` (source), `model.py` (source, optional) | lead; a worker through cad-flow scratch.py deliver | layout | controlled | one part record and its parametric model |
 | `record.part_sources` | `hw/parts/{PN}/sources/` | record | `**` (evidence) | lead, accepting sourcing evidence | parts | controlled | frozen procurement copies (datasheets, certificates, vendor models) that part.yaml procurement names with their sha256 |
+| `record.manufacturing_capabilities` | `hw/manufacturing/capabilities.yaml` | record | (source) | lead (cad-record workflow) | ground | controlled | capability profiles of the user's actual machines, operators and suppliers, with their calibrations; never design requirements |
+| `record.manufacturing_materials` | `hw/manufacturing/materials.yaml` | record | (source) | lead (cad-record workflow) | ground | controlled | material profiles: family or grade, form, process state and sourced properties with their conditions |
+| `record.manufacturing_selection` | `hw/manufacturing/selection.yaml` | record | (source) | lead, accepting a selection.py assessment | ground | controlled | the assessed material, process and architecture candidates and the recommendation a decision confirms |
+| `record.manufacturing_sources` | `hw/manufacturing/sources/` | record | `**` (evidence) | lead, accepting supporting evidence | ground | controlled | frozen datasheets, standards, calibration records, test reports and supplier evidence that facts name with their sha256; design inputs every version snapshots |
+| `record.manufacturing_findings` | `hw/manufacturing/findings.yaml` | record | (source) | lead | parts | append_only | dispositions of producer findings by finding id and producer manifest; never copies of the findings and never a version input |
+| `record.manufacturing_evidence` | `hw/manufacturing/evidence.yaml` | record | (source) | lead | parts | append_only | accepted evidence per requirement and subject, one entry per evidence level; never a version input |
 | `record.concept_scene` | `hw/concept/{PRODUCT}.scene.json` | record | (source) | lead, merging concept variants | concept | controlled | L0 concept variants and rough primitives |
 | `concept.handoff` | `hw/concept/handoff.json` | generated | (data) | cad-concept concept.py handoff | concept | regenerated | the chosen variant, bound to the scene's sha256 |
 | `concept.screenshot` | `hw/concept/screenshots/{SCENE_SHA}/{CAPTURE_SHA}/` | generated, sealed by its bundle manifest | `preview.png` (review), `manifest.json` (manifest) | cad-concept serve.py screenshot | concept | immutable | one concept preview bound to its scene and viewer state; no engineering credit |
 | `record.analysis_case` | `hw/analysis/cases/{ID}/` | record | `case.yaml` (source), `**` (source, optional) | lead, accepting an analyst proposal | analysis | controlled | one analysis case and the input files it declares |
 | `record.motion_case` | `hw/motion/cases/{ID}/` | record | `plan.yaml` (source) | lead, accepting an analyst motion plan | analysis | controlled | one authored motion plan over the record's independent joints; the default plan is generated, and the case id default is reserved |
-| `version.core` | `hw/versions/{V}/` | generated, sealed by its version manifest | `assembly.step` (definition), `assembly.glb` (review), `part-map.json` (data), `metrics.json` (data), `drawing-features.json` (data, optional), `manifest.json` (manifest), `parts/{PN}.step` (definition) | cad-model cad_model.py run | layout | immutable | one built version; its manifest.json inventories every file below it, including record/ and manufacturing/ |
-| `version.record` | `hw/versions/{V}/record/` | generated | `product.yaml` (snapshot), `interfaces.yaml` (snapshot), `assembly.yaml` (snapshot), `parts/{PN}/part.yaml` (snapshot) | cad-model cad_model.py run | layout | immutable | the record files the version was built from, for readers of the old state |
-| `version.manufacturing` | `hw/versions/{V}/manufacturing/{PN}/` | generated | `part.step` (manufacture), `part.stl` (manufacture, optional), `manufacturing.json` (data) | cad-model cad_model.py run | layout | immutable | the final manufacturing geometry of one custom-made part; complete for every custom-made PN by design_freeze |
+| `version.core` | `hw/versions/{V}/` | generated, sealed by its version manifest | `assembly.step` (definition), `assembly.glb` (review), `part-map.json` (data), `metrics.json` (data), `drawing-features.json` (data, optional), `manufacturing-features.json` (data, optional), `manifest.json` (manifest), `parts/{PN}.step` (definition) | cad-model cad_model.py run | layout | immutable | one built version; its manifest.json inventories every file below it, including record/ and manufacturing/ |
+| `version.record` | `hw/versions/{V}/record/` | generated | `product.yaml` (snapshot), `interfaces.yaml` (snapshot), `assembly.yaml` (snapshot), `parts/{PN}/part.yaml` (snapshot), `requirements.yaml` (snapshot, optional), `manufacturing/capabilities.yaml` (snapshot, optional), `manufacturing/materials.yaml` (snapshot, optional), `manufacturing/selection.yaml` (snapshot, optional), `manufacturing/sources/**` (snapshot, optional) | cad-model cad_model.py run | layout | immutable | the record files the version was built from, for readers of the old state |
+| `version.manufacturing` | `hw/versions/{V}/manufacturing/{PN}/` | generated | `part.step` (manufacture), `part.stl` (manufacture, optional), `components/{COMP}/part.step` (manufacture, optional), `components/{COMP}/part.stl` (manufacture, optional), `manufacturing.json` (data) | cad-model cad_model.py run | layout | immutable | the final manufacturing geometry of one custom-made part; complete for every custom-made PN by design_freeze |
 | `version.latest` | `hw/versions/latest.json` | generated | (navigation) | cad-model cad_model.py run | layout | pointer | names the newest complete version |
-| `bundle.checks` | `hw/checks/{V}/{S}/` | generated, sealed by its bundle manifest | `result.json` (data), `manifest.json` (manifest) | cad-model check, cad-design form_check.py, cad-fits stackup.py result adapters | layout | immutable | one check result for one version and subject; a failed result is never reused as a pass |
+| `bundle.checks` | `hw/checks/{V}/{S}/` | generated, sealed by its bundle manifest | `result.json` (data), `evidence/**` (evidence, optional), `manifest.json` (manifest) | cad-model check, cad-design form_check.py, cad-fits stackup.py result adapters | layout | immutable | one check result for one version and subject; a failed result is never reused as a pass. A manufacturing-intent producer writes its required-check packet (schemas/manufacturing-check-result.schema.json) and keeps its retained reports, calibration and test bytes under evidence/ |
 | `bundle.drawings` | `hw/drawings/{V}/{S}/` | generated, sealed by its bundle manifest | `sheet-{N}.svg` (document), `sheet-{N}.pdf` (document), `sheet-{N}.png` (review), `coverage.json` (data), `package.json` (data), `manifest.json` (manifest) | cad-drawings drawing.py, assembly_drawing.py | detail | immutable | one controlled drawing package; rejected drafts stay in .cad-work |
 | `bundle.renders` | `hw/renders/{V}/{S}/` | generated, sealed by its bundle manifest | `{VIEW}.png` (review), `render.json` (data, optional), `manifest.json` (manifest) | cad-render render.py | layout | immutable | one review render set |
 | `bundle.captures` | `hw/captures/{V}/{S}/` | generated, sealed by its bundle manifest | `{VIEW}.png` (review), `capture.json` (data, optional), `manifest.json` (manifest) | cad-viewer viewer.py capture | layout | immutable | viewer captures of exactly the displayed version and state |
 | `bundle.motion` | `hw/motion/{V}/{S}/` | generated, sealed by its bundle manifest | `pose.step` (evidence, optional), `worst.step` (evidence, optional), `worst.step.json` (data, optional), `evidence/**` (evidence, optional), `plan.json` (data, optional), `coverage.json` (data, optional), `motion.glb` (review, optional), `contact-sheet.png` (review, optional), `video.mp4` (review, optional), `frames/**` (review, optional), `crosscheck.json` (evidence, optional), `result.json` (data), `manifest.json` (manifest) | cad-motion pose.py, sweep.py, freecad_assembly.py, motion.py | analysis | immutable | one kinematic case: posed or worst-case geometry, or a motion render, and its result |
 | `bundle.analysis` | `hw/analysis/{V}/{S}/` | generated, sealed by its bundle manifest | `results.json` (data), `evidence/**` (evidence, optional), `manifest.json` (manifest) | cad-analysis fea_static.py, an accepted stack-up adapter | analysis | immutable | one analysis case result with every retained solver file |
-| `release.package` | `hw/releases/{REV}/` | generated, sealed by its release manifest | `manifest.json` (manifest), `definition/**` (definition, optional), `manufacturing/**` (manufacture, optional), `drawings/**` (document, optional), `analysis/**` (evidence, optional), `checks/**` (evidence, optional), `motion/**` (evidence, optional), `bom.csv` (snapshot, optional), `verification.csv` (snapshot, optional), `docs/**` (document, optional) | cad-record release.py (lead) | release | immutable | a sealed release package; a used revision is never overwritten |
+| `release.package` | `hw/releases/{REV}/` | generated, sealed by its release manifest | `manifest.json` (manifest), `definition/**` (definition, optional), `manufacturing/**` (manufacture, optional), `drawings/**` (document, optional), `analysis/**` (evidence, optional), `checks/**` (evidence, optional), `motion/**` (evidence, optional), `bom.csv` (snapshot, optional), `verification.csv` (snapshot, optional), `acceptance/**` (evidence, optional), `docs/**` (document, optional) | cad-record release.py (lead) | release | immutable | a sealed release package; a used revision is never overwritten |
 | `control.recheck` | `hw/.cad/recheck.json` | generated | (control) | cad-recheck stamp.py | layout | regenerated | stamp bound to the staged hw/ tree; any staged change invalidates it |
 | `cache.pairs` | `hw/.cad/pairs-v2.sqlite` | generated | (data) | cad-motion pair_measure.py PairCache (sweep.py, spot_check.py, cad-model check) | any | scratch | disposable pair-measurement cache the sweep and the static check share; deleting it costs time, never a result; git-ignored, never evidence |
 | `cache.pairs_wal` | `hw/.cad/pairs-v2.sqlite-wal` | generated | (data) | SQLite, for cad-motion pair_measure.py PairCache | any | scratch | the pair cache's write-ahead log; disposable with the cache |
@@ -149,7 +156,7 @@ below `hw/`.
 
 | Class | Suffixes | Canonical location | Action |
 |---|---|---|---|
-| geometry | `.step`, `.stp`, `.stl`, `.3mf`, `.glb`, `.gltf`, `.brep`, `.brp`, `.iges`, `.igs`, `.obj`, `.ply`, `.fcstd`, `.dxf`, `.dwg`, `.amf` | `hw/versions/{NEXT}/manufacturing/{PN}/{FILE}` | Geometry is generated, never placed by hand. Define the state in hw/parts/{PN}/model.py; cad-model run writes hw/versions/{NEXT}/manufacturing/{PN}/part.step, and part.stl for an FDM part. Keep any one-off exporter outside hw/, for example in .cad-work/migration/. Nothing was changed. |
+| geometry | `.step`, `.stp`, `.stl`, `.3mf`, `.glb`, `.gltf`, `.brep`, `.brp`, `.iges`, `.igs`, `.obj`, `.ply`, `.fcstd`, `.dxf`, `.dwg`, `.amf` | `hw/versions/{NEXT}/manufacturing/{PN}/{FILE}` | Geometry is generated, never placed by hand. Define the state in hw/parts/{PN}/model.py; cad-model run writes hw/versions/{NEXT}/manufacturing/{PN}/part.step, and part.stl for an additive (FDM or resin) part. Keep any one-off exporter outside hw/, for example in .cad-work/migration/. Nothing was changed. |
 | script | `.py`, `.sh`, `.bash`, `.zsh`, `.fcmacro`, `.js`, `.mjs`, `.ts`, `.ipynb`, `.bat`, `.ps1` | `.cad-work/migration/{REL}` | hw/parts/<PN>/model.py is the only CAD source in hw/. Fold the behaviour into the part's model.py, or keep the script outside hw/, for example in .cad-work/migration/. Nothing was changed. |
 | document | `.md`, `.txt`, `.rst`, `.pdf`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.csv`, `.tsv`, `.xlsx`, `.xls`, `.ods`, `.docx`, `.doc`, `.odt`, `.html`, `.htm` | `hw/docs/{REL}` | Move human notes and reference material to hw/docs/; nothing there earns geometry, check or release credit. Nothing was changed. |
 | data | any other | `.cad-work/migration/{REL}` | If a CAD command produced it, run that command again so the output lands in its bundle; otherwise keep it outside hw/, for example in .cad-work/migration/. Nothing was changed. |
@@ -187,8 +194,22 @@ A part is custom-made when `make_buy: make` or `procurement.mode: made_to_drawin
 | Process | Files |
 |---|---|
 | fdm | `part.step`, `part.stl`, `manufacturing.json` |
+| resin | `part.step`, `part.stl`, `manufacturing.json` |
 | cnc | `part.step`, `manufacturing.json` |
+| laser | `part.step`, `manufacturing.json` |
+| waterjet | `part.step`, `manufacturing.json` |
+| plasma | `part.step`, `manufacturing.json` |
+| sheet_forming | `part.step`, `manufacturing.json` |
+| casting | `part.step`, `manufacturing.json` |
+| moulding | `part.step`, `manufacturing.json` |
+| extrusion | `part.step`, `manufacturing.json` |
 | purchased | `part.step`, `manufacturing.json` |
+
+A part with several disconnected solids (part.yaml `intent.components`) also gets
+`components/{COMP}/part.step` per component, and `components/{COMP}/part.stl` where its process has
+`part.stl`; its `manufacturing.json` inventories them. `other` has no output contract: cad-model still builds
+the installed definition, the manufacturing coverage stays unknown, and `manufacture_policy` raises
+`UnsupportedProcess`, so freeze and release refuse the part rather than inventing its files.
 
 | File | Format |
 |---|---|

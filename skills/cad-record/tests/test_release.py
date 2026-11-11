@@ -26,6 +26,7 @@ SKILL = Path(__file__).resolve().parents[1]
 SCRIPTS = SKILL / "scripts"
 RELEASE = SCRIPTS / "release.py"
 BUILD_GUIDE = SCRIPTS / "build_guide.py"
+STACKUP = SKILL.parent / "cad-fits" / "scripts" / "stackup.py"
 LAMP = SKILL.parent.parent / "examples" / "lamp-arm" / "hw"
 
 
@@ -42,6 +43,8 @@ layout = load("cad_record_layout", SCRIPTS / "layout.py")
 validate = load("cad_record_validate", SCRIPTS / "validate.py")
 release = load("cad_record_release", RELEASE)
 prune = load("cad_record_prune", SCRIPTS / "prune.py")
+acceptance = load("cad_record_acceptance_fixtures", SKILL / "tests" / "fixtures" / "acceptance.py")
+fx, impact = acceptance.fx, acceptance.impact
 
 
 def sha(path: Path) -> str:
@@ -92,12 +95,13 @@ DRAWING = {"sheet-1.svg": "svg\n", "sheet-1.pdf": "pdf\n", "sheet-1.png": "png\n
 
 def build_version(hw: Path, omit: tuple[tuple[str, str], ...] = (), failed: dict[str, str] | None = None,
                   attach: tuple[str, ...] = (), label: str = "v1") -> None:
-    """hw/versions/<label> as cad-model run seals it: record snapshot, installed STEP per modelled part
-    and the manufacturing outputs of every custom-made part. `omit` leaves (PN, file) out; `failed`
-    marks a part's named manufacturing check failed; `attach` lists its `--attach REF=PARENT_REF` options."""
+    """hw/versions/<label> as cad-model run seals it: the record snapshot the layout's version.record set
+    names, installed STEP per modelled part and the manufacturing outputs of every custom-made part. `omit`
+    leaves (PN, file) out; `failed` marks a part's named manufacturing check failed; `attach` lists its
+    `--attach REF=PARENT_REF` options."""
     folder = hw / "versions" / label
-    for name in ["product.yaml", "interfaces.yaml", "assembly.yaml"] + [
-            p.relative_to(hw).as_posix() for p in sorted((hw / "parts").glob("*/part.yaml"))]:
+    pns = [p.parent.name for p in sorted((hw / "parts").glob("*/part.yaml"))]
+    for name in layout.snapshot_names(hw, pns):
         target = folder / "record" / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes((hw / name).read_bytes())
@@ -133,11 +137,16 @@ def build_version(hw: Path, omit: tuple[tuple[str, str], ...] = (), failed: dict
 
 def frozen_lamp(hw: Path, *, before_build: Callable[[Path], None] | None = None, omit: tuple[tuple[str, str], ...] = (),
                 failed: dict[str, str] | None = None, skip_bundles: tuple[str, ...] = (), attach: tuple[str, ...] = (),
-                label: str = "v1", older: tuple[str, ...] = ()) -> None:
-    """The lamp example, reconciled for release (released revisions, verification passed with
-    evidence), built as `label`, frozen at it, every required bundle published, and DR-005 approving it.
-    Each `older` version is built first, with a check and a render bundle of its own."""
-    shutil.copytree(LAMP, hw)
+                label: str = "v1", older: tuple[str, ...] = (), service_class: str = "appearance_concept",
+                ledger: Callable[[Path, Any, list[dict[str, Any]]], list[dict[str, Any]]] | None = None,
+                anchor: bool = True) -> None:
+    """The lamp example migrated to record version 2 and reconciled for release (released revisions, a
+    confirmed `service_class` use case and explicit routes, every software check of `label` passed by a
+    sealed producer packet, verification passed with accepted ledger evidence), built as `label`, frozen at
+    it with its acceptance digest (unless not `anchor`), every required bundle published, and DR-005
+    approving it. Each `older` version is built first, with a check and a render bundle of its own;
+    `ledger` may rewrite the accepted entries before the freeze."""
+    fx.migrated_copy(LAMP, hw)
     for part in sorted((hw / "parts").glob("*/part.yaml")):
         edit_yaml(part, lambda data: data.update(rev="A"))
     edit_csv(hw / "bom.csv", lambda rows: [row.update(rev="A") for row in rows])
@@ -145,18 +154,30 @@ def frozen_lamp(hw: Path, *, before_build: Callable[[Path], None] | None = None,
     write(hw / "docs" / "inspection.md", "# Inspection record\n")
     if before_build:
         before_build(hw)
+    acceptance.release_ready(hw, service_class)
+    if not yaml.safe_load((hw / "manufacturing" / "selection.yaml").read_text(encoding="utf-8")).get("candidates"):
+        acceptance.confirm_selection(hw)  # a freeze and a release need the confirmed material and process selection
     for old in older:
         build_version(hw, label=old)
         publish(hw, "checks", "static", {"result.json": f'{{"status": "pass", "label": "{old}"}}\n'}, version=old)
         publish(hw, "renders", "iso", {"iso.png": f"{old} render\n"}, version=old)
     build_version(hw, omit, failed, attach, label)
-    edit_yaml(hw / "product.yaml", lambda data: data["flow"].update(
-        stage="release", frozen={"version": label, "manifest_sha256": sha(hw / "versions" / label / "manifest.json"),
-                                 "decision": "DR-004"}))
-    write(hw / "decisions" / "DR-005.md", f"# DR-005 Release A\n\nApproved: release {label} as revision A.\n")
+    record = impact.read_record(hw)
+    acceptance.publish_packet(hw, label, acceptance.producer_packet(record, label))
     evidence = {"REQ-002": f"sweep hw/motion/{label}/elbow-sweep", "REQ-004": f"hw/analysis/{label}/arm-load/results.json"}
     edit_csv(hw / "verification.csv", lambda rows: [row.update(result="pass", evidence=evidence.get(
         row["requirement_id"], "hw/docs/inspection.md")) for row in rows])
+    version_sha = sha(hw / "versions" / label / "manifest.json")
+    entries = [acceptance.entry(record, f"EV-{number:03d}", {"product": True, "requirements": [req]}, "cad_valid",
+                                requirement=req, version=label, manifest_sha256=version_sha,
+                                geometry=impact.current_geometry(hw), artifacts=["hw/docs/inspection.md"], hw=hw)
+               for number, req in enumerate(sorted(record.requirements), start=1)]
+    acceptance.write_ledger(hw, ledger(hw, record, entries) if ledger else entries)
+    frozen = {"version": label, "manifest_sha256": version_sha, "decision": "DR-004"}
+    if anchor:
+        frozen["evidence_sha256"] = acceptance.freeze_anchor(hw, label)
+    edit_yaml(hw / "product.yaml", lambda data: data["flow"].update(stage="release", frozen=frozen))
+    write(hw / "decisions" / "DR-005.md", f"# DR-005 Release A\n\nApproved: release {label} as revision A.\n")
     for part in sorted((hw / "versions" / label / "record" / "parts").glob("*/part.yaml")):
         pn = part.parent.name
         if "drawing" in yaml.safe_load(part.read_text(encoding="utf-8")) and pn not in skip_bundles:
@@ -199,17 +220,27 @@ class Release(ReleaseCase):
         manifest = json.loads((package / "manifest.json").read_text(encoding="utf-8"))
         findings: list[dict[str, Any]] = []
         self.assertTrue(validate.validate_document(manifest, "release-manifest.schema.json", "manifest", findings), findings)
-        self.assertEqual((manifest["schema_version"], manifest["rev"], manifest["approval"], manifest["frozen"]["version"]),
-                         (2, "A", "DR-005", "v1"))
+        self.assertEqual((manifest["schema_version"], manifest["record_version"], manifest["rev"], manifest["approval"],
+                          manifest["frozen"]["version"]), (3, 2, "A", "DR-005", "v1"))
         self.assertEqual(manifest["frozen"]["manifest_sha256"], sha(hw / "versions" / "v1" / "manifest.json"))
         self.assertEqual(layout.verify(package), [])
         for name, item in manifest["files"].items():
             self.assertEqual(sha(layout.locate(hw, item["original"])), item["sha256"], name)
         self.assertEqual(report["manifest_sha256"], sha(package / "manifest.json"))
         self.assertEqual(manifest["manufacturing"]["LMP-0001"],
-                         {"process": "fdm", "quantity": 1, "files": ["manufacturing/LMP-0001/part.step",
-                                                                     "manufacturing/LMP-0001/part.stl",
-                                                                     "manufacturing/LMP-0001/manufacturing.json"]})
+                         {"process": "fdm", "quantity": 1, "route": ["fdm"],
+                          "files": ["manufacturing/LMP-0001/part.step", "manufacturing/LMP-0001/part.stl",
+                                    "manufacturing/LMP-0001/manufacturing.json"]})
+        accepted = manifest["acceptance"]
+        self.assertEqual(accepted["evidence_sha256"], manifest["frozen"]["evidence_sha256"])
+        self.assertEqual(accepted["scope"]["service_class"], "appearance_concept")
+        self.assertFalse(accepted["scope"]["trial"])
+        self.assertEqual((accepted["claims"]["REQ-001"], accepted["waivers"]), (["cad_valid"], []))
+        self.assertIn("process.fdm.trial@LMP-0001/make", accepted["open_obligations"], "untested, unclaimed, open")
+        for path, digest in accepted["inventory"].items():
+            self.assertEqual(manifest["files"][f"acceptance/{path[3:]}"], {"sha256": digest, "original": path})
+        self.assertIn("hw/manufacturing/evidence.yaml", accepted["inventory"])
+        self.assertEqual(manifest["checks"]["acceptance"], "pass")
         self.assertEqual(manifest["manufacturing"]["LMP-0002"]["files"],
                          ["manufacturing/LMP-0002/part.step", "manufacturing/LMP-0002/manufacturing.json"])
         selected = {item["path"]: item["manifest_sha256"] for item in manifest["bundles"]}
@@ -233,8 +264,8 @@ class Release(ReleaseCase):
         manifest = json.loads((package / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(sorted(manifest["manufacturing"]), [f"LMP-000{n}" for n in range(1, 8)])
         self.assertEqual(manifest["manufacturing"]["LMP-0005"],
-                         {"process": "cnc", "quantity": 1, "files": ["manufacturing/LMP-0005/part.step",
-                                                                     "manufacturing/LMP-0005/manufacturing.json"]})
+                         {"process": "cnc", "quantity": 1, "route": ["cnc"],
+                          "files": ["manufacturing/LMP-0005/part.step", "manufacturing/LMP-0005/manufacturing.json"]})
         catalogue = ("LMP-0008", "LMP-0009", "LMP-0010", "LMP-0011")
         self.assertEqual([name for name in manifest["files"]
                           if name.startswith(tuple(f"manufacturing/{pn}/" for pn in catalogue))], [])
@@ -257,8 +288,8 @@ class Release(ReleaseCase):
         self.assertEqual(code, 0, report.get("findings"))
         manifest = json.loads((hw / "releases" / "A" / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["manufacturing"]["LMP-0011"],
-                         {"process": "cnc", "quantity": 3, "files": ["manufacturing/LMP-0011/part.step",
-                                                                     "manufacturing/LMP-0011/manufacturing.json"]})
+                         {"process": "cnc", "quantity": 3, "route": ["cnc"],
+                          "files": ["manufacturing/LMP-0011/part.step", "manufacturing/LMP-0011/manufacturing.json"]})
         self.assertEqual(sorted(n for n in manifest["files"] if n.startswith("manufacturing/LMP-0011/")),
                          ["manufacturing/LMP-0011/manufacturing.json", "manufacturing/LMP-0011/part.step"])
 
@@ -273,6 +304,27 @@ class Release(ReleaseCase):
         self.assertEqual(code, 0, report.get("findings"))
         manifest = json.loads((hw / "releases" / "A" / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["manufacturing"]["LMP-0007"]["quantity"], 1)
+
+    def test_a_passing_stack_case_releases_with_its_case_bundle(self) -> None:
+        """stackup.py publishes the stack at hw/analysis/cases/<case>/case.yaml as hw/analysis/<V>/<case>/, the
+        bundle release.py requires for that case, whatever the stack's own (uppercase) id."""
+        hw = self.project()
+        stack = {"id": "STK-001", "title": "Bearing end float", "units": "mm",
+                 "requirement": {"min": 0.0, "max": 0.40, "method": "worst_case"},
+                 "contributors": [{"id": "A", "nominal": 50.0, "tol": 0.05, "direction": 1},
+                                  {"id": "B", "nominal": 49.8, "tol": 0.05, "direction": -1}]}
+        case = write(hw / "analysis" / "cases" / "end-float" / "case.yaml", yaml.safe_dump(stack, sort_keys=False))
+        code, report = self.release(hw)
+        self.assertEqual(code, 1)
+        self.assertIn("analysis case end-float has no result for v1", json.dumps(report["findings"]))
+        run = subprocess.run([sys.executable, str(STACKUP), str(case), "--hw", str(hw), "--version", "v1"],
+                             capture_output=True, text=True, timeout=120, check=False)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(json.loads(run.stdout)["bundle"], str(hw / "analysis" / "v1" / "end-float"))
+        code, report = self.release(hw)
+        self.assertEqual(code, 0, report.get("findings"))
+        manifest = json.loads((hw / "releases" / "A" / "manifest.json").read_text(encoding="utf-8"))
+        self.assertIn("hw/analysis/v1/end-float", {item["path"] for item in manifest["bundles"]})
 
     def test_a_released_original_may_go_but_its_package_copy_may_not(self) -> None:
         hw = self.project()
@@ -454,6 +506,24 @@ class Pruning(ReleaseCase):
         for reason in ("frozen in product.yaml flow.frozen", "named by DR-005", "latest: versions/latest.json names it"):
             self.assertIn(reason, plan["keep"]["v3"])
 
+    def test_evidence_only_the_ledger_cites_keeps_its_version(self) -> None:
+        hw = self.released()
+        ledger = hw / "manufacturing" / "evidence.yaml"
+        data = yaml.safe_load(ledger.read_text(encoding="utf-8"))
+        data["entries"].append({"id": "EV-099", "requirement": "REQ-001", "subject": {"product": True}, "level": "cad_valid",
+                                "result": "planned", "method": "TST re-run of the v2 sweep",
+                                "note": "compare with hw/motion/v2/elbow-sweep"})
+        ledger.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+        plan = prune.plan(hw, "A", "v3")
+        self.assertEqual(plan["prune"], ["v1"])
+        self.assertEqual(plan["keep"]["v2"], ["referenced by hw/manufacturing/evidence.yaml"])
+
+    def test_a_release_manifest_version_it_cannot_read_refuses_the_plan(self) -> None:
+        hw = self.released()
+        write(hw / "releases" / "B" / "manifest.json", json.dumps({"schema_version": 9, "product_id": "lamp-arm", "rev": "B"}))
+        with self.assertRaisesRegex(layout.LayoutError, "manifest version 9"):
+            prune.plan(hw, "A", "v3")
+
 
 class Documents(ReleaseCase):
     def guide(self, hw: Path, *extra: str) -> None:
@@ -585,6 +655,133 @@ class Refusal(ReleaseCase):
                                  "--decision", "DR-005"], capture_output=True, text=True, timeout=120, check=False)
         self.assertEqual(result.returncode, 2)
         self.assertIn("REV 'I' does not match", json.loads(result.stdout)["message"])
+
+
+def waive_fdm_trials(hw: Path, record: Any, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The accepted entries plus an approved, scoped trial waiver (DR-006) for every FDM part's print trial, and
+    accepted joint evidence (a TST retention test) for every assembly.joint obligation: a fit-assembly release
+    resolves the joints, which assembly_operations judges unknown from this record's unsourced heat-set facts."""
+    acceptance.decision(hw, "DR-006")
+    configuration = entries[0]["configuration"]
+    for obligation in acceptance.mi.required_checks(record):
+        subject = dict(obligation.subject)
+        if obligation.family == "process.fdm.trial":
+            entries.append(acceptance.entry(record, f"EV-{len(entries) + 1:03d}", subject, "physically_validated", "waived",
+                                            obligation=obligation.id,
+                                            waiver=acceptance.waiver(subject, "DR-006", obligation=obligation.id)))
+        elif obligation.family == "assembly.joint":
+            entries.append(acceptance.entry(record, f"EV-{len(entries) + 1:03d}", subject, obligation.level,
+                                            obligation=obligation.id, version=configuration["version"],
+                                            manifest_sha256=configuration["manifest_sha256"],
+                                            geometry=impact.current_geometry(hw), artifacts=["hw/docs/inspection.md"], hw=hw))
+    return entries
+
+
+def open_selection(hw: Path) -> None:
+    """selection.yaml assessing one candidate for LMP-0001 (its recorded FDM route, no material profile, so
+    the capability's material approval stays unknown: conditional), on a digest of other inputs (stale)."""
+    candidate = {"id": "lamp_as_drawn", "title": "TST: the base as drawn", "architecture": "TST: as recorded",
+                 "parts": [{"PN": "LMP-0001", "material_profile": fx.not_applicable(acceptance.NA),
+                            "route": [{"kind": "fdm", "capability": "tst_fdm"}]}],
+                 "evaluations": [], "pros": ["TST: as drawn"], "cons": ["TST: none recorded"], "tradeoffs": ["TST: none"]}
+    write(hw / "manufacturing" / "selection.yaml", yaml.safe_dump({
+        "status": "assessed", "assessment": {"input_sha256": "0" * 64, "method": "selection.py", "date": "2026-01-01"},
+        "candidates": [candidate]}, sort_keys=False))
+
+
+class Acceptance(ReleaseCase):
+    """The intent acceptance of a record version 2 release: anchor, evidence and service policy."""
+
+    def test_a_version_1_record_refuses_until_it_is_migrated(self) -> None:
+        hw = self.project()
+        edit_yaml(hw / "product.yaml", lambda data: data.pop("record_version"))
+        before = tree(hw)
+        code, report = self.release(hw)
+        self.assertEqual((code, report["status"]), (1, "refused"))
+        self.assertIn("record.migration_required", [item.get("code") for item in report["findings"]])
+        self.assertEqual(tree(hw), before)
+
+    def test_a_freeze_without_an_acceptance_anchor_refuses(self) -> None:
+        hw = self.project(anchor=False)
+        self.assertEqual(validate.blocking(validate.validate_project(hw)), [], "readable: a legacy-freeze warning only")
+        self.refused_with(hw, "release.frozen", "anchors no evidence_sha256")
+
+    def test_evidence_accepted_after_the_freeze_needs_a_new_anchor(self) -> None:
+        hw = self.project()
+        ledger = hw / "manufacturing" / "evidence.yaml"
+        data = yaml.safe_load(ledger.read_text(encoding="utf-8"))
+        data["entries"].append({"id": "EV-099", "requirement": "REQ-001", "subject": {"product": True}, "level": "cad_valid",
+                                "result": "planned", "method": "TST late plan"})
+        ledger.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+        self.assertIn("record.evidence_anchor", [item.get("code") for item in validate.validate_project(hw)])
+        self.refused_with(hw, "release.acceptance", "not the acceptance digest")
+        anchor = acceptance.freeze_anchor(hw, "v1")
+        edit_yaml(hw / "product.yaml", lambda product: product["flow"]["frozen"].update(evidence_sha256=anchor))
+        code, report = self.release(hw)
+        self.assertEqual(code, 0, report.get("findings"))
+
+    def test_a_verification_pass_without_ledger_evidence_refuses(self) -> None:
+        hw = self.project(ledger=lambda hw, record, entries: [])
+        self.refused_with(hw, "evidence.csv_unsupported", "a CSV result is a summary of accepted evidence")
+
+    def test_an_untested_fit_prototype_refuses_and_approved_waivers_make_it_an_unvalidated_trial(self) -> None:
+        hw = self.project(service_class="fit_assembly")
+        self.refused_with(hw, "release.acceptance", "process.fdm.trial@LMP-0001/make is unknown")
+        hw = self.project(service_class="fit_assembly", ledger=waive_fdm_trials)
+        code, report = self.release(hw)
+        self.assertEqual(code, 0, report.get("findings"))
+        manifest = json.loads((hw / "releases" / "A" / "manifest.json").read_text(encoding="utf-8"))
+        self.assertTrue(manifest["acceptance"]["scope"]["trial"])
+        self.assertEqual(manifest["checks"]["acceptance"], "waived")
+        self.assertEqual({waiver["decision"] for waiver in manifest["acceptance"]["waivers"]}, {"DR-006"})
+        self.assertIn("process.fdm.trial@LMP-0001/make", manifest["acceptance"]["open_obligations"])
+        self.assertNotIn("physically_validated", manifest["acceptance"]["claims"]["REQ-001"])
+
+    def test_a_production_release_is_never_a_waived_trial(self) -> None:
+        hw = self.project(service_class="production", ledger=waive_fdm_trials)
+        self.refused_with(hw, "release.acceptance", "release.trial_not_permitted")
+
+    def test_a_sealed_package_is_read_by_its_own_manifest_version(self) -> None:
+        hw = self.project()
+        self.assertEqual(self.release(hw)[0], 0)
+        code, report = release.sealed(hw, "A", "v1", "DR-005")
+        self.assertEqual((code, report["manifest_version"]), (0, 3))
+        path = hw / "releases" / "A" / "manifest.json"
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        forged = {**manifest, "acceptance": {**manifest["acceptance"], "evidence_sha256": "0" * 64}}
+        path.write_text(json.dumps(forged), encoding="utf-8")
+        code, report = release.sealed(hw, "A", "v1", "DR-005")
+        self.assertEqual(code, 1)
+        self.assertIn("not the digest of its sealed inventory", report["findings"][0]["message"])
+        # the same package as a version 2 seal: inspectable as sealed, never re-certified as version 3
+        legacy = {key: value for key, value in manifest.items() if key not in ("acceptance", "record_version")}
+        legacy.update(schema_version=2, files={k: v for k, v in manifest["files"].items() if not k.startswith("acceptance/")},
+                      manufacturing={pn: {k: v for k, v in entry.items() if k != "route"}
+                                     for pn, entry in manifest["manufacturing"].items()})
+        shutil.rmtree(hw / "releases" / "A" / "acceptance")
+        path.write_text(json.dumps(legacy), encoding="utf-8")
+        code, report = release.sealed(hw, "A", "v1", "DR-005")
+        self.assertEqual((code, report["manifest_version"]), (0, 2))
+
+    def test_an_open_or_stale_selection_refuses_the_release(self) -> None:
+        hw = self.project(before_build=open_selection)
+        self.assertEqual(validate.blocking(validate.validate_project(hw)), [], "the record itself is valid")
+        before = tree(hw)
+        result, report = self.release(hw)
+        self.assertEqual((result, report["status"]), (1, "refused"))
+        messages = [item["message"] for item in report["findings"] if item.get("code") == "release.acceptance"]
+        for text in ("gate.selection: the recorded assessed assessment is stale",
+                     "gate.selection: the selection is conditional"):
+            self.assertTrue(any(text in message for message in messages), messages)
+        self.assertEqual(tree(hw), before, "a refused release writes nothing in hw/")
+
+    def refused_with(self, hw: Path, code: str, text: str) -> None:
+        before = tree(hw)
+        result, report = self.release(hw)
+        self.assertEqual((result, report["status"]), (1, "refused"))
+        self.assertTrue(any((item.get("code") == code or code in item["message"]) and text in item["message"]
+                            for item in report["findings"]), json.dumps(report["findings"], indent=1))
+        self.assertEqual(tree(hw), before, "a refused release writes nothing in hw/")
 
 
 if __name__ == "__main__":

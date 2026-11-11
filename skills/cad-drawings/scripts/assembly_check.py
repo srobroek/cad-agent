@@ -9,13 +9,18 @@ Kernel-free; ``assembly_drawing.py`` uses it in the run, and the CLI re-checks a
 
     uv run --script assembly_check.py PACKAGE_DIR
 
-``read_intent`` normalizes ``assembly.yaml`` ``drawing``. ``reconcile`` binds it to the version's
-occurrences, the BOM and the interfaces: one item row per PN, every occurrence of the drawing scope in
-exactly one item, quantity = the item's occurrences = the BOM roll-up, and each operation resolved to
-its interface limit (fit, insert or ring) and its two items. ``check_sheet`` reads a composed sheet's
-SVG back: every parts-list item has exactly one balloon in every ballooned view and every balloon one
-row; each balloon names an occurrence of its item inside the view, its leader ends with its dot on the
-visible surface point measured for that occurrence, and the parts-list cells equal the BOM and the
+``read_intent`` normalizes ``assembly.yaml`` ``drawing``, and takes its installation operations from
+cad-record ``assembly_operations`` (top-level ``operations``, or a legacy ``drawing.operations``; both
+is invalid intent). ``reconcile`` binds it to the version's occurrences, the BOM and the interfaces: one
+item row per PN, every occurrence of the drawing scope in exactly one item, quantity = the item's
+occurrences = the BOM roll-up, and each operation resolved to its two items and, for a press fit,
+heat-set insert or retaining ring, its interface limit (fit, insert or ring). An operation with a
+geometric acceptance (seated, standoff, flush, engaged) and a direction is measured on the assembled
+model; a torqued, adjusted or inspected acceptance is stated, never measured here. Adjust, inspect and
+disassemble operations are service steps, outside the assembled drawing. ``check_sheet`` reads a
+composed sheet's SVG back: every parts-list item has exactly one balloon in every ballooned view and
+every balloon one row; each balloon names an occurrence of its item inside the view, its leader ends with
+its dot on the visible surface point measured for that occurrence, and the parts-list cells equal the BOM and the
 occurrence counts. Failure codes are the drawing package's (``assembly_item_unidentified``,
 ``bom_geometry_mismatch``, ``assembly_instruction_incomplete``, ``invalid_drawing_intent``,
 ``feature_not_presentable``).
@@ -47,12 +52,11 @@ DIRECTIONS: dict[str, tuple[Vec, Vec]] = {
 ORTHOGRAPHIC = frozenset(DIRECTIONS) - {"iso"}
 VIEW_KINDS = ("assembled", "exploded")
 SCOPES = ("modeled_mechanical_assembly", "complete_assembly")
-OPERATION_KINDS = ("press_fit", "heat_set", "retaining_ring")
-# Acceptance kind -> number of named features (installed part's, then the receiving part's). Each is
-# measured on the assembled model: seated = contact along the installation direction, standoff = the
-# measured gap there, flush = a face of the receiving part level with the installed part's trailing
-# end, engaged = the installed part touching the receiving part (a ring in its groove).
-ACCEPTANCE = {"seated": 2, "standoff": 2, "flush": 2, "engaged": 1}
+OPERATIONS_PATH = Path(__file__).resolve().parents[2] / "cad-record" / "scripts" / "assembly_operations.py"
+# Geometric acceptance kinds, measured on the assembled model: seated = contact along the installation
+# direction, standoff = the measured gap there, flush = a face of the receiving part level with the
+# installed part's trailing end, engaged = the installed part touching the receiving part (a ring in its
+# groove). The kinds and their feature counts are cad-record assembly_operations' ACCEPTANCE.
 CONTACT_MM = 0.01            # cad-model's contact tolerance
 FLUSH_MM = 0.02
 TOP = "top"
@@ -100,12 +104,12 @@ class Item:
 @dataclass(frozen=True)
 class Operation:
     id: str
-    kind: str                  # an OPERATION_KINDS entry
+    kind: str                  # an installing assembly_operations kind
     part: str                  # reference of the occurrence installed
     into: str                  # reference of the occurrence that receives it
-    interface: str
-    direction: Vec             # installation direction of `part` in the receiving part's model frame
-    acceptance: str            # an ACCEPTANCE kind
+    interface: str | None      # required for a press fit, heat-set insert or retaining ring
+    direction: Vec | None      # installation direction of `part` in the receiving part's model frame
+    acceptance: str | None     # an assembly_operations ACCEPTANCE kind; None for a close without one
     features: tuple[str, ...]  # named features of part (then host) the acceptance refers to
     verify_joint: str | None   # joint whose free travel is verified afterwards
     tools: tuple[str, ...] = ()
@@ -137,13 +141,6 @@ def _text(value: Any, where: str) -> str:
     if not isinstance(value, (str, int)) or isinstance(value, bool) or not str(value).strip():
         raise IntentError(f"{where} must be a non-empty string")
     return str(value)
-
-
-def _recorded_names(raw: Mapping[str, Any], key: str, where: str) -> tuple[str, ...]:
-    values = raw.get(key) or []
-    if not isinstance(values, list) or not all(isinstance(value, str) and value.strip() for value in values):
-        raise IntentError(f"{where}/{key} must be a list of non-empty strings")
-    return tuple(values)
 
 
 def read_intent(assembly: Mapping[str, Any]) -> Intent:
@@ -184,12 +181,7 @@ def read_intent(assembly: Mapping[str, Any]) -> Intent:
         items.append(Item(raw["item"], _text(raw.get("PN"), f"{at}/PN"), None if refs is None else tuple(refs)))
     if not items:
         raise IntentError(f"{where}/items lists no item")
-    operations = []
-    for index, raw in enumerate(drawing.get("operations") or []):
-        at = f"{where}/operations/{index}"
-        if not isinstance(raw, Mapping):
-            raise IntentError(f"{at} must be a mapping")
-        operations.append(_operation(raw, at))
+    operations = drawing_operations(assembly)
     scope = drawing.get("scope", "modeled_mechanical_assembly")
     if scope not in SCOPES:
         raise IntentError(f"{where}/scope must be one of {', '.join(SCOPES)}")
@@ -203,26 +195,44 @@ def read_intent(assembly: Mapping[str, Any]) -> Intent:
                   operations=tuple(operations))
 
 
-def _operation(raw: Mapping[str, Any], at: str) -> Operation:
-    kind = raw.get("kind")
-    if kind not in OPERATION_KINDS:
-        raise IntentError(f"{at}/kind must be one of {', '.join(OPERATION_KINDS)}")
-    acceptance = raw.get("acceptance")
-    if not isinstance(acceptance, Mapping) or acceptance.get("kind") not in ACCEPTANCE:
-        raise IntentError(f"{at}/acceptance needs kind {'|'.join(ACCEPTANCE)}")
-    features = acceptance.get("features")
-    wanted = ACCEPTANCE[acceptance["kind"]]
-    if not isinstance(features, list) or len(features) != wanted or not all(isinstance(f, str) and f for f in features):
-        raise IntentError(f"{at}/acceptance {acceptance['kind']} names {wanted} feature(s)")
-    direction = _vector(raw.get("direction"), f"{at}/direction")
-    if math.hypot(*direction) < 1e-9:
-        raise IntentError(f"{at}/direction must not be zero")
-    joint = raw.get("verify_joint")
-    return Operation(id=_text(raw.get("id"), f"{at}/id"), kind=kind, part=_text(raw.get("part"), f"{at}/part"),
-                     into=_text(raw.get("into"), f"{at}/into"), interface=_text(raw.get("interface"), f"{at}/interface"),
-                     direction=direction, acceptance=acceptance["kind"], features=tuple(features),
-                     verify_joint=None if joint is None else _text(joint, f"{at}/verify_joint"),
-                     tools=_recorded_names(raw, "tools", at), consumables=_recorded_names(raw, "consumables", at))
+def _operations_module() -> Any:
+    """cad-record assembly_operations, the one normalizer of assembly operations, under its shared name."""
+    name = "cad_record_assembly_operations"
+    if name not in sys.modules:
+        import importlib.util  # noqa: PLC0415 - loaded once, by path, like the other cad-record readers
+
+        spec = importlib.util.spec_from_file_location(name, OPERATIONS_PATH)
+        if spec is None or spec.loader is None:
+            raise IntentError(f"cannot load {OPERATIONS_PATH}")
+        sys.modules[name] = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sys.modules[name])
+    return sys.modules[name]
+
+
+def drawing_operations(assembly: Mapping[str, Any]) -> list[Operation]:
+    """The installing operations of a parsed assembly.yaml, in record order, as the drawing presents
+    them; IntentError for operations held in both authorities or malformed. Service steps (adjust,
+    inspect, disassemble) and unknown operations add none."""
+    module = _operations_module()
+    try:
+        normalized = module.normalize(assembly)
+    except module.OperationsError as error:
+        raise IntentError(f"assembly.yaml operations: {error} ({error.code})") from error
+    return [Operation(id=op.id, kind=op.kind, part=op.part, into=op.into, interface=op.interface,
+                      direction=op.direction, acceptance=op.acceptance, features=op.features,
+                      verify_joint=op.verify_joint, tools=op.tool_names, consumables=op.consumables)
+            for op in normalized.items if op.installs]
+
+
+def operations_summary(assembly: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Every normalized operation of a parsed assembly.yaml as JSON (service steps included), for the
+    drawing recipe; IntentError as for drawing_operations."""
+    module = _operations_module()
+    try:
+        summary: list[dict[str, Any]] = module.summary(module.normalize(assembly))
+        return summary
+    except module.OperationsError as error:
+        raise IntentError(f"assembly.yaml operations: {error} ({error.code})") from error
 
 
 # --------------------------------------------------------------------------- reconciliation
@@ -261,12 +271,19 @@ class ResolvedOperation:
     into_occurrence: str
     part_item: int
     into_item: int
-    limit: Mapping[str, Any]                       # the interface limit entry that specifies the joint
+    limit: Mapping[str, Any]                       # the interface limit entry that specifies the joint; {} when none applies
     travel: Travel | None                           # the verify_joint check, when declared
-    direction: Vec                                  # unit installation direction in the assembly frame
+    direction: Vec | None                           # unit installation direction in the assembly frame
+
+    @property
+    def measurable(self) -> bool:
+        """Whether the FreeCAD job can measure the acceptance: a geometric kind along a direction."""
+        return self.direction is not None and self.operation.acceptance in _operations_module().GEOMETRIC_ACCEPTANCE
 
     def measurement(self) -> dict[str, Any]:
         """What the FreeCAD measure job evaluates on the assembled model for the acceptance."""
+        if self.direction is None or not self.measurable:
+            raise ValueError(f"operation {self.operation.id}: its acceptance is not measured on the model")
         return {"id": self.operation.id, "kind": self.operation.acceptance, "part": self.part_occurrence,
                 "into": self.into_occurrence, "direction": list(self.direction)}
 
@@ -282,7 +299,10 @@ def rotate(quaternion: Sequence[float], vector: Sequence[float]) -> Vec:
 
 
 def check_acceptance(op: ResolvedOperation, measured: Mapping[str, Any] | None) -> list[dict[str, Any]]:
-    """Findings when the model contradicts an operation's acceptance (measured by the FreeCAD job)."""
+    """Findings when the model contradicts an operation's acceptance (measured by the FreeCAD job); none
+    for an acceptance the model cannot show (torqued, adjusted, inspected, or a close without one)."""
+    if not op.measurable:
+        return []
     operation = op.operation
     where = f"operation {operation.id}"
 
@@ -390,7 +410,7 @@ def reconcile(intent: Intent, geometry: Any, bom_rows: Sequence[Mapping[str, str
                 return ref[1:]
             findings.append(finding("invalid_drawing_intent", f"{where}: {ref} names no occurrence"))
             return None
-        found = [o.occurrence_id for o in geometry.occurrences if o.pn == ref]
+        found: list[str] = [o.occurrence_id for o in geometry.occurrences if o.pn == ref]
         if len(found) == 1:
             return found[0]
         findings.append(finding("invalid_drawing_intent", f"{where}: {ref} " +
@@ -461,18 +481,21 @@ def reconcile(intent: Intent, geometry: Any, bom_rows: Sequence[Mapping[str, str
         if part == into:
             findings.append(finding("assembly_instruction_incomplete", f"{where}: part and into are both {operation.part}"))
             continue
-        interface = by_interface.get(operation.interface)
-        if interface is None:
+        interface = by_interface.get(operation.interface) if operation.interface is not None else None
+        if operation.interface is not None and interface is None:
             findings.append(finding("assembly_instruction_incomplete", f"{where}: interface {operation.interface} "
                                                                        "is not in interfaces.yaml"))
             continue
-        ends = [(oid, occurrences[oid].pn, counts[occurrences[oid].pn] == 1) for oid in (part, into)]
-        limit = _limit(interface, operation.kind, ends[0], ends[1])
-        if limit is None:
-            findings.append(finding("assembly_instruction_incomplete",
-                                    f"{where}: {operation.interface} has no limits.{operation.kind} joining "
-                                    f"{operation.part} and {operation.into}", operation=operation.id))
-            continue
+        limit: Mapping[str, Any] = {}
+        if operation.kind in _operations_module().INTERFACE_LIMIT_KINDS:
+            ends = [(oid, occurrences[oid].pn, counts[occurrences[oid].pn] == 1) for oid in (part, into)]
+            declared = None if interface is None else _limit(interface, operation.kind, ends[0], ends[1])
+            if declared is None:
+                findings.append(finding("assembly_instruction_incomplete",
+                                        f"{where}: {operation.interface} has no limits.{operation.kind} joining "
+                                        f"{operation.part} and {operation.into}", operation=operation.id))
+                continue
+            limit = declared
         travel = None
         if operation.verify_joint is not None:
             joint = joints.get(operation.verify_joint)
@@ -486,7 +509,7 @@ def reconcile(intent: Intent, geometry: Any, bom_rows: Sequence[Mapping[str, str
                             parent_item=item_of[joint["parent"]], child_item=item_of[joint["child"]])
         if part not in item_of or into not in item_of:
             continue
-        direction = rotate(occurrences[into].rotation, operation.direction)
+        direction = None if operation.direction is None else rotate(occurrences[into].rotation, operation.direction)
         resolved_ops.append(ResolvedOperation(operation, part, into, item_of[part], item_of[into], limit, travel,
                                               direction))
 

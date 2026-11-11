@@ -3,7 +3,20 @@
 # requires-python = ">=3.11"
 # dependencies = ["pyyaml>=6.0", "jsonschema>=4.23"]
 # ///
-"""Write or verify the CAD design recheck record for the staged index."""
+"""Write or verify the CAD design recheck record for the staged index.
+
+A stamp records the staged hw/ tree hash, the stage and the evidence packet `evidence.py check` wrote
+for it (cad-record): its expected checks, each one's status and the digest of the record inputs it
+read. Only a record version 2 record stamps; a version 1 record refuses at or after the threshold
+until migrate.py migrates it. A packet that is not the assessment of the staged record, lacks an
+expected check or is partial never stamps; `--passed` stamps only a packet whose stage gate, recomputed
+here from its statuses and from the staged record's selection report (cad-record selection.py, with
+the digest of the staged selection inputs), passes, so a stale, failed or unknown due check, or a
+recorded final choice the selection does not support, cannot be stamped as passed.
+`--verify` reads the staged index: the record inputs, the stamp and its packet, never the work tree
+beyond the layout audit. flow.recheck_from is the threshold and may only stay or move earlier than
+HEAD's: raising it would suppress the checks of the stages it skips.
+"""
 
 from __future__ import annotations
 
@@ -15,6 +28,7 @@ import platform
 import shutil
 import subprocess
 import sys
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -35,7 +49,7 @@ CAD_RECORD_ROOT = cad_record_root()
 CAD_RECORD_SCRIPTS = CAD_RECORD_ROOT / "scripts"
 
 
-def _load_module(name: str, path: Path):
+def _load_module(name: str, path: Path) -> Any:
     if name not in sys.modules:
         spec = importlib.util.spec_from_file_location(name, path)
         if spec is None or spec.loader is None:
@@ -47,6 +61,72 @@ def _load_module(name: str, path: Path):
 
 layout = _load_module("cad_record_layout", CAD_RECORD_SCRIPTS / "layout.py")
 validate = _load_module("cad_record_validate", CAD_RECORD_SCRIPTS / "validate.py")
+intent = validate.intent
+evidence = validate.evidence
+
+
+def staged_inputs(root: Path) -> dict[str, bytes]:
+    """The staged record inputs (cad-record evidence.is_record_input) by path below hw/, read from the index."""
+    files = {}
+    for raw in git("ls-files", "-z", "--", "hw/", cwd=root).split(b"\0"):
+        path = raw.decode("utf-8", errors="surrogateescape")
+        if path.startswith("hw/") and evidence.is_record_input(path[3:]):
+            files[path[3:]] = git("show", f":{path}", cwd=root)
+    return files
+
+
+@dataclass(frozen=True)
+class Staged:
+    """The staged index's normalized record, the digest of its record inputs (evidence.record_digest) and
+    the digest of its selection inputs (selection.input_digest)."""
+
+    record: Any
+    record_sha256: str
+    selection_sha256: str
+
+
+def staged_record(root: Path) -> Staged:
+    """The normalized record of the staged index and the digests of its record and selection inputs."""
+    files = staged_inputs(root)
+    documents = {}
+    for rel, data in files.items():
+        if intent.schema_for(rel) is None:
+            continue
+        try:
+            documents[rel] = yaml.safe_load(data.decode("utf-8"))
+        except (UnicodeError, yaml.YAMLError) as error:
+            raise RuntimeError(f"cannot parse staged hw/{rel}: {error}") from error
+    return Staged(intent.normalize_record(documents), evidence.record_digest(files),
+                  evidence.selection.input_digest(documents))
+
+
+def require_migrated(record: Any) -> None:
+    problem = intent.migration_problem(record.product)
+    if problem is not None:
+        raise RuntimeError(f"{problem.code}: {problem.message}. {problem.action or ''}".strip())
+
+
+def require_threshold_kept(root: Path, threshold: str) -> None:
+    """flow.recheck_from may stay or move earlier than HEAD's, never later."""
+    try:
+        head = yaml.safe_load(git("show", "HEAD:hw/product.yaml", cwd=root).decode("utf-8"))
+    except (RuntimeError, UnicodeError, yaml.YAMLError):
+        return  # no commit or no product.yaml yet: nothing to raise it from
+    before = (head.get("flow") or {}).get("recheck_from") if isinstance(head, dict) and isinstance(head.get("flow"), dict) else None
+    if before in validate.stages() and validate.stages().index(threshold) > validate.stages().index(before):
+        raise RuntimeError(f"staged flow.recheck_from {threshold} is later than HEAD's {before}: the threshold may only stay "
+                           "or move earlier, since raising it skips the checks of the stages in between")
+
+
+def require_evidence(packet: Any, staged: Staged, stage: str) -> list[str]:
+    """Refuse a packet that is not the evidence of the staged record at `stage`; return its blocking gate
+    findings, the obligation and selection gates recomputed from the staged record."""
+    problems = evidence.packet_problems(packet, record=staged.record, record_sha256=staged.record_sha256, stage=stage)
+    if problems:
+        raise RuntimeError("the evidence packet cannot stamp the staged record: " + "; ".join(problems))
+    blocking: list[str] = evidence.packet_blocking(packet, record=staged.record, stage=stage,
+                                                   selection_sha256=staged.selection_sha256)
+    return blocking
 
 
 
@@ -156,9 +236,18 @@ def record(stage: str, checks_path: Path, passed: bool, root: Path) -> dict[str,
     require_clean_layout(root, staged_product(root, stage))
     checks = load_checks(checks_path)
     require_complete(checks, checks_path)
+    staged = staged_record(root)
+    require_migrated(staged.record)
+    blocking = require_evidence(checks, staged, stage)
+    if passed and blocking:
+        raise RuntimeError(f"--passed contradicts the evidence packet: {len(blocking)} blocking finding(s) at {stage}: "
+                           + "; ".join(blocking[:3]) + (" …" if len(blocking) > 3 else ""))
     return {
         "tree_hash": staged_tree_hash(root),
         "stage": stage,
+        "record_sha256": staged.record_sha256,
+        "expected_sha256": checks["expected_sha256"],
+        "version": checks.get("version"),
         "checks": checks,
         "passed": passed,
         "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
@@ -223,9 +312,12 @@ def main() -> int:
             if not isinstance(threshold, str) or threshold not in validate.stages():
                 raise RuntimeError("staged hw/product.yaml has a missing or unknown flow.recheck_from")
             require_clean_layout(root, product)
+            require_threshold_kept(root, threshold)
             if validate.stages().index(current_stage) < validate.stages().index(threshold):
                 print(json.dumps({"passed": True, "required": False, "stage": current_stage}))
                 return 0
+            staged = staged_record(root)
+            require_migrated(staged.record)
             try:
                 record_data = json.loads(git("show", ":hw/.cad/recheck.json", cwd=root).decode("utf-8"))
             except (RuntimeError, UnicodeError, json.JSONDecodeError) as error:
@@ -241,7 +333,16 @@ def main() -> int:
                 raise RuntimeError("the recheck stamp does not say passed: true")
             if record_data.get("tree_hash") != actual_hash:
                 raise RuntimeError("the recheck stamp is stale for the staged hw/ tree")
-            print(json.dumps({"passed": True, "tree_hash": actual_hash}))
+            checks = record_data.get("checks")
+            blocking = require_evidence(checks, staged, current_stage)
+            stamped = checks if isinstance(checks, dict) else {}
+            if record_data.get("record_sha256") != staged.record_sha256 or \
+                    record_data.get("expected_sha256") != stamped.get("expected_sha256"):
+                raise RuntimeError("the recheck stamp does not record the evidence of the staged record; stamp it again")
+            if blocking:
+                raise RuntimeError(f"the stamped evidence has {len(blocking)} blocking finding(s) at {current_stage}: "
+                                   + "; ".join(blocking[:3]))
+            print(json.dumps({"passed": True, "tree_hash": actual_hash, "expected_sha256": record_data["expected_sha256"]}))
             return 0
         checks_path = args.checks if args.checks.is_absolute() else start / args.checks
         data = record(args.stage, checks_path, args.passed, root)

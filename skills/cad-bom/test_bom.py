@@ -261,6 +261,10 @@ class StepRoundTripTests(unittest.TestCase):
             (hw / "verification.csv").write_text(
                 "requirement_id,method,criteria,result,evidence\nREQ-001,I,Fits,planned,\n", encoding="utf-8"
             )
+            # The record as current cad-record reads it: record version 2, migrated with explicit unknowns.
+            migrated = subprocess.run([sys.executable, str(RECORD_VALIDATOR.with_name("migrate.py")), str(project), "--apply"],
+                                      capture_output=True, text=True, check=False, timeout=120)
+            self.assertEqual(migrated.returncode, 0, migrated.stdout + migrated.stderr)
 
             bom_proc, _ = self.run_bom(hw)
             self.assertEqual(bom_proc.returncode, 0, bom_proc.stderr)

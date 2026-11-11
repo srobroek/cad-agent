@@ -209,7 +209,7 @@ def _spread(preferred: list[float], spacing: float, perimeter: float) -> list[fl
         return list(preferred)
     gaps = [(preferred[(i + 1) % n] - preferred[i]) % perimeter for i in range(n)]
     start = (max(range(n), key=lambda i: gaps[i]) + 1) % n
-    line = []
+    line: list[float] = []
     for k in range(n):
         value = preferred[(start + k) % n]
         while line and value < line[-1]:
@@ -327,7 +327,9 @@ def operation_note(op: ResolvedOperation, measured: Mapping[str, Any], regime: s
 
     A standoff states the gap measured on the assembled model; directions are assembly-frame axes.
     ASME capitals apply to the note's own words only: fit, groove and insert designations keep the
-    record's case, because ``5 H7/p6`` and ``5 H7/P6`` are different fits.
+    record's case, because ``5 H7/p6`` and ``5 H7/P6`` are different fits. An insert, fastener, joint or
+    closure states its action, direction and acceptance; a torqued, adjusted or inspected acceptance
+    names its feature and is carried by the record and its inspection, not by the model.
     """
     def words(text: str) -> str:
         return regime_text(regime, text)
@@ -346,9 +348,13 @@ def operation_note(op: ResolvedOperation, measured: Mapping[str, Any], regime: s
                      words(" off the ") + features[1] + words(", as modelled"))
     elif operation.acceptance == "flush":
         until = words("its ") + features[0] + words(" is flush with the ") + features[1]
-    else:
+    elif operation.acceptance == "engaged":
         until = words("it is fully engaged in the ") + features[0]
-    direction = direction_text(op.direction)
+    elif operation.acceptance is not None:
+        until = words(f"its {_words(operation.acceptance)} ") + features[0] + words(" is recorded")
+    else:
+        until = None
+    data = None
     if operation.kind == "press_fit":
         action = words(f"Press item {op.part_item} into item {op.into_item}")
         data = words("fit ") + str(limit["fit"])
@@ -360,12 +366,23 @@ def operation_note(op: ResolvedOperation, measured: Mapping[str, Any], regime: s
         data = str(limit["insert"]) + words(" in hole ") + f"⌀{_number(limit['hole_d'])}{tolerance}"
         if "depth_min" in limit:
             data += words(f", depth min {_number(limit['depth_min'])}")
-    else:
+    elif operation.kind == "retaining_ring":
         action = words(f"Fit ring item {op.part_item} onto item {op.into_item}")
         data = str(limit["ring"])
         if "groove_d" in limit and "groove_w" in limit:
             data += words(", groove ") + f"⌀{limit['groove_d']} x {limit['groove_w']}"
-    text = f"{action}{words(' along ')}{direction}{words(' until ')}{until}; {data} ({operation.interface})."
+    else:
+        verbs = {"insert": "Insert item {p} into item {i}", "fasten": "Fasten item {p} into item {i}",
+                 "join": "Join item {p} to item {i}", "close": "Close item {i} with item {p}"}
+        action = words(verbs[operation.kind].format(p=op.part_item, i=op.into_item))
+    text = action
+    if op.direction is not None:
+        text += words(" along ") + direction_text(op.direction)
+    if until is not None:
+        text += words(" until ") + until
+    if data is not None:
+        text += f"; {data}"
+    text += f" ({operation.interface})." if operation.interface else "."
     if op.travel is not None:
         unit = "°" if op.travel.kind == "revolute" else " mm"
         text += (words(f" Then check that item {op.travel.child_item} moves freely on item {op.travel.parent_item} from ")
@@ -403,8 +420,11 @@ def notes(regime: str, scope: str, sheet_scope: str, excludes: Sequence[str], op
     if operations and frame is not None:
         found.append(SvgNote(id="note-frame", text=regime_text(regime, frame)))
     for op in operations:
+        provenance = {"operation": op.operation.id}
+        if op.operation.interface is not None:  # a close names no interface
+            provenance["interface"] = op.operation.interface
+        provenance["kind"] = op.operation.kind
         found.append(SvgNote(id=f"note-{op.operation.id.replace('_', '-')}",
-                             text=operation_note(op, measured[op.operation.id], regime),
-                             provenance={"operation": op.operation.id, "interface": op.operation.interface,
-                                         "kind": op.operation.kind}))
+                             text=operation_note(op, measured.get(op.operation.id) or {}, regime),
+                             provenance=provenance))
     return found

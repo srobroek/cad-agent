@@ -1,0 +1,383 @@
+profiles:
+- id: cast_pmma_plexiglas_gs_0f00
+  revision: 1
+  title: PLEXIGLAS GS 0F00 (cast, standard solid sheet)
+  level: grade
+  family: Transparent sheet polymer / acrylic (PMMA)
+  grade:
+    status: known
+    value: PLEXIGLAS GS 0F00 (cast, standard solid sheet)
+    sources:
+    - kind: datasheet
+      reference: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1, 04/25
+      revision: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1, 04/25
+      url: https://www.plexiglas.de/files/plexiglas-content/pdf/technische-informationen/211-1-EN-PLEXIGLAS-GS-XT.pdf
+      accessed: '2026-11-02'
+      conditions: 'test_standard: ISO 1183; source_condition: 23 °C, 50% RH; statistic:
+        typical; quoted_source_value: Typical property values (at 23°C and 50% relative
+        humidity) ... Density ... PLEXIGLAS GS 0F00 ... 1.19 g/cm³ ... ISO 1183'
+    basis: supplier_typical
+  manufacturer:
+    status: known
+    value: POLYVANTIS GmbH
+    sources:
+    - kind: datasheet
+      reference: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1, 04/25
+      revision: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1, 04/25
+      url: https://www.plexiglas.de/files/plexiglas-content/pdf/technische-informationen/211-1-EN-PLEXIGLAS-GS-XT.pdf
+      accessed: '2026-11-02'
+      conditions: 'test_standard: ISO 1183; source_condition: 23 °C, 50% RH; statistic:
+        typical; quoted_source_value: Typical property values (at 23°C and 50% relative
+        humidity) ... Density ... PLEXIGLAS GS 0F00 ... 1.19 g/cm³ ... ISO 1183'
+    basis: supplier_typical
+  form: sheet
+  process_state:
+    process: casting
+    conditioning: unknown
+    notes: Cast PMMA sheet; typical property table values at 23 °C and 50% relative
+      humidity. Laser guidance indicates cast and extruded acrylic can be processed
+      with CO2 laser; material-specific machine/safety approval still required.
+  typical_not_allowable: true
+  properties:
+  - name: density
+    value:
+      status: known
+      value:
+        value: 1.19
+        units: g_cm3
+      sources:
+      - kind: datasheet
+        reference: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+          04/25
+        revision: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1, 04/25
+        url: https://www.plexiglas.de/files/plexiglas-content/pdf/technische-informationen/211-1-EN-PLEXIGLAS-GS-XT.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 1183; source_condition: 23 °C, 50% RH; statistic:
+          typical; quoted_source_value: Typical property values (at 23°C and 50% relative
+          humidity) ... Density ... PLEXIGLAS GS 0F00 ... 1.19 g/cm³ ... ISO 1183'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 1183
+        sources:
+        - kind: datasheet
+          reference: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          revision: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          url: https://www.plexiglas.de/files/plexiglas-content/pdf/technische-informationen/211-1-EN-PLEXIGLAS-GS-XT.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 1183; source_condition: 23 °C, 50% RH; statistic:
+            typical; quoted_source_value: Typical property values (at 23°C and 50%
+            relative humidity) ... Density ... PLEXIGLAS GS 0F00 ... 1.19 g/cm³ ...
+            ISO 1183'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          value: 23.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          revision: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          url: https://www.plexiglas.de/files/plexiglas-content/pdf/technische-informationen/211-1-EN-PLEXIGLAS-GS-XT.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 1183; source_condition: 23 °C, 50% RH; statistic:
+            typical; quoted_source_value: Typical property values (at 23°C and 50%
+            relative humidity) ... Density ... PLEXIGLAS GS 0F00 ... 1.19 g/cm³ ...
+            ISO 1183'
+        basis: supplier_typical
+      conditioning: unknown
+      notes: 'Research property density; source condition: 23 °C, 50% RH; reported
+        statistic: typical'
+  - name: elongation_at_break
+    value:
+      status: known
+      value:
+        value: 5.5
+        units: percent
+      sources:
+      - kind: datasheet
+        reference: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+          04/25
+        revision: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1, 04/25
+        url: https://www.plexiglas.de/files/plexiglas-content/pdf/technische-informationen/211-1-EN-PLEXIGLAS-GS-XT.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 527-2/1B/5; source_condition: 23 °C; 23 °C
+          and 50% RH table condition; statistic: typical; quoted_source_value: Elongation
+          at break ... 5.5 | % | ISO 527-2/1B/5'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 527-2/1B/5
+        sources:
+        - kind: datasheet
+          reference: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          revision: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          url: https://www.plexiglas.de/files/plexiglas-content/pdf/technische-informationen/211-1-EN-PLEXIGLAS-GS-XT.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 527-2/1B/5; source_condition: 23 °C; 23
+            °C and 50% RH table condition; statistic: typical; quoted_source_value:
+            Elongation at break ... 5.5 | % | ISO 527-2/1B/5'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          value: 23.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          revision: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          url: https://www.plexiglas.de/files/plexiglas-content/pdf/technische-informationen/211-1-EN-PLEXIGLAS-GS-XT.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 527-2/1B/5; source_condition: 23 °C; 23
+            °C and 50% RH table condition; statistic: typical; quoted_source_value:
+            Elongation at break ... 5.5 | % | ISO 527-2/1B/5'
+        basis: supplier_typical
+      conditioning: unknown
+      notes: 'Research property elongation_at_break; source condition: 23 °C; 23 °C
+        and 50% RH table condition; reported statistic: typical'
+  - name: flexural_strength
+    value:
+      status: known
+      value:
+        value: 115
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+          04/25
+        revision: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1, 04/25
+        url: https://www.plexiglas.de/files/plexiglas-content/pdf/technische-informationen/211-1-EN-PLEXIGLAS-GS-XT.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 178; source_condition: standard test specimen
+          80 × 10 × 4 mm³; 23 °C and 50% RH table condition; statistic: typical; quoted_source_value:
+          Flexural strength ... Standard test specimen (80 x 10 x 4 mm³) | 115 | MPa
+          | ISO 178'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 178
+        sources:
+        - kind: datasheet
+          reference: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          revision: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          url: https://www.plexiglas.de/files/plexiglas-content/pdf/technische-informationen/211-1-EN-PLEXIGLAS-GS-XT.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 178; source_condition: standard test specimen
+            80 × 10 × 4 mm³; 23 °C and 50% RH table condition; statistic: typical;
+            quoted_source_value: Flexural strength ... Standard test specimen (80
+            x 10 x 4 mm³) | 115 | MPa | ISO 178'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          value: 23.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          revision: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          url: https://www.plexiglas.de/files/plexiglas-content/pdf/technische-informationen/211-1-EN-PLEXIGLAS-GS-XT.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 178; source_condition: standard test specimen
+            80 × 10 × 4 mm³; 23 °C and 50% RH table condition; statistic: typical;
+            quoted_source_value: Flexural strength ... Standard test specimen (80
+            x 10 x 4 mm³) | 115 | MPa | ISO 178'
+        basis: supplier_typical
+      conditioning: unknown
+      notes: 'Research property flexural_strength; source condition: standard test
+        specimen 80 × 10 × 4 mm³; 23 °C and 50% RH table condition; reported statistic:
+        typical'
+  - name: youngs_modulus
+    value:
+      status: known
+      value:
+        value: 3300
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+          04/25
+        revision: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1, 04/25
+        url: https://www.plexiglas.de/files/plexiglas-content/pdf/technische-informationen/211-1-EN-PLEXIGLAS-GS-XT.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 527-2/1B/1; source_condition: short-term value;
+          23 °C and 50% RH table condition; statistic: typical; quoted_source_value:
+          Modulus of elasticity E (short-term value) | 3300 | MPa | ISO 527-2/1B/1'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 527-2/1B/1
+        sources:
+        - kind: datasheet
+          reference: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          revision: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          url: https://www.plexiglas.de/files/plexiglas-content/pdf/technische-informationen/211-1-EN-PLEXIGLAS-GS-XT.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 527-2/1B/1; source_condition: short-term
+            value; 23 °C and 50% RH table condition; statistic: typical; quoted_source_value:
+            Modulus of elasticity E (short-term value) | 3300 | MPa | ISO 527-2/1B/1'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          value: 23.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          revision: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          url: https://www.plexiglas.de/files/plexiglas-content/pdf/technische-informationen/211-1-EN-PLEXIGLAS-GS-XT.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 527-2/1B/1; source_condition: short-term
+            value; 23 °C and 50% RH table condition; statistic: typical; quoted_source_value:
+            Modulus of elasticity E (short-term value) | 3300 | MPa | ISO 527-2/1B/1'
+        basis: supplier_typical
+      conditioning: unknown
+      notes: 'Research property modulus_of_elasticity; source condition: short-term
+        value; 23 °C and 50% RH table condition; reported statistic: typical'
+  - name: tensile_strength
+    value:
+      status: known
+      value:
+        value: 80
+        units: MPa
+      sources:
+      - kind: datasheet
+        reference: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+          04/25
+        revision: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1, 04/25
+        url: https://www.plexiglas.de/files/plexiglas-content/pdf/technische-informationen/211-1-EN-PLEXIGLAS-GS-XT.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: ISO 527-2/1B/5; source_condition: 23 °C; 23 °C
+          and 50% RH table condition; source_statistic: typical; quoted_source_value:
+          Tensile strength ... 23 °C | 80 | MPa | ISO 527-2/1B/5'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: ISO 527-2/1B/5
+        sources:
+        - kind: datasheet
+          reference: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          revision: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          url: https://www.plexiglas.de/files/plexiglas-content/pdf/technische-informationen/211-1-EN-PLEXIGLAS-GS-XT.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 527-2/1B/5; source_condition: 23 °C; 23
+            °C and 50% RH table condition; source_statistic: typical; quoted_source_value:
+            Tensile strength ... 23 °C | 80 | MPa | ISO 527-2/1B/5'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          value: 23.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          revision: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          url: https://www.plexiglas.de/files/plexiglas-content/pdf/technische-informationen/211-1-EN-PLEXIGLAS-GS-XT.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: ISO 527-2/1B/5; source_condition: 23 °C; 23
+            °C and 50% RH table condition; source_statistic: typical; quoted_source_value:
+            Tensile strength ... 23 °C | 80 | MPa | ISO 527-2/1B/5'
+        basis: supplier_typical
+      conditioning: unknown
+      notes: 'Research property tensile_strength_23c; exact source condition: 23 °C;
+        23 °C and 50% RH table condition; reported statistic: typical'
+  - name: thermal_expansion
+    value:
+      status: known
+      value:
+        value: 70
+        units: um_m_K
+      sources:
+      - kind: datasheet
+        reference: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+          04/25
+        revision: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1, 04/25
+        url: https://www.plexiglas.de/files/plexiglas-content/pdf/technische-informationen/211-1-EN-PLEXIGLAS-GS-XT.pdf
+        accessed: '2026-11-02'
+        conditions: 'test_standard: DIN 53752-A; source_condition: 0–50 °C; source_statistic:
+          typical; quoted_source_value: Coefficient of linear thermal expansion ...
+          for 0–50 °C | 7 · 10⁻⁵ (= 0.07) | 1/K (mm/m °C) | DIN 53752-A; Conversion:
+          7 × 10^-5 per K × 1,000,000 um_m_K per per K = 70 um_m_K; source unit 1/K.'
+      basis: supplier_typical
+    conditions:
+      test_standard:
+        status: known
+        value: DIN 53752-A
+        sources:
+        - kind: datasheet
+          reference: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          revision: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          url: https://www.plexiglas.de/files/plexiglas-content/pdf/technische-informationen/211-1-EN-PLEXIGLAS-GS-XT.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: DIN 53752-A; source_condition: 0–50 °C; source_statistic:
+            typical; quoted_source_value: Coefficient of linear thermal expansion
+            ... for 0–50 °C | 7 · 10⁻⁵ (= 0.07) | 1/K (mm/m °C) | DIN 53752-A; Conversion:
+            7 × 10^-5 per K × 1,000,000 um_m_K per per K = 70 um_m_K; source unit
+            1/K.'
+        basis: supplier_typical
+      temperature:
+        status: known
+        value:
+          lower: 0.0
+          upper: 50.0
+          units: deg_C
+        sources:
+        - kind: datasheet
+          reference: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          revision: PLEXIGLAS GS/XT Solid Sheet Technical Information, Ref. 211-1,
+            04/25
+          url: https://www.plexiglas.de/files/plexiglas-content/pdf/technische-informationen/211-1-EN-PLEXIGLAS-GS-XT.pdf
+          accessed: '2026-11-02'
+          conditions: 'test_standard: DIN 53752-A; source_condition: 0–50 °C; source_statistic:
+            typical; quoted_source_value: Coefficient of linear thermal expansion
+            ... for 0–50 °C | 7 · 10⁻⁵ (= 0.07) | 1/K (mm/m °C) | DIN 53752-A; Conversion:
+            7 × 10^-5 per K × 1,000,000 um_m_K per per K = 70 um_m_K; source unit
+            1/K.'
+        basis: supplier_typical
+      conditioning: unknown
+      notes: 'Research property coefficient_linear_thermal_expansion; exact source
+        condition: 0–50 °C; reported statistic: typical'
+  note: 'The qualitative laser_processing_note is not a numeric material property in U1 MATERIAL_PROPERTIES; exact source details and quote are retained: [{"research_property":"laser_processing_note","value":"Cast acrylic is suitable for CO2 laser processing; choose approved material and follow machine/SDS controls.","unit":"qualitative","reason":"Qualitative process guidance has no typed property representation; caveat is recorded in profile guidance.","test_standard":"not applicable","condition":"CO2 laser processing guidance","statistic":"manufacturer guidance","source":{"url":"https://www.troteclaser.com/en-au/laserable-materials/laser-cutting-acrylic","document_title_revision":"Trotec Laser, Acrylic laser cutting guidance, web page (accessed 2026-11-02)","retrieval_date":"2026-11-02"},"quote":"Both types can excellently be processed with a CO2 laser cutter."}]'
+  guidance:
+  - 'Unknown (not established by the cited research; not zero or absent): yield strength'
+  - 'Unknown (not established by the cited research; not zero or absent): impact value
+    specific to requested application'
+  - 'Unknown (not established by the cited research; not zero or absent): moisture
+    absorption as percent'
+  - 'Unknown (not established by the cited research; not zero or absent): max service
+    temperature for the selected grade (not substituted from general GS/XT class table)'
+  - Trotec says cast and extruded acrylic can be excellently processed with a CO2
+    laser. This is material guidance only; machine approval and SDS controls remain
+    required.

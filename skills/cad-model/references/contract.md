@@ -9,6 +9,7 @@
 | `build(params)` | yes | returns one part: a solid, or a compound when the part is several solids |
 | `drawing_features(params, shape)` | no | returns semantic feature locators for drawings; see below |
 | `build_manufacture(params)` | only with a declared state | returns the part in its manufacturing state, such as a bent strap's flat blank; see below |
+| `manufacture_features(params, shape)` | no; only beside `build_manufacture` | returns semantic feature locators of the manufacturing state, frame `manufacture`; see below |
 
 `build` receives a private copy of `PARAMS`; the manifest records the declared values. A model that
 sets `REQUIRES_OSIFONT = True` additionally receives the resolved, verified `font_path` at build
@@ -119,12 +120,36 @@ def build_manufacture(params: dict):
   product keeps the name `"<PN> <title>"`.
 - Share construction between `build` and `build_manufacture` through private helpers of the
   model.py, so both states follow one set of parameters.
-- Model the state in any frame and orientation: `run` sets an FDM part on the printer bed itself
-  (one proper rotation, no mirror) and keeps a CNC part in its model frame.
+- Model the state in any frame and orientation. A record version 2 part fixes its export pose in
+  its route: the approved `orientation.rotation` of the additive operation that shapes it, applied
+  to the frame `build_manufacture` returns (or the model frame). A record version 1 part keeps the
+  labelled, unapproved envelope auto-fit. `run` sets an additive part on the bed (one proper
+  rotation, no mirror) and keeps any other part in its model frame.
 - The run fails and writes no version when the state differs from the installed definition. That
   is a kernel volume difference beyond the declared tolerance, another solid count, or an invalid
   B-rep. Equal volume does not prove the same holes, walls or material, so the state's rationale
   stays a reviewed engineering decision.
+- `manufacture_features(params, shape)` gets its own copy of `PARAMS` and the value
+  `build_manufacture` returned, and returns locators of the drawing-feature vocabulary with
+  `frame: manufacture`, the frame of that state. A feature that keeps its semantic ID across states
+  corresponds to the installed one, a correspondence the part.yaml `manufacture.decision` reviews;
+  an installed feature without a manufacture locator stays unmapped, never derived from the bent
+  shape. A part made as installed defines no such hook: its drawing_features locate its
+  manufactured features. `run` writes the locators to `manufacturing-features.json`.
+
+### Components
+
+Every disconnected solid of the manufacturing state is a manufacturing component, assessed and
+exported on its own. A sole solid is the implicit component `main`. A part of several declares each
+in part.yaml `intent.components` with an `id`, and either a `witness`, a point well inside its solid
+(at least 1e-3 mm from any surface) in the native frame of the state, or a `locator` naming a
+feature (of `drawing_features`, or `manufacture_features` for a different state) whose patch points
+lie on it. A `multiplicity` n declares a deliberate group: the witness binds one member and the n - 1
+other unbound solids congruent to it join it; declare mirror images and anything not identical as
+separate components. `run` refuses the part rather than guess when a witness is ambiguous, solids
+overlap, two components claim a solid, a solid is unclaimed, or a group lacks exactly its members.
+For a part made as installed, the sum of the multiplicities is also the solid count `check`'s
+`solid_structure` expects of its definition, in place of the previous version's count.
 
 ## Kernel environments
 

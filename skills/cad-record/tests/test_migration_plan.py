@@ -94,6 +94,11 @@ class MigrationPlan(unittest.TestCase):
         self.assertEqual(row("hw/versions/v1"), ("legacy version", "keep", None, "high", model, []))
         self.assertIn("cannot be frozen or released", items["hw/versions/v1"]["action"])
         self.assertEqual(row("hw/releases/A")[:2], ("legacy release", "keep"))
+        self.assertEqual(row("hw/product.yaml"), ("record version", "migrate", None, "high",
+                                                  "cad-record/scripts/migrate.py", []))
+        self.assertEqual(items["hw/product.yaml"]["code"], "record.migration_required")
+        self.assertIn("--dry-run", items["hw/product.yaml"]["action"])
+        self.assertEqual(plan["counts"]["migrate"], 1)
         for item in plan["items"]:
             self.assertTrue(item["action"], item["path"])
         self.assertEqual(sum(plan["counts"].values()), len(plan["items"]))

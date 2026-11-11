@@ -796,7 +796,7 @@ FRONT = {"view": "front", "window": [WINDOW], "targets": [TARGET]}
 
 
 class VisibilityChecks(unittest.TestCase):
-    """Bindings of the current requirements.yaml resolved against a box version (no browser)."""
+    """Bindings of a version's requirements resolved against a box version (no browser)."""
 
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -857,6 +857,30 @@ class VisibilityChecks(unittest.TestCase):
         self.assertNotEqual(reworded["requirements_yaml_sha256"], first["requirements_yaml_sha256"])
         requirements(self.hw, {**FRONT, "min_visible_fraction": 0.8})
         self.assertNotEqual(keyed()["key"], first["key"])
+
+    def test_a_current_version_checks_its_own_requirements_snapshot_not_the_live_file(self) -> None:
+        requirements(self.hw, FRONT)
+        snapshot = (self.hw / "requirements.yaml").read_bytes()
+        box_version.write(self.hw, "v2", BOXES, box_parts("transparent"), record_version=2)
+        version = render.resolve_version(self.hw, "v2")
+        requirements(self.hw, {**FRONT, "min_visible_fraction": 0.9}, text="Edited after v2 was built.")
+        path, source = render.requirements_input(self.hw, version)
+        self.assertEqual((path, source), (version.record / "requirements.yaml", "version_snapshot"))
+        checks, digest = render.visibility_checks(path, self.by_pn, self.records)
+        self.assertEqual((checks[0]["min_visible_fraction"], digest), (0.5, hashlib.sha256(snapshot).hexdigest()))
+
+    def test_a_current_version_built_without_requirements_has_nothing_to_check(self) -> None:
+        box_version.write(self.hw, "v2", BOXES, box_parts("transparent"), record_version=2)
+        version = render.resolve_version(self.hw, "v2")
+        requirements(self.hw, FRONT)  # written after v2 was built: not v2's requirements
+        path, source = render.requirements_input(self.hw, version)
+        self.assertEqual(source, "version_snapshot")
+        self.assertEqual(render.visibility_checks(path, self.by_pn, self.records), ([], None))
+
+    def test_an_older_version_falls_back_to_the_current_file_labelled_unbound(self) -> None:
+        requirements(self.hw, FRONT)
+        self.assertEqual(render.requirements_input(self.hw, self.version),
+                         (self.hw / "requirements.yaml", "current_unbound"))
 
 
 class VisibilityGrade(unittest.TestCase):

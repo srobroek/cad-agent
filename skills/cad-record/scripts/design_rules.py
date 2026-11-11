@@ -1,5 +1,8 @@
-"""Design rules over the cad-record documents: clearance margins, retention, process feasibility and
-visibility bindings.
+"""Design rules over the cad-record documents: clearance margins, retention and visibility bindings.
+
+Transparency is not a rule here: an optical requirement is a hard constraint of the manufacturing
+selection (manufacturing_intent `optical.route`), met by a purchased transparent part or identified
+transparent stock on a suitable route, never by an opaque process.
 
 The rules take parsed record documents, already schema-valid when validate.py calls them, and return
 `RuleFinding`s; validate.py turns those into report findings with a path and a stage-graded severity.
@@ -11,8 +14,7 @@ It needs PyYAML and the standard library only.
 from __future__ import annotations
 
 import math
-import re
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
@@ -25,8 +27,6 @@ DEFAULT_MIN_VISIBLE_FRACTION = 0.5
 
 TORQUE_CODE = "retention.torque_path"
 AXIAL_CODE = "retention.axial_retainer"
-TRANSPARENT_FDM_CODE = "feasibility.transparent_fdm"  # structured: a part declares itself transparent
-TRANSPARENCY_CLAIM_CODE = "feasibility.transparency_claim"  # prose names something see-through
 VISIBILITY_CODE = "visibility.binding"
 
 # Retention types provided by a separate piece of hardware: it must be a modelled occurrence, because a
@@ -35,23 +35,6 @@ TORQUE_HARDWARE = frozenset({"key", "set_screw", "pin"})
 AXIAL_HARDWARE = frozenset({"circlip", "set_screw", "nut", "pin", "cap"})
 # "Press or slip" fits, in cad-record's fit vocabulary; a running fit is a motion fit and is exempt.
 RETAINED_FITS = ("press_fit", "locating_fit")
-
-# A transparency claim in prose. It only ever raises a warning that asks for a structured `transparency`.
-# Bare "clear" is too common ("clear of", "clear coat", "a clear window for the cable"), so it counts only
-# next to a material, as an attribute of a cover-like part, or as what such a part "is".
-_POLYMER = r"petg|pla|abs|asa|pc|polycarbonate|pmma|acrylic|resin|filament|plastic|polymer|material"
-_COVER = r"window|cover|lid|panel|case|housing|enclosure|dome|lens|bezel|shield"
-TRANSPARENT_TEXT = re.compile(
-    rf"\b(?:transparent|see[- ]through|glass[- ]clear|optically[- ]clear|crystal[- ]clear)\b"
-    rf"|\bvisible\s+through\b"
-    rf"|\bglass[- ](?:{_COVER})s?\b"
-    rf"|\bclear[- ](?:{_POLYMER}|{_COVER})s?\b(?!\s+for\b)"
-    rf"|\b(?:{_POLYMER})\s*\(?\s*clear\b(?!\s+of\b)"
-    rf"|\b(?:{_COVER})s?\s+(?:is|are|be|stays?|remains?)\s+clear\b(?!\s+of\b)",
-    re.IGNORECASE,
-)
-# A negation just before a match ("not transparent", "non-transparent", "never see-through") cancels it.
-_NEGATED = re.compile(r"(?:\b(?:not|never)\s+(?:[\w-]+\s+){0,2}|\bnon-?\s*)$", re.IGNORECASE)
 
 Resolve = Callable[[str], "str | None"]  # a part_ref -> its occurrence id, or None when it resolves to none
 
@@ -244,64 +227,6 @@ def axial_retainer_findings(interfaces: Mapping[str, Any], resolve: Resolve) -> 
             problem = _hardware_problem(retainer, AXIAL_HARDWARE, resolve)
             if problem is not None:
                 findings.append(RuleFinding(AXIAL_CODE, f"{where}/axial_retainer", f"{label} axial_retainer: {problem}"))
-    return findings
-
-
-# --- process feasibility ----------------------------------------------------------------------------
-
-
-def transparency_claimed(text: Any) -> bool:
-    """Whether prose names something see-through, such as "clear PETG", "the covers are clear" or "visible
-    through"; a negated mention ("not transparent", "non-transparent", "never see-through") does not count."""
-    if not isinstance(text, str):
-        return False
-    return any(not _NEGATED.search(text[max(0, match.start() - 40):match.start()])
-               for match in TRANSPARENT_TEXT.finditer(text))
-
-
-def part_feasibility_findings(part: Mapping[str, Any]) -> list[RuleFinding]:
-    """An FDM part cannot be transparent: FDM prints translucent at best, as layer lines and infill scatter
-    light. A declared `transparency: transparent` is a `TRANSPARENT_FDM_CODE` contradiction; an undeclared
-    one that the material or finish prose names is a `TRANSPARENCY_CLAIM_CODE` request to declare it."""
-    if part.get("process") != "fdm":
-        return []
-    transparency = part.get("transparency")
-    if transparency == "transparent":
-        return [RuleFinding(TRANSPARENT_FDM_CODE, "transparency", (
-            f"{part['PN']} is FDM but declares transparency: transparent; FDM prints translucent, not see-through. "
-            "Record a decision: make the see-through element a purchased or machined part (cast acrylic, "
-            "polycarbonate), or accept `transparency: translucent`"))]
-    if transparency is not None:
-        return []
-    for field in ("material", "finish"):
-        if transparency_claimed(part.get(field)):
-            return [RuleFinding(TRANSPARENCY_CLAIM_CODE, field, (
-                f"{part['PN']} is FDM and its {field} reads as see-through, but FDM prints translucent. Declare "
-                "`transparency` (translucent, or opaque), or make the see-through element a purchased or "
-                "machined part declared `transparency: transparent`"))]
-    return []
-
-
-def requirement_feasibility_findings(requirements: Mapping[str, Any], product: Mapping[str, Any],
-                                     parts: Iterable[Mapping[str, Any]]) -> list[RuleFinding]:
-    """A requirement whose prose asks for something see-through, in a product planned for FDM, while no
-    non-FDM part declares `transparency: transparent`: a `TRANSPARENCY_CLAIM_CODE` prompt, from INTENT on
-    (product.yaml `manufacturing.processes`), before any part exists."""
-    parts = list(parts)
-    processes = set((product.get("manufacturing") or {}).get("processes", []))
-    processes |= {part.get("process") for part in parts}
-    if "fdm" not in processes:
-        return []
-    if any(part.get("process") != "fdm" and part.get("transparency") == "transparent" for part in parts):
-        return []
-    findings = []
-    for index, requirement in enumerate(requirements.get("requirements", [])):
-        criteria = (requirement.get("verification") or {}).get("criteria")
-        if transparency_claimed(requirement.get("text")) or transparency_claimed(criteria):
-            findings.append(RuleFinding(TRANSPARENCY_CLAIM_CODE, f"requirements/{index}", (
-                f"{requirement['id']} reads as asking for a see-through element, but the product is planned for "
-                "FDM, which prints translucent, and no purchased or machined part declares `transparency: "
-                "transparent`. Ask the user, record the decision, then declare that part or reword the requirement")))
     return findings
 
 
