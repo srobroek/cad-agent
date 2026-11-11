@@ -66,6 +66,7 @@ import json
 import sys
 import traceback
 from pathlib import Path
+from typing import Any, cast
 
 from cadmodel import build
 
@@ -77,7 +78,7 @@ LIFECYCLE_SCRIPT = (
 )
 
 
-def load_lifecycle():
+def load_lifecycle() -> Any:
     """cad-flow's process supervision: run records, stray refusal, private process groups."""
     import importlib.util
 
@@ -112,7 +113,7 @@ def _expect(text: str) -> tuple[str, int]:
 def _jobs(text: str) -> int:
     from cadmodel.motion import load_pair_measure
 
-    return load_pair_measure().jobs_argument(text)
+    return cast(int, load_pair_measure().jobs_argument(text))
 
 
 def parser() -> argparse.ArgumentParser:

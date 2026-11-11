@@ -38,11 +38,11 @@ import sys
 import tempfile
 import uuid
 from contextlib import contextmanager
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import assembly_check  # noqa: E402
@@ -78,7 +78,7 @@ def allowed_sizes(product: Mapping[str, Any]) -> tuple[str, ...]:
     declared = ((product.get("drawing") or {}).get("default_sheet") or {}).get("sizes")
     if declared:
         return tuple(declared)
-    sizes = drawing_document.REGIME_SIZES.get(product.get("regime"), ())
+    sizes = drawing_document.REGIME_SIZES.get(cast(str, product.get("regime")), ())
     return tuple(s for s in sizes if s.startswith("ANSI")) if product.get("regime") == "asme" else tuple(sizes)
 
 
@@ -331,7 +331,7 @@ def drawing_recipe(context: drawing_contract.DrawingContext) -> dict[str, Any]:
             "operations": assembly_check.operations_summary(context.assembly)}
 
 @contextmanager
-def _ignore_publish_signals():
+def _ignore_publish_signals() -> Iterator[None]:
     """Defer SIGINT/SIGTERM until a sealed bundle has been claimed."""
     previous = {sig: signal.signal(sig, signal.SIG_IGN) for sig in (signal.SIGINT, signal.SIGTERM)}
     try:

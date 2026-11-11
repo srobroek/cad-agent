@@ -31,7 +31,7 @@ import json
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, cast
 
 from cadmodel import components, mesh, occ, orientation, provenance, stepfile, store
 from cadmodel.motion import load_pose
@@ -235,7 +235,7 @@ def sha256(path: Path) -> str:
 def facts(plan: Plan, product: str, installed: Mapping[str, Any], native: Mapping[str, Any], path: str) -> dict[str, Any]:
     """The declared claims of one part's outputs, before export: identity, state, tolerance, intent and inputs."""
     record, policy = plan.record, plan.policy
-    procurement = record.get("procurement") if isinstance(record.get("procurement"), Mapping) else {}
+    procurement = value if isinstance(value := record.get("procurement"), Mapping) else {}
     return {
         "schema_version": SIDECAR_SCHEMA, "PN": plan.pn, "rev": record.get("rev"), "title": record.get("title"),
         "product": product, "material": record.get("material"), "process": record.get("process"),
@@ -613,7 +613,7 @@ def _components(target: Path, entry: Mapping[str, Any], present: list[str], whol
 def _relative(hw: Path, label: str, pn: str) -> str:
     """manufacturing/<PN>, the part's folder below its version, from the cad-record layout."""
     layout = load_layout()
-    return layout.manufacturing_dir(hw, label, pn).relative_to(layout.version_dir(hw, label)).as_posix()
+    return cast(str, layout.manufacturing_dir(hw, label, pn).relative_to(layout.version_dir(hw, label)).as_posix())
 
 
 def make(work: Path, hw: Path, label: str, plans: Mapping[str, Plan], uncovered: Mapping[str, str],

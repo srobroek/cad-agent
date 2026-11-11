@@ -57,8 +57,9 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, cast
 
 SKILLS = Path(__file__).resolve().parents[2]
 CAD_MODEL_SCRIPTS = SKILLS / "cad-model" / "scripts"
@@ -76,7 +77,7 @@ PN = re.compile(r"^[A-Z]{2,5}-[0-9]{4}$")
 LABEL = re.compile(r"^v([1-9][0-9]*)$")
 
 
-def load_layout():
+def load_layout() -> Any:
     name = "cad_record_layout"
     if name not in sys.modules:
         path = CAD_RECORD_SCRIPTS / "layout.py"
@@ -115,7 +116,7 @@ def is_skipped(relative: PurePosixPath, top: frozenset[str]) -> bool:
             or (len(parts) > 1 and parts[0] in BUNDLE_ROOTS and LABEL.match(parts[1]) is not None))
 
 
-def skips(root: Path, top: frozenset[str] = NOT_COPIED):
+def skips(root: Path, top: frozenset[str] = NOT_COPIED) -> Callable[[str, list[str]], set[str]]:
     """A copytree `ignore` that leaves out what `is_skipped` names."""
     def ignore(directory: str, names: list[str]) -> set[str]:
         below = PurePosixPath(Path(directory).relative_to(root).as_posix())
@@ -138,7 +139,7 @@ def load_baseline(work: Path) -> dict[str, Any]:
     path = work / "baseline.json"
     if not path.is_file():
         raise UsageError(f"{work} has no baseline.json; run `scratch.py init` first")
-    return json.loads(path.read_text(encoding="utf-8"))
+    return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
 
 
 def seed_store(hw: Path, scratch_hw: Path) -> int:
@@ -322,8 +323,8 @@ def validate_delivery(baseline: dict[str, Any], authorized: set[str], files: dic
     for path in sorted(set(files) | set(old_files)):
         if files.get(path) != old_files.get(path):
             match = layout.classify(f"hw/{path}")
-            pn = path.split("/")[1] if path.startswith("parts/") else None
-            if match is None or match.entry.kind != "record" or match.params.get("PN") not in (None, pn):
+            owner = path.split("/")[1] if path.startswith("parts/") else None
+            if match is None or match.entry.kind != "record" or match.params.get("PN") not in (None, owner):
                 raise UsageError(f"cannot deliver changed non-record or non-canonical path {path}")
     for pn in authorized:
         prefix = f"parts/{pn}/"
@@ -357,7 +358,7 @@ def deliver(hw: Path, unit: str) -> tuple[int, dict[str, Any]]:
         return 1, {"status": "conflict", "unit": unit, "changed_since_init": conflicts,
                    "note": "another actor changed these part directories; nothing was delivered"}
 
-    delivered = []
+    delivered: list[str] = []
     for pn in sorted(authorized):
         target = hw / "parts" / pn
         staged = hw / "parts" / f".{pn}.deliver-{os.getpid()}"

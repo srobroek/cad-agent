@@ -49,7 +49,7 @@ CAD_RECORD_ROOT = cad_record_root()
 CAD_RECORD_SCRIPTS = CAD_RECORD_ROOT / "scripts"
 
 
-def _load_module(name: str, path: Path):
+def _load_module(name: str, path: Path) -> Any:
     if name not in sys.modules:
         spec = importlib.util.spec_from_file_location(name, path)
         if spec is None or spec.loader is None:

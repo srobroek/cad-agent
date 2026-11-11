@@ -18,7 +18,7 @@ import re
 import sys
 from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 from jsonschema import Draft202012Validator, FormatChecker
@@ -128,10 +128,10 @@ def validate_document(
         findings.append(finding(str(schema_path), f"cannot load schema: {error}"))
         return False
     validator = Draft202012Validator(schema, registry=schema_registry(), format_checker=FormatChecker())
-    errors = sorted(validator.iter_errors(data), key=lambda error: list(error.absolute_path))
-    for error in errors:
-        location = "/".join(str(part) for part in error.absolute_path)
-        findings.append(finding(path, f"{location + ': ' if location else ''}{error.message}"))
+    errors = sorted(validator.iter_errors(data), key=lambda item: list(item.absolute_path))
+    for item in errors:
+        location = "/".join(str(part) for part in item.absolute_path)
+        findings.append(finding(path, f"{location + ': ' if location else ''}{item.message}"))
     return not errors
 
 
@@ -169,7 +169,7 @@ def stated_general_tolerance(policy: dict[str, Any]) -> str | float:
     """The `general_tolerance` text or number that states a structured tolerance policy."""
     if policy["kind"] == "standard":
         return f"ISO 2768-{policy['class']}"  # the only standard policy the schema admits is ISO 2768-1:1989
-    return policy["linear_mm"]
+    return cast("str | float", policy["linear_mm"])
 
 
 # sheets that state "per specification" instead of a general tolerance (cad-drawings drawing_intent.VENDOR_TYPES)
@@ -227,7 +227,7 @@ def spdx_expression_problem(expression: str) -> str | None:
     binding tighter than `OR`, and balanced parentheses; operators are case-sensitive. No SPDX license
     list is bundled, so it cannot tell a listed identifier (CERN-OHL-S-2.0) from an unlisted one
     (CERN-OHL-S)."""
-    tokens = re.findall(r"\(|\)|[^\s()]+", expression)
+    tokens: list[str] = re.findall(r"\(|\)|[^\s()]+", expression)
     position = 0
 
     def peek() -> str | None:
@@ -267,7 +267,7 @@ def spdx_expression_problem(expression: str) -> str | None:
         return problem
 
     def chain(operand: Any, operator: str) -> str | None:
-        problem = operand()
+        problem: str | None = operand()
         while problem is None and peek() == operator:
             take()
             problem = operand()
@@ -999,33 +999,33 @@ def validate_project(project_dir: Path) -> list[dict[str, str]]:
         has_children = level == 0 or (
             level is not None
             and position + 1 < len(bom_levels)
-            and bom_levels[position + 1] is not None
-            and bom_levels[position + 1] > level
+            and (next_level := bom_levels[position + 1]) is not None
+            and next_level > level
         )
         pn = row.get("PN", "")
         if pn not in part_records:
             if not has_children:
                 findings.append(finding(row_path, f"BOM PN {pn!r} has no matching parts/<PN>/part.yaml and is not an assembly"))
             continue
-        part, part_path = part_records[pn]
+        part, part_file = part_records[pn]
         for field, part_field in (("rev", "rev"), ("title", "title"), ("material", "material"),
                                   ("process", "process"), ("make_buy", "make_buy"),
                                   ("supplier", "supplier")):
             bom_value = row.get(field) or None
             part_value = part.get(part_field)
             if bom_value != part_value:
-                findings.append(finding(row_path, f"{field} {bom_value!r} does not match {part_path} ({part_value!r})"))
+                findings.append(finding(row_path, f"{field} {bom_value!r} does not match {part_file} ({part_value!r})"))
         try:
             mass = float(row["mass"]) if row.get("mass") else None
         except ValueError:
             mass = None
         if mass != part.get("mass_target"):
-            findings.append(finding(row_path, f"mass {mass!r} does not match {part_path} mass_target ({part.get('mass_target')!r})"))
+            findings.append(finding(row_path, f"mass {mass!r} does not match {part_file} mass_target ({part.get('mass_target')!r})"))
         if "unit" in row:
             for field, part_value in procurement_cells(part).items():
                 bom_value = row.get(field) or None
                 if bom_value != part_value:
-                    findings.append(finding(row_path, f"{field} {bom_value!r} does not match {part_path} ({part_value!r})"))
+                    findings.append(finding(row_path, f"{field} {bom_value!r} does not match {part_file} ({part_value!r})"))
 
     previous_level: int | None = None
     for index, level in enumerate(bom_levels, start=2):
@@ -1059,7 +1059,7 @@ def validate_project(project_dir: Path) -> list[dict[str, str]]:
             findings.append(finding(row_path, f"duplicate verification for {req_id}"))
         seen_requirement_ids.add(req_id)
     if isinstance(requirements, dict):
-        known = {item.get("id") for item in requirements.get("requirements", []) if isinstance(item, dict)}
+        known: set[Any] = {item.get("id") for item in requirements.get("requirements", []) if isinstance(item, dict)}
         for req_id in sorted(known - seen_requirement_ids):
             findings.append(finding(str(hw / "verification.csv"), f"requirement {req_id} has no verification row"))
         for req_id in sorted(seen_requirement_ids - known):
@@ -1113,7 +1113,7 @@ def sealed_owner(rel: str) -> tuple[Any, dict[str, str]] | None:
     while path and path != layout.HW:
         found = layout.load().sealed(path)
         if found is not None:
-            return found
+            return cast("tuple[Any, dict[str, str]]", found)
         path = posixpath.dirname(path)
     return None
 
@@ -1149,11 +1149,12 @@ def plan_item(hw: Path, item: Mapping[str, Any], records: Mapping[str, Mapping[s
         operation = "review"
     else:
         operation = "rebuild" if rebuild else "move"
-    if operation == "remove" or (operation == "move" and classification != "data" and "<" not in destination):
+    if operation == "remove" or (operation == "move" and classification != "data"
+                                       and destination is not None and "<" not in destination):
         confidence = "high"  # a determined place the bytes move to unchanged, or a leftover to delete
     elif operation == "rebuild":
         # a rebuild lands it; geometry needs the PN it names to be a custom-made part record
-        found = re.search(lay.tokens["PN"]["pattern"], destination)
+        found = re.search(lay.tokens["PN"]["pattern"], cast(str, destination))
         known = found is not None and found.group(0) in records and layout.custom_made(records[found.group(0)])
         confidence = "low" if classification == "geometry" and not known else "medium"
     else:

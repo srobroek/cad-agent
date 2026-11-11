@@ -209,7 +209,7 @@ def _spread(preferred: list[float], spacing: float, perimeter: float) -> list[fl
         return list(preferred)
     gaps = [(preferred[(i + 1) % n] - preferred[i]) % perimeter for i in range(n)]
     start = (max(range(n), key=lambda i: gaps[i]) + 1) % n
-    line = []
+    line: list[float] = []
     for k in range(n):
         value = preferred[(start + k) % n]
         while line and value < line[-1]:

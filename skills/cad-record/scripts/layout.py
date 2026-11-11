@@ -721,9 +721,9 @@ def audit(hw: Path, references: Mapping[str, str] | None = None) -> Audit:
             continue
         if match is not None:
             continue
-        found = lay.rule(rel, False)
-        if found is not None:
-            report.rule(*found, rel)
+        matched = lay.rule(rel, False)
+        if matched is not None:
+            report.rule(*matched, rel)
             continue
         owner = max((d for d in sealed if rel.startswith(f"{d}/")), key=len, default=None)
         if owner is not None:
@@ -1161,8 +1161,8 @@ def markdown() -> str:
               "kept. The project template's `hw/.gitignore` holds the not-approved block.", "",
               "| Results below `hw/` | Not approved: `hw/.gitignore` | Approved: `hw/.gitattributes` |", "|---|---|---|"]
     for root, ignore in zip(storage["results"], ignored):
-        rules = ", ".join(f"`{line.split(' ', 1)[0]}`" for line in approved if line.startswith(f"{root}/"))
-        lines.append(f"| `{root}/` | `{ignore}` | {rules} with `{GIT_LFS}` |")
+        attributes = ", ".join(f"`{line.split(' ', 1)[0]}`" for line in approved if line.startswith(f"{root}/"))
+        lines.append(f"| `{root}/` | `{ignore}` | {attributes} with `{GIT_LFS}` |")
     lines += ["",
               f"- Approved: Git LFS stores the {lfs} files. Install Git LFS and run `git lfs install` once per clone",
               "  before committing results. Setup never runs `git lfs`. Files committed before the rules keep their",

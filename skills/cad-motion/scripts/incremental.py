@@ -94,7 +94,7 @@ class VersionState:
 
 
 def _rigid(rows: Sequence[Sequence[float]]) -> Any:
-    return pose.Rigid(tuple(tuple(float(v) for v in row[:3]) for row in rows),  # type: ignore[arg-type]
+    return pose.Rigid(tuple(tuple(float(v) for v in row[:3]) for row in rows),
                       tuple(float(row[3]) for row in rows))
 
 
@@ -123,9 +123,9 @@ def pair_policies(record: Path, assembly: Any, joint_pairs: Iterable[Mapping[str
         for item in items:
             if kind == "clearance" and margins is not None:
                 item = {**item, "margin_mm": margins.for_interface(item["interface"])}
-            entries[tuple(item["pair"])].append(_policy_entry(kind, item))  # type: ignore[index]
+            entries[tuple(item["pair"])].append(_policy_entry(kind, item))
     for joint in joint_pairs:
-        entries[tuple(sorted(joint["pair"]))].append(_policy_entry("joint", {"type": joint["type"]}))  # type: ignore[index]
+        entries[tuple(sorted(joint["pair"]))].append(_policy_entry("joint", {"type": joint["type"]}))
     return {pair: "\n".join(sorted(texts)) for pair, texts in entries.items()}
 
 
@@ -222,7 +222,7 @@ class ChangeSet:
 
 def _same(a: Any, b: Any) -> bool:
     """Whether two placements have the same bits (-0.0 is 0.0)."""
-    return a.rot == b.rot and a.trans == b.trans
+    return bool(a.rot == b.rot and a.trans == b.trans)
 
 
 def _label_number(label: str) -> int:

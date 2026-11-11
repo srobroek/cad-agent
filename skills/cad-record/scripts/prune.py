@@ -28,7 +28,7 @@ import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Iterator, cast
 
 import yaml
 
@@ -265,7 +265,7 @@ def store_gc(hw: Path) -> dict[str, Any]:
     if result.returncode != 0:
         raise layout.LayoutError(f"store gc failed ({result.returncode}): {result.stderr.strip() or result.stdout.strip()}")
     try:
-        return json.loads(result.stdout)
+        return cast(dict[str, Any], json.loads(result.stdout))
     except json.JSONDecodeError as error:
         raise layout.LayoutError(f"store gc returned invalid JSON: {result.stdout!r}") from error
 

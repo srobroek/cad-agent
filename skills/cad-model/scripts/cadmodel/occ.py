@@ -7,7 +7,7 @@ value to one. Only APIs present in both OCP 7.9 (CadQuery 2.8) and OCP 8.0 (buil
 from __future__ import annotations
 
 import io
-from typing import Any, Iterable
+from typing import Any, Iterable, cast
 
 from cadmodel.motion import load_pose
 
@@ -83,7 +83,7 @@ def _volume_props(shape: Any) -> Any:
 
 
 def volume(shape: Any) -> float:
-    return _volume_props(shape).Mass()
+    return cast(float, _volume_props(shape).Mass())
 
 
 def mass_properties(shape: Any) -> tuple[float, tuple[float, float, float]]:
@@ -99,7 +99,7 @@ def area(shape: Any) -> float:
 
     props = GProp_GProps()
     BRepGProp.SurfaceProperties_s(shape, props)
-    return props.Mass()
+    return cast(float, props.Mass())
 
 
 def principal_moments(shape: Any) -> tuple[float, float, float]:
@@ -143,7 +143,7 @@ def oriented_bbox(shape: Any) -> tuple[tuple[float, float, float], tuple[tuple[f
         raise GeometryError("shape has no extent")
     vectors = tuple(tuple(float(getattr(direction, axis)()) for axis in ("X", "Y", "Z"))
                     for direction in (box.XDirection(), box.YDirection(), box.ZDirection()))
-    return (2.0 * box.XHSize(), 2.0 * box.YHSize(), 2.0 * box.ZHSize()), vectors
+    return (2.0 * box.XHSize(), 2.0 * box.YHSize(), 2.0 * box.ZHSize()), cast("tuple[tuple[float, float, float], ...]", vectors)
 
 
 def is_valid(shape: Any) -> bool:

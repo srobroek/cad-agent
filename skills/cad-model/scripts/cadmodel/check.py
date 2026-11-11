@@ -37,7 +37,7 @@ import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, cast
 
 from cadmodel import build, manufacture, mesh, occ, orientation, stepfile
 from cadmodel.motion import load_incremental, load_mesh_bound, load_pair_measure, load_pair_policy, load_pose
@@ -109,7 +109,7 @@ def resolve_pairs(pairs: Iterable[tuple[str, str]], inventory: Any, option: str)
         if ids[0] == ids[1]:
             raise build.UsageError(f"{option} {a}:{b}: both ends are one occurrence")
         resolved.append(ids)
-    return resolved  # type: ignore[return-value]
+    return resolved
 
 
 def step_readback(folder: Path, manifest: dict[str, Any], parts: dict[str, Any], step: Any,
@@ -207,6 +207,8 @@ def solid_structure(parts: dict[str, Any], expected: dict[str, int], baseline: d
     its record declares (`declared_solids`), else the baseline version's count."""
     unknown = sorted(set(expected) - set(parts))
     rows = {}
+    want: int | None
+    source: str | None
     for pn, part in sorted(parts.items()):
         solids, shells = occ.count(part.shape, "SOLID"), occ.count(part.shape, "SHELL")
         if pn in expected:
@@ -322,7 +324,7 @@ def pair_geometry(parts: Mapping[str, Any], specs: Mapping[Pair, PairSpec], *, c
 
     def run(session: Any, chosen: Sequence[Pair], mode: str) -> list[Any]:
         around = None if neighbours is None else (lambda index: neighbours(chosen[index]))
-        outcomes = session.measure(requests(chosen, mode), neighbours=around)
+        outcomes: list[Any] = session.measure(requests(chosen, mode), neighbours=around)
         suspects.extend(_suspect_report(s, chosen) for s in session.suspects)
         return outcomes
 
@@ -380,7 +382,7 @@ def declared_press_fits(hw: Path, assembly: Any = None) -> list[dict[str, Any]]:
     """cad-motion pair_policy's press fits, `pair` as sorted occurrence ids, classified with cad-fits."""
     policy = load_pair_policy()
     try:
-        return policy.declared_press_fits(hw, policy.read_interfaces(hw), assembly or _Unrecorded())
+        return cast(list[dict[str, Any]], policy.declared_press_fits(hw, policy.read_interfaces(hw), assembly or _Unrecorded()))
     except policy.PolicyError as error:
         raise build.UsageError(str(error)) from error
 
@@ -389,7 +391,7 @@ def declared_heat_sets(hw: Path, assembly: Any = None) -> list[dict[str, Any]]:
     """cad-motion pair_policy's heat-set inserts, `pair` as sorted occurrence ids."""
     policy = load_pair_policy()
     try:
-        return policy.declared_heat_sets(hw, policy.read_interfaces(hw), assembly or _Unrecorded())
+        return cast(list[dict[str, Any]], policy.declared_heat_sets(hw, policy.read_interfaces(hw), assembly or _Unrecorded()))
     except policy.PolicyError as error:
         raise build.UsageError(str(error)) from error
 
@@ -410,7 +412,7 @@ def declared_clearances(hw: Path, assembly: Any = None) -> list[dict[str, Any]]:
     """cad-motion pair_policy's clearance requirements, `pair` as sorted occurrence ids."""
     policy = load_pair_policy()
     try:
-        return policy.declared_clearances(hw, policy.read_interfaces(hw), assembly or _Unrecorded())
+        return cast(list[dict[str, Any]], policy.declared_clearances(hw, policy.read_interfaces(hw), assembly or _Unrecorded()))
     except policy.PolicyError as error:
         raise build.UsageError(str(error)) from error
 
@@ -456,7 +458,7 @@ def interference(geometry: dict[Pair, dict[str, Any]], named: Iterable[Pair] | N
         pair = tuple(item["pair"])
         if item["classification"] != "interference" or pair not in selected:
             continue
-        measurement = geometry.get(pair)
+        measurement = geometry.get(cast(Pair, pair))
         if measurement is not None and measurement["interference_mm3"] is not None \
                 and measurement["interference_mm3"] <= threshold:
             declared_fit_findings.append({**item, "type": "declared_fit_not_realized", **measurement,
@@ -632,7 +634,7 @@ def _proposed_fit(pn: str, shape: Any, volume: orientation.BuildVolume | None) -
                 "message": f"{pn} bounding box {tuple(round(value, 3) for value in model_size)} mm "
                            f"does not fit printer volume {tuple(round(value, 3) for value in dimensions)} mm "
                            f"(usable {tuple(round(value, 3) for value in usable)} mm) in any allowed orientation; "
-                           f"oriented box {tuple(round(value, 3) for value in extents)} mm also does not fit"}
+                           f"oriented box {tuple(round(value, 3) for value in cast('tuple[float, float, float]', extents))} mm also does not fit"}
     row.update(status="pass", orientation=found.orientation, method=found.method, **sizes,
                size_mm=_sizes(found.size_mm),
                rotation=[[round(value, 9) + 0.0 for value in axis] for axis in found.rotation],
@@ -878,7 +880,7 @@ def check(hw: Path, label: str, named: list[tuple[str, str]] | None, allowed: It
     minimum: dict[Pair, float] = {}
     for item in requirements:
         pair = tuple(item["pair"])
-        minimum[pair] = max(minimum.get(pair, 0.0), item["min_clearance_mm"] + item["margin_mm"])  # type: ignore[index]
+        minimum[pair] = max(minimum.get(pair, 0.0), item["min_clearance_mm"] + item["margin_mm"])
     exact_required = ({tuple(e["pair"]) for e in joints if e["type"] == "fixed"}
                       | {tuple(i["pair"]) for i in [*declared, *locating] if i["classification"] == "interference"})
     specs = {pair: PairSpec(located[pair[0]][0], located[pair[1]][0], relative[pair], minimum.get(pair, 0.0),
@@ -901,7 +903,7 @@ def check(hw: Path, label: str, named: list[tuple[str, str]] | None, allowed: It
         connected = connection(geometry, located, joints)
         pair_scope, requirement_scope = named_pairs, requirements
     else:
-        scope = {**selection.scope(), "changes": changes.to_json()}
+        scope = {**selection.scope(), "changes": cast(Any, changes).to_json()}
         connected = {"status": "skipped", "blocking": False,
                      "reason": "a changed-only check measures only the changed pairs; connection needs every pair"}
         pair_scope = chosen

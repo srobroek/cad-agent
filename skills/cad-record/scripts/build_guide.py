@@ -329,7 +329,7 @@ def toml_string(value: Any) -> str:
 
 def licenses(product: Mapping[str, Any]) -> dict[str, str | None]:
     """product.yaml license.hardware and license.documentation, None where not recorded."""
-    data = product.get("license") if isinstance(product.get("license"), Mapping) else {}
+    data = section if isinstance(section := product.get("license"), Mapping) else {}
     return {key: value.strip() if isinstance(value := data.get(key), str) and value.strip() else None
             for key in ("hardware", "documentation")}
 
@@ -437,8 +437,8 @@ def make_guide(hw: Path, version: str, out: Path, rev: str | None = None, date: 
     bom_rows = read_csv(hw / "bom.csv", optional=True)
     verification = read_csv(hw / "verification.csv", optional=True)
     decision_paths = sorted((hw / "decisions").glob("DR-[0-9][0-9][0-9].md"))
-    manufacturing = product.get("manufacturing") if isinstance(product.get("manufacturing"), Mapping) else {}
-    processes = manufacturing.get("processes", [])
+    declared = section if isinstance(section := product.get("manufacturing"), Mapping) else {}
+    processes = declared.get("processes", [])
     processes = processes if isinstance(processes, list) else []
     product_id = product.get("id")
     part_records = {path.parent.name: record for path in sorted((hw / "parts").glob("*/part.yaml"))

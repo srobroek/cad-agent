@@ -189,7 +189,7 @@ def check_record(release: Release, record: Path, manifest: dict[str, Any]) -> No
             same = sha256(hw / name) == snapshot[name]
         if not same:
             release.refuse(f"hw/{name}", "changed", f"hw/{name} differs from {version}/record/{name}, the frozen snapshot")
-    built = manifest.get("parts") if isinstance(manifest.get("parts"), dict) else {}
+    built = parts if isinstance(parts := manifest.get("parts"), dict) else {}
     models = {path.parent.name for path in (hw / "parts").glob("*/model.py") if path.is_file()}
     for pn in sorted(models | set(built)):
         model = hw / "parts" / pn / "model.py"
@@ -442,7 +442,7 @@ def assemble(hw: Path, rev: str, version: str, decision: str,
                        f"{decision} {problem}; record the user's release approval as a decision whose first line "
                        "is `Status: APPROVED`")
     product = _yaml(hw / "product.yaml")
-    flow = product.get("flow") if isinstance(product, dict) and isinstance(product.get("flow"), dict) else {}
+    flow = value if isinstance(product, dict) and isinstance(value := product.get("flow"), dict) else {}
     frozen = flow.get("frozen")
     if not isinstance(frozen, dict):
         release.refuse("hw/product.yaml", "frozen", "product.yaml has no flow.frozen; freeze a version first")

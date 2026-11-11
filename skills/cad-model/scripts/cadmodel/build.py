@@ -36,7 +36,7 @@ from concurrent.futures import FIRST_EXCEPTION, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, cast
 
 from cadmodel import holes, manufacture, mesh, occ, provenance, record, scriptenv, store
 from cadmodel.motion import load_pose
@@ -227,7 +227,7 @@ def _runner_result(kernel: str, proc: subprocess.Popen[str], started: float, par
         raise UsageError(f"{kernel} runner wrote no result ({error}): {console[-1000:]}") from error
     result["wall_s"] = round(time.perf_counter() - started, 3)
     result["console_tail"] = console[-2000:]
-    return result
+    return cast(dict[str, Any], result)
 
 
 def _stop(procs: Iterable[subprocess.Popen[str]]) -> None:
@@ -258,7 +258,7 @@ def runtime_of(kernel: str) -> dict[str, Any]:
     try:
         if proc.returncode != 0:
             raise ValueError(f"exited {proc.returncode}")
-        return json.loads(out.strip().splitlines()[-1])
+        return cast(dict[str, Any], json.loads(out.strip().splitlines()[-1]))
     except (ValueError, IndexError) as error:
         raise UsageError(f"{kernel} runner --tools failed ({error}): {err[-2000:]}") from error
 
@@ -548,7 +548,7 @@ def run(hw: Path, label: str, kernel: str, attach: Iterable[str]) -> tuple[int, 
     (work / "parts").mkdir(parents=True)
     states = Path(tempfile.mkdtemp(prefix="cad-model-states-"))  # build_manufacture shapes, read back by make
     try:
-        requests = {p.pn: {"pn": p.pn, "name": p.product, "model_frame": p.model_frame, "model": str(p.model),
+        requests: dict[str, dict[str, Any]] = {p.pn: {"pn": p.pn, "name": p.product, "model_frame": p.model_frame, "model": str(p.model),
                            "step": str(work / "parts" / f"{p.pn}.step"), "manufacture": states_of.get(p.pn),
                            "manufacture_step": (str(states / f"{p.pn}.step")
                                                 if states_of.get(p.pn) == "different" else None)}

@@ -67,7 +67,7 @@ import sys
 import time
 import traceback
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 
 from cadmodel import occ, provenance
 from cadmodel.fonts import osifont_path
@@ -140,7 +140,7 @@ def _params(module: Any) -> dict[str, Any]:
     if not isinstance(params, dict):
         raise ContractError(f"PARAMS is {type(params).__name__}, expected a dict; {CONTRACT}")
     try:
-        return json.loads(json.dumps(params, allow_nan=False))
+        return cast(dict[str, Any], json.loads(json.dumps(params, allow_nan=False)))
     except (TypeError, ValueError) as error:
         raise ContractError(f"PARAMS is not JSON-serialisable: {error}") from error
 

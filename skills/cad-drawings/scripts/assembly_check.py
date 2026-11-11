@@ -410,7 +410,7 @@ def reconcile(intent: Intent, geometry: Any, bom_rows: Sequence[Mapping[str, str
                 return ref[1:]
             findings.append(finding("invalid_drawing_intent", f"{where}: {ref} names no occurrence"))
             return None
-        found = [o.occurrence_id for o in geometry.occurrences if o.pn == ref]
+        found: list[str] = [o.occurrence_id for o in geometry.occurrences if o.pn == ref]
         if len(found) == 1:
             return found[0]
         findings.append(finding("invalid_drawing_intent", f"{where}: {ref} " +

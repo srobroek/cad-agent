@@ -16,7 +16,7 @@ import subprocess
 import uuid
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
@@ -69,7 +69,7 @@ def apply_required_safety_factor(result: dict[str, Any], required: float | None)
 
 def result_exit_code(result: dict[str, Any]) -> int:
     """Map completed checks to CLI codes; malformed or absent results are no-result."""
-    return {"pass": 0, "fail": 1}.get(result.get("status"), 2)
+    return {"pass": 0, "fail": 1}.get(cast(str, result.get("status")), 2)
 
 
 def selector(value: Any, name: str) -> dict[str, Any]:
@@ -112,7 +112,7 @@ def selected_face_indices(face_count: int, selector: dict[str, Any], faces: Any 
         raise CaseError("face selector matched no faces")
     if any(index > face_count for index in indices):
         raise CaseError("face index is out of range")
-    return indices
+    return cast(list[int], indices)
 
 
 def load_case(path: Path) -> dict[str, Any]:
@@ -507,7 +507,7 @@ except Exception as e:
         }
         remedy = "raise timeout_seconds in the case YAML" + (" or change mesh_size" if phase == "mesh" else "")
         result = error(f"FreeCAD job exceeded its timeout_seconds of {timeout:g} "
-                       f"{during.get(phase, 'before it started')}; {remedy}", code="freecad_timeout")
+                       f"{during.get(phase or '', 'before it started')}; {remedy}", code="freecad_timeout")
         result["error"]["details"] = {"phase": phase}
         result.update({"run_id": run_id, "run_directory": str(run_dir)})
         output_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
@@ -549,7 +549,7 @@ except Exception as e:
 
 def _job_phase(path: Path) -> str | None:
     try:
-        return json.loads(path.read_text(encoding="utf-8")).get("phase")
+        return cast("str | None", json.loads(path.read_text(encoding="utf-8")).get("phase"))
     except (OSError, json.JSONDecodeError, AttributeError):
         return None
 
