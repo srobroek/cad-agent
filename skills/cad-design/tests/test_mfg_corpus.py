@@ -319,6 +319,23 @@ class PacketVerdictGuardTests(unittest.TestCase):
 
 
 @unittest.skipUnless(DEPS, "pyyaml and jsonschema are required")
+class GuidelineFallbackTests(unittest.TestCase):
+    """With printer calibration off (the release behaviour) the corpus verdict rests on the shipped guideline sets, as the
+    verdict form_check gives does. Without the catalog it would read UNKNOWN for a check a guideline backs."""
+
+    def test_a_0_8_mm_plate_fails_the_shipped_minimum_wall_guideline_with_calibration_off(self) -> None:
+        import support
+
+        try:
+            _, pc = support.printed_record()
+            with mock.patch.object(pc.guidelines(), "calibration_enabled", return_value=False):  # module-level pin is on
+                verdict = support.printed_verdict(support.solids().box(0, 0, 0, 30, 20, 0.8), "process.fdm.geometry@")
+        except corpus.Skip as skip:
+            self.skipTest(str(skip))
+        self.assertEqual(verdict, "fail")
+
+
+@unittest.skipUnless(DEPS, "pyyaml and jsonschema are required")
 class PacketRefusalTests(unittest.TestCase):
     """A packet that the schema or evidence refuses is a miss with its reason, never a verdict."""
 
