@@ -31,7 +31,7 @@ def overhang() -> dict[str, Any]:
     documents = design_tests.printed("TST-0101", {"strategy": "none"})
     record = design_tests.load(unittest.TestCase(), documents)
     geometry = design_tests.geometry("TST-0101", design_tests.SHELF)
-    result = design_tests.pc.assess(record, geometry, today=date(2026, 6, 1))
+    result = design_tests.pc.assess(record, geometry, today=date(2026, 6, 1), calibration=True)  # the calibrated overhang limit is what fails here
     [found, *_] = result.by_code("process.fdm.overhang")
     return dict(found)
 

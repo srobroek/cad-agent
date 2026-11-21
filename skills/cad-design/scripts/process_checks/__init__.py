@@ -17,6 +17,8 @@ Policy this package applies (a plugin rule, not a product fact):
   feature and small hole, a missing calibration falls back to the guideline sets of the profile and material
   (cad-record guidelines.py, given as `assess(catalog=)`). A guideline fail fails; a guideline pass counts only
   for GUIDELINE_PASS_CLASSES and is UNKNOWN for every other service class until calibrated or waived.
+  While the calibration flag is off (guidelines.CALIBRATION_FLAG, the release behaviour) a recorded FDM calibration is
+  ignored and a guideline pass counts in every service class.
   block_like and build-volume fit stay form_check diagnostics.
 - Supports: on reachable non-critical surfaces they are accepted; an overhang beyond the unsupported limit
   is a planning finding when a support or bridge plan covers it; unplanned contact on a precision or running
