@@ -59,6 +59,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import sys
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -77,6 +78,13 @@ NUMERIC = frozenset((">=", "<=", "between"))
 SCOPE_FACTS = ("material_family", "filler", "shore", "nozzle_material")
 LOWER_OPERATORS = (">=", ">")  # one-sided limits, read as manufacturing_intent.LOWER_BOUND_OPERATORS and UPPER_BOUND_OPERATORS
 UPPER_OPERATORS = ("<=", "<")
+
+# REMOVE WITH THE FLAG when calibration is released (dp2). Owner: Package E. Registered in docs/engineering.md.
+# While it is off (the release behaviour) a recorded printer calibration is ignored and generic guideline values
+# govern. Only the string "1" turns it on, as for CAD_REQUIRE_FREECAD. The name lives in this one constant; every
+# check, recipe and seal reads it through the functions below, never from the process environment directly.
+CALIBRATION_FLAG = "CAD_CALIBRATION"
+COUPON_REMEDY = "for a tighter limit, print a test coupon on the target printer"
 MICROMETRE_TOLERANCE = 1e-6  # a conversion such as 0.563 mm -> 562.9999999999999 um is the whole size 563 um
 
 
@@ -337,6 +345,24 @@ def snapshot_files(hw: Path) -> dict[str, bytes]:
     project set shadows is not copied. A snapshot read then needs no shipped directory."""
     return {f"{PROJECT_RELATIVE.as_posix()}/{SHIPPED_COPY}{g.file.name}": g.file.read_bytes()
             for g in sorted(discover(hw).guidelines.values(), key=lambda g: g.id) if g.origin == "shipped" and g.file is not None}
+
+
+def calibration_enabled() -> bool:
+    """Whether the calibration flag is on. Read it once per job and pass the value on."""
+    return os.getenv(CALIBRATION_FLAG) == "1"
+
+
+def calibration_recipe(enabled: bool) -> dict[str, dict[str, str]]:
+    """The recipe `flags` entry that seals an enabled flag, so a bundle made under another setting is never reused.
+    Empty while the flag is off: a job run without it keeps the recipe shape it had before the flag."""
+    return {"flags": {CALIBRATION_FLAG: "1"}} if enabled else {}
+
+
+def calibration_dependencies(enabled: bool) -> dict[str, str]:
+    """The packet dependency that seals an enabled flag (a sha256 of `NAME=1`); empty while it is off."""
+    if not enabled:
+        return {}
+    return {"flag_" + CALIBRATION_FLAG.lower(): hashlib.sha256(f"{CALIBRATION_FLAG}=1".encode("ascii")).hexdigest()}
 
 
 def packet_key(ref: str) -> str:

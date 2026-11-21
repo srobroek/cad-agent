@@ -524,7 +524,10 @@ def _uncalibrated(ctx: Context, surface: Any, cal: Calibrated, findings: list[Dr
                           cal.criterion(cal.characteristic), "capability calibrations", "; ".join(cal.reasons),
                           f"whether {surface.feature} is achievable is unknown: machine resolution and general-tolerance "
                           "labels never answer it",
-                          remedy="record a calibration (test cuts, a capability study or supplier evidence) for this feature",
+                          remedy=("record a calibration (test cuts, a capability study or supplier evidence) for this feature"
+                                  if ctx.calibration else
+                                  "record evidence of the achievable accuracy of this feature (test cuts, a capability study or "
+                                  "supplier evidence)"),
                           recheck=["process.cnc.precision"], feature=surface.feature))
     return UNKNOWN, f"{surface.feature} accuracy not calibrated"
 

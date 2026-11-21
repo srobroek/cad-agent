@@ -22,6 +22,7 @@ import importlib.util
 import itertools
 import json
 import math
+import os
 import shutil
 import subprocess
 import sys
@@ -77,6 +78,18 @@ def mm(value: float | None = None, *, lower: float | None = None, upper: float |
 
 def datasheet(reference: str) -> dict[str, Any]:
     return FX.source("datasheet", reference)
+
+
+_FLAG = mock.patch.dict("os.environ", {GL.CALIBRATION_FLAG: "1"})
+
+
+def setUpModule() -> None:
+    """The checks below pin today's behaviour, which the calibration flag turns on (CalibrationFlagTests sets it itself)."""
+    _FLAG.start()
+
+
+def tearDownModule() -> None:
+    _FLAG.stop()
 
 
 def calibration(ident: str, characteristic: str, material: str, lower: float, upper: float, units: str = "mm",
@@ -2034,6 +2047,98 @@ class LooseComponentCoverageTests(Checks):
     def test_a_second_run_reuses_the_sealed_bundle(self) -> None:
         code, report = self.runs[1]
         self.assertEqual((code, report["manufacturing"]["reused"]), (1, True))
+
+
+# --- the calibration flag (CAD_CALIBRATION): off is the release behaviour --------------------------------------------
+
+@unittest.skipUnless(DEPS, "pyyaml and jsonschema are required")
+class CalibrationFlagTests(Checks):
+    """With the flag off, generic guideline values govern: a guideline pass is a pass in every service class, a recorded
+    FDM calibration is ignored, and no finding asks the user to calibrate. With it on, today's grades hold."""
+
+    CASES = {"wall": (walled(3.0), GEOMETRY), "small_feature": (walled(3.0, pins=(3.0,)), GEOMETRY),
+             "small_hole": (walled(3.0, holes=(3.0,)), GEOMETRY), "support": (underside(30.0), SUPPORT)}
+
+    def judged(self, data: dict[str, Any], flag: bool, **options: Any) -> Any:
+        record = load(self, guided(**options))
+        result = pc.assess(record, geometry("TST-0101", data), today=TODAY, catalog=SHIPPED, calibration=flag)
+        self.assertEqual(packet_errors(result.packet({"version_manifest": "0" * 64})), [])
+        return result
+
+    def test_off_a_guideline_pass_passes_in_every_service_class_without_a_guideline_only_or_uncalibrated_finding(self) -> None:
+        for service in (*MI.SERVICE_CLASSES, None):
+            for check, (data, obligation) in self.CASES.items():
+                with self.subTest(service=service, check=check):
+                    result = self.judged(data, False, service=service)
+                    self.assertEqual(self.outcome(result, obligation), "pass")
+                    self.assertEqual([c for c in self.codes(result, obligation) if c.endswith(("_guideline_only", "_uncalibrated"))], [])
+
+    def test_on_a_guideline_pass_in_an_unknown_service_class_stays_unknown(self) -> None:
+        for check, (data, obligation) in self.CASES.items():
+            with self.subTest(check=check):
+                result = self.judged(data, True)
+                self.assertEqual(self.outcome(result, obligation), "unknown")
+                self.assertIn(f"process.fdm.{check}_guideline_only", self.codes(result))
+
+    def test_off_a_guideline_fail_still_fails(self) -> None:
+        result = self.judged(walled(1.0), False)
+        self.assertEqual(self.outcome(result, GEOMETRY), "fail")
+        self.assertEqual(self.finding(result, "process.fdm.wall")["criterion"]["source"]["kind"], "guideline")
+
+    def test_off_no_finding_asks_the_user_to_calibrate(self) -> None:
+        recorded = (calibration("wall_coupon", "min_wall", POLYMER, 0.5, 0.6),)
+        for name, data in {"wall": walled(1.0), "support": underside(60.0), "hole": walled(3.0, holes=(1.5,))}.items():
+            with self.subTest(name):
+                result = self.judged(data, False, calibrations=recorded)
+                asked = [f["code"] for f in result.findings if "calibrat" in f.get("remedy", "").lower()]
+                self.assertEqual(asked, [])
+
+    def test_off_a_check_without_a_guideline_stays_unknown_and_names_the_missing_guideline(self) -> None:
+        recorded = (calibration("warp_coupon", "warp", POLYMER, 0.1, 0.2),)
+        result = self.judged(walled(3.0), False, calibrations=recorded)
+        found = [f for f in result.findings if f["code"] == "process.fdm.warp_uncalibrated"]
+        self.assertTrue(found, self.codes(result))
+        self.assertIn("no guideline value covers warp", found[0]["uncertainty"])
+        self.assertNotIn("calibrat", found[0]["remedy"].lower())
+
+    def test_a_recorded_calibration_is_ignored_off_and_used_on(self) -> None:
+        recorded = (calibration("wall_coupon", "min_wall", POLYMER, 0.5, 0.6),)  # the guideline asks 1.2 mm; this asks 0.6
+        off = self.judged(walled(1.0), False, calibrations=recorded)
+        self.assertEqual(self.outcome(off, GEOMETRY), "fail")
+        self.assertEqual(self.finding(off, "process.fdm.wall")["criterion"]["source"]["kind"], "guideline")
+        note = self.finding(off, "process.fdm.calibration_off")
+        self.assertEqual(note["severity"], "info")
+        self.assertIn("wall_coupon", note["measured"]["text"])
+        on = self.judged(walled(1.0), True, calibrations=recorded)
+        self.assertEqual(self.outcome(on, GEOMETRY), "pass")
+        self.assertNotIn("process.fdm.calibration_off", self.codes(on))
+
+    def test_only_the_exact_string_1_turns_the_flag_on(self) -> None:
+        for value, expected in {"1": True, "0": False, "true": False, "": False, " 1": False}.items():
+            with self.subTest(value=value), mock.patch.dict("os.environ", {GL.CALIBRATION_FLAG: value}):
+                self.assertEqual(GL.calibration_enabled(), expected)
+
+    def test_an_unset_flag_is_off(self) -> None:
+        with mock.patch.dict("os.environ"):
+            os.environ.pop(GL.CALIBRATION_FLAG, None)
+            self.assertFalse(GL.calibration_enabled())
+
+    def test_assess_reads_the_flag_when_not_given_a_value(self) -> None:
+        record = load(self, guided())
+        for value, expected in {"1": True, "0": False}.items():
+            with self.subTest(value=value), mock.patch.dict("os.environ", {GL.CALIBRATION_FLAG: value}):
+                self.assertEqual(pc.assess(record, {}, today=TODAY).calibration, expected)
+
+    def test_the_seal_names_the_flag_only_while_it_is_on(self) -> None:
+        record = load(self, guided())
+        on, off = (pc.assess(record, {}, today=TODAY, calibration=flag).packet({"version_manifest": "0" * 64})
+                   for flag in (True, False))
+        key = "flag_" + GL.CALIBRATION_FLAG.lower()
+        self.assertIn(key, on["dependencies"])
+        self.assertNotIn(key, off["dependencies"])
+        self.assertEqual(packet_errors(on), [])
+        self.assertEqual(GL.calibration_recipe(True), {"flags": {GL.CALIBRATION_FLAG: "1"}})
+        self.assertEqual(GL.calibration_recipe(False), {})
 
 
 if __name__ == "__main__":
