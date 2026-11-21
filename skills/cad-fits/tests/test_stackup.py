@@ -296,6 +296,20 @@ class IntentStackContractTests(unittest.TestCase):
         self.assertEqual(result["outcome"], "unknown")
         self.assertEqual(codes(result), ["stack.designation_not_capability"])
 
+    def test_off_a_guideline_source_qualifies_manufacturing_variation(self) -> None:
+        stack = fixture("closing_gap.yaml")
+        contributor(stack, "S")["source"] = fx.source("guideline", "fdm.generic", revision="1", sha256="a" * 64)
+        result = stackup.compute(stack, calibration=False)
+        self.assertNotIn("stack.limits_unqualified", codes(result))
+
+    def test_off_no_remedy_asks_for_a_calibrated_capability(self) -> None:
+        stack = fixture("closing_gap.yaml")
+        contributor(stack, "S")["source"] = fx.source("user", "drawing tolerance")
+        result = stackup.compute(stack, calibration=False)
+        remedies = [f["remedy"] for f in result["findings"] if f["code"] == "stack.limits_unqualified"]
+        self.assertTrue(remedies)
+        self.assertFalse([r for r in remedies if "calibrated" in r], remedies)
+
     def test_a_drawn_tolerance_alone_does_not_qualify_manufacturing_variation(self) -> None:
         stack = fixture("closing_gap.yaml")
         spacer = contributor(stack, "S")
@@ -620,13 +634,14 @@ def unknown_clearance_cases() -> dict:
 class ClearanceTests(unittest.TestCase):
     """The stack-level sliding-clearance check: the nominal gap per side against the guideline minimum."""
 
-    def run_stack(self, documents: dict, stack: dict, catalog: object | None, *, bound: bool = True) -> dict:
+    def run_stack(self, documents: dict, stack: dict, catalog: object | None, *, bound: bool = True,
+                  calibration: bool = True) -> dict:
         with tempfile.TemporaryDirectory() as directory:
             hw = fx.write_record(Path(directory) / "project" / "hw", documents)
             write_case(hw, "closing-gap", stack)
             record = intent.load_record(hw) if bound else None
             result = stackup.compute(stack, record, case="closing-gap", on=ON, decisions=frozenset({"DR-001"}),
-                                     catalog=catalog)
+                                     catalog=catalog, calibration=calibration)
         for finding in result["findings"]:
             self.assertEqual(list(stackup._validator("finding").iter_errors(finding)), [], finding["id"])
         return result
@@ -734,6 +749,16 @@ class ClearanceTests(unittest.TestCase):
         remedy = result["findings"][0]["remedy"]
         self.assertIn("by hand", remedy)
         self.assertNotIn("record a guideline set", remedy)
+
+    def test_off_a_recorded_calibrated_sliding_clearance_is_not_used_and_the_guideline_governs(self) -> None:
+        documents = clearance_documents()
+        documents["manufacturing/capabilities.yaml"]["profiles"][0]["calibrations"].append(
+            fx.calibration("slide_coupon", "sliding_clearance", "tst_polymer_printed", fx.quantity(lower=0.25, upper=0.35)))
+        result = self.run_stack(documents, clearance_stack("side", nominal_gap=0.4), clearance_catalog(clearance_limit()),
+                                calibration=False)
+        self.assertNotIn("stack.clearance_unknown", codes(result))
+        row = result["clearance"]
+        self.assertEqual((row["status"], row["met"], row["minimum_mm"]), ("guideline", True, 0.3))
 
     def test_a_clearance_failure_keeps_the_statistical_governs_note_of_a_justified_stack(self) -> None:
         stack = IntentStackContractTests.justified(clearance_stack("side"))
