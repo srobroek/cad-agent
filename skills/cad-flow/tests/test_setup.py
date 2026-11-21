@@ -317,6 +317,45 @@ class StorageTests(unittest.TestCase):
         self.assertIn("must be true or false", items[0].command)
         self.assertEqual(setup.storage_plan(self.root / "hw"), [])
 
+    def profile(self, value: str | None, how: str | None = "user", legacy: str | None = None) -> None:
+        """product.yaml with flow.profile holding storage_results_in_git `value` (`asked` marked `how`), and
+        storage.results_in_git `legacy` when given."""
+        asked = f"    asked:\n      storage_results_in_git: {how}\n" if how else ""
+        profile = f"flow:\n  profile:\n    decision: DR-001\n    storage_results_in_git: {value}\n{asked}"
+        storage = "" if legacy is None else f"storage:\n  results_in_git: {legacy}\n"
+        (self.hw / "product.yaml").write_text(f"id: lamp\n{profile}{storage}", encoding="utf-8")
+
+    def test_a_recorded_profile_answer_sets_the_rules_without_a_storage_setting(self) -> None:
+        self.profile("true", "user")
+        with patch("builtins.input", side_effect=AssertionError("setup must not prompt")):
+            plan = setup.storage_plan(self.root)
+        self.assertEqual([item.id for item in plan], ["git-storage"])
+        self.assertIn("results_in_git is true", plan[0].command)
+        self.apply()
+        self.assertIn("filter=lfs", self.text(".gitattributes"))
+        self.profile("false", "asked-accepted-default")
+        self.apply()
+        self.assertIsNone(self.text(".gitattributes"))
+        self.assertEqual(self.text(".gitignore"), TEMPLATE_IGNORE.read_text(encoding="utf-8"))
+
+    def test_a_profile_without_an_asked_storage_answer_is_not_an_answer(self) -> None:
+        self.profile("true", how=None)
+        plan = setup.storage_plan(self.root)
+        self.assertIn("is not answered yet", plan[0].command)
+
+    def test_the_profile_falls_back_to_the_storage_setting_when_it_has_no_answer(self) -> None:
+        self.profile("false", how=None, legacy="true")
+        self.assertIn("results_in_git is true", setup.storage_plan(self.root)[0].command)
+
+    def test_a_profile_and_a_storage_setting_that_disagree_are_refused(self) -> None:
+        self.profile("true", legacy="false")
+        items = setup.storage_plan(self.root)
+        self.assertEqual([item.id for item in items], ["storage-manual"])
+        for text in ("flow.profile storage_results_in_git is True", "storage.results_in_git is False"):
+            self.assertIn(text, items[0].command)
+        self.profile("true", legacy="true")
+        self.assertEqual([item.id for item in setup.storage_plan(self.root)], ["git-storage"])
+
     def test_storage_flag_writes_only_the_rules_without_the_cad_checks(self) -> None:
         self.answer(None)
         with patch.object(setup.Path, "cwd", return_value=self.root), \

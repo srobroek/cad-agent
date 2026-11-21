@@ -1267,7 +1267,8 @@ def markdown() -> str:
     lfs = ", ".join(f"`*{suffix}`" for suffix in storage["lfs_suffixes"])
     lines += ["## Git storage", "",
               "Generated results stay out of git unless the user approved storing them: `product.yaml`",
-              f"`{storage['setting']}: true`. Absent means not asked yet and counts as not approved.",
+              "`flow.profile` `storage_results_in_git: true` (the project-start answer, when `asked` records it) or, without that answer,",
+              f"`{storage['setting']}: true`. If both are set and differ, setup refuses. Absent means not asked yet and counts as not approved.",
               "`uv run --script \"$CAD_SKILLS/cad-flow/scripts/run.py\" cad-flow/scripts/setup.py --storage --yes`, run from the project root, writes the",
               "rules below into one managed block of `hw/.gitignore` or `hw/.gitattributes` and removes the other",
               "block, so changing the answer and running it again changes the rules. Other lines of both files are",
