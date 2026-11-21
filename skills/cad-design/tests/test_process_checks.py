@@ -2050,6 +2050,16 @@ class LooseComponentCoverageTests(Checks):
         code, report = self.runs[1]
         self.assertEqual((code, report["manufacturing"]["reused"]), (1, True))
 
+    def test_a_run_under_another_flag_setting_never_reuses_the_sealed_bundle(self) -> None:
+        """The bundle was sealed with the flag on; the same record and version with it off is another recipe."""
+        command = ["uv", "run", "--quiet", "--script", str(FORM_CHECK), "--hw", str(self.hw), "--version", "v1",
+                   "--fidelity", "F2", "--on", TODAY.isoformat()]
+        with mock.patch.dict("os.environ"):
+            os.environ.pop(GL.CALIBRATION_FLAG, None)
+            proc = subprocess.run(command, capture_output=True, text=True, check=False)
+        self.assertEqual(proc.returncode, 2, proc.stdout[-500:])
+        self.assertIn("another recipe", proc.stdout)  # a refusal (needs --replace), not a reused bundle
+
 
 # --- the calibration flag (CAD_CALIBRATION): off is the release behaviour --------------------------------------------
 
