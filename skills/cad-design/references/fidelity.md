@@ -42,7 +42,7 @@ These form examples do not define material/process combinations or universal lim
 | Feature | Example only |
 |---|---|
 | Exterior edges | Consider edge rounds and bed-face relief when suitable to function and route. |
-| Walls | Size by structural region and declared calibrated profile, not a universal thickness. |
+| Walls | Size by structural region and the profile's guideline minimum, not a universal thickness. When `CAD_CALIBRATION=1`, a declared calibrated profile replaces the guideline. |
 | Overhangs | Plan orientation, bridges or reachable noncritical supports against route capability. |
 | Holes | Use the functional fit requirement and measured process evidence; orientation affects finishing and inspection. |
 | Threads | Compare qualified thread-forming geometry with purchased hardware/inserts and route capability. |
@@ -61,7 +61,7 @@ These form examples do not define material/process combinations or universal lim
 
 ## Existing form diagnostics
 
-`form_check.py` reports sampled minimum walls and `block_like`/oriented-box descriptors as geometric form diagnostics. These findings do not set a universal FDM threshold or calibrate a process. A wall sample can identify a region for review. Sampling limits apply; consult the command result and implementation. The build-envelope check reports geometric fit. It does not evaluate a process route. The route-check producer owns process pass/fail criteria.
+`form_check.py` reports sampled minimum walls and `block_like`/oriented-box descriptors as geometric form diagnostics. These findings do not set a universal FDM threshold or set a process limit. A wall sample can identify a region for review. Sampling limits apply; consult the command result and implementation. The build-envelope check reports geometric fit. It does not evaluate a process route. The route-check producer owns process pass/fail criteria.
 
 ## Render self-check: appearance only
 

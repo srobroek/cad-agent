@@ -18,7 +18,21 @@ import subprocess
 import unittest
 from pathlib import Path
 
+from calibration_flag import pin_on
+
 PROBE = Path(__file__).resolve().parent / "fixtures" / "overhang_boundary_probe.py"
+
+
+_FLAG = pin_on()
+
+
+def setUpModule() -> None:
+    """These tests pin the behaviour of printer calibration, which the calibration flag turns on."""
+    _FLAG.start()
+
+
+def tearDownModule() -> None:
+    _FLAG.stop()
 
 
 @unittest.skipUnless(shutil.which("uv"), "uv is required to probe real geometry")

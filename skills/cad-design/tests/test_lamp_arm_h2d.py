@@ -209,5 +209,43 @@ class H2dEnvelopeTests(unittest.TestCase):
         self.assertNotIn("process.fdm.capability_unknown", codes(result, obligation))
 
 
+@unittest.skipUnless(DEPS, "pyyaml and jsonschema are required")
+class H2dCalibrationFlagTests(unittest.TestCase):
+    """The lamp-arm print operations grade against the shipped guideline sets while printer calibration is off
+    (the release behaviour), and keep today's UNKNOWN grades with CAD_CALIBRATION=1."""
+
+    setUp = H2dEnvelopeTests.setUp  # a temporary copy of the record with the print orientation approved
+
+    def judge(self, flag: bool, wall: float = 3.0) -> Any:
+        facts = probe((50.0, 50.0, 50.0))
+        facts["walls"] = {"thickness_mm": wall, "location_mm": [1.0, 1.0, 1.0], "features": [], "measured": 12}
+        evidence = ({"path": f"hw/versions/v1/manufacturing/{PRINTED[0]}/part.step", "sha256": "0" * 64},)
+        geometry = {(PRINTED[0], "main"): pc.Geometry(PRINTED[0], "main", facts, evidence)}
+        return pc.assess(self.record, geometry, today=TODAY, catalog=pc.guidelines().discover(None), calibration=flag)
+
+    def test_off_a_guideline_graded_wall_passes_without_a_guideline_only_or_uncalibrated_finding(self) -> None:
+        result = self.judge(False)
+        obligation = f"process.fdm.geometry@{PRINTED[0]}/print"
+        self.assertEqual(result.outcome(obligation)["outcome"], "pass")
+        self.assertEqual([c for c in codes(result, obligation) if c.endswith(("_guideline_only", "_uncalibrated"))], [])
+
+    def test_off_a_guideline_graded_wall_beyond_the_limit_fails(self) -> None:
+        result = self.judge(False, wall=0.3)
+        self.assertEqual(result.outcome(f"process.fdm.geometry@{PRINTED[0]}/print")["outcome"], "fail")
+
+    def test_on_the_same_wall_is_unknown_as_a_guideline_only_value(self) -> None:
+        result = self.judge(True)
+        obligation = f"process.fdm.geometry@{PRINTED[0]}/print"
+        self.assertEqual(result.outcome(obligation)["outcome"], "unknown")
+        self.assertIn("process.fdm.wall_guideline_only", codes(result, obligation))
+
+    def test_off_the_unpublished_bed_contact_minimum_names_the_missing_guideline_and_asks_for_no_calibration(self) -> None:
+        result = self.judge(False)
+        found = [f for f in result.findings if f["code"] == "process.fdm.contact_area_uncalibrated"]
+        self.assertTrue(found)
+        self.assertIn("no guideline value covers min_bed_contact_area", found[0]["uncertainty"])
+        self.assertEqual(found[0]["remedy"], "for a tighter limit, print a test coupon on the target printer")
+
+
 if __name__ == "__main__":
     unittest.main()
