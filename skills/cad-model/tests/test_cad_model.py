@@ -2427,10 +2427,14 @@ class ManufacturingIntentRuleTests(unittest.TestCase):
 class ProfileRefusalTests(unittest.TestCase):
     """`run` builds only on a settled project-start profile (flow.profile, cited decision accepted)."""
 
-    def project(self, root: Path, product: str = "id: gate\n") -> Path:
+    def project(self, root: Path, product: str = "record_version: 2\nid: gate\n") -> Path:
         hw = root / "hw"
         hw.mkdir()
         (hw / "product.yaml").write_text(product, encoding="utf-8")
+        part = hw / "parts" / "TST-0001"
+        part.mkdir(parents=True)
+        (part / "model.py").write_text("PARAMS = {}\n", encoding="utf-8")
+        (part / "part.yaml").write_text("PN: TST-0001\nrev: X1\ntitle: Gate part\n", encoding="utf-8")
         return hw
 
     def test_a_run_without_a_profile_is_refused_before_anything_is_built(self) -> None:
