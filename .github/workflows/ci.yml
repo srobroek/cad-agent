@@ -264,3 +264,9 @@ jobs:
         env:
           CAD_CALIBRATION: "1"
         run: uv run --script skills/cad-design/tests/mfg_corpus/rates.py --check-baseline
+
+      - name: Mutation corpus rates with calibration off (report only)
+        if: env.SKIP != 'true' && matrix.shard == 'freecad-gated'
+        # The release behaviour: calibration off, the shipped guideline sets govern. Printed for the log; it never gates.
+        continue-on-error: true
+        run: uv run --script skills/cad-design/tests/mfg_corpus/rates.py --out "$RUNNER_TEMP/mfg-corpus-rates-calibration-off.json"
