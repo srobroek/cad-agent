@@ -146,6 +146,7 @@ def _outside_hull(point: Any, hull: Any) -> bool:
 def _contact_area(ctx: Context, g: Geometry, contact: float, findings: list[Draft]) -> tuple[str, str]:
     """The bed contact area against the calibrated minimum (`min_bed_contact_area`, mm2: area >= upper)."""
     kind = _k(ctx)
+    # TODO(benchhand-tw6.24): no guideline covers this; with calibration off it stays unknown, naming the gap.
     cal = ctx.calibrated("min_bed_contact_area")
     measured = {"value": round(contact, 6), "units": "mm2"}
     if not cal.known:
@@ -556,6 +557,7 @@ def wall_check(ctx: Context, g: Geometry, findings: list[Draft]) -> tuple[str, s
         {s.role for f, s in ctx.critical_features().items() if f in feats}
     exempt = sorted(c for c in classes if c in EXEMPT_CLASSES)
     if exempt:
+        # TODO(benchhand-tw6.24): no guideline covers this; with calibration off it stays unknown, naming the gap.
         feature_cal = ctx.calibrated("min_wall", feature=exempt[0])
         if feature_cal.known and thickness >= feature_cal.bounds("mm")[1] - 1e-9:
             findings.append(Draft(f"process.{kind}.wall_feature_class", "info", UNKNOWN, length(thickness),
@@ -651,6 +653,7 @@ def hole_fits(ctx: Context, g: Geometry, findings: list[Draft], characteristic: 
                                   recheck=[f"process.{kind}.geometry", "route.operation_plan"], feature=feature))
             parts.append((FAIL, f"{feature} has no finishing operation"))
             continue
+        # TODO(benchhand-tw6.24): no guideline covers this; with calibration off it stays unknown, naming the gap.
         cal = ctx.calibrated(characteristic, orientation=orientation if oriented else None)
         limits, unsupported = _diameter_limits(ctx, surface)
         if not cal.known:
@@ -733,9 +736,11 @@ def _critical(ctx: Context, g: Geometry, findings: list[Draft]) -> list[tuple[st
         if feature in holes or surface.dimension_state != "as_manufactured":
             continue
         characteristic = "profile_deviation" if surface.role in ("flank", "cam") else "dimensional_deviation"
+        # TODO(benchhand-tw6.24): no guideline covers this; with calibration off it stays unknown, naming the gap.
         cal = ctx.calibrated(characteristic, feature=surface.role if characteristic == "profile_deviation" else None)
         on_bed = any(f.get("bed") for f in g.feature_faces(feature))
         if on_bed:
+            # TODO(benchhand-tw6.24): no guideline covers this; with calibration off it stays unknown, naming the gap.
             foot = ctx.calibrated("elephant_foot")
             if not foot.known:
                 findings.append(Draft(f"process.{kind}.elephant_foot", "minor", UNKNOWN, unknown("first-layer flare"),
@@ -770,6 +775,7 @@ def _receiving(ctx: Context, g: Geometry, findings: list[Draft]) -> list[tuple[s
             hole = next((h for h in g.holes() if feature in (h.get("features") or ())), None)
             if hole is None:
                 continue  # the feature lies on another component or is not a bore of this one
+            # TODO(benchhand-tw6.24): no guideline covers this; with calibration off it stays unknown, naming the gap.
             cal = ctx.calibrated("hole_diameter_deviation", orientation=hole_class(hole["axis"]))
             findings.append(Draft(f"process.{kind}.receiving_feature", "info" if cal.known else "major",
                                   UNKNOWN, length(hole["diameter_mm"]), cal.criterion("hole_diameter_deviation"),
@@ -796,6 +802,7 @@ def thermal_distortion(ctx: Context) -> Result:
     bed = g.facts.get("bed") or {}
     extent = bed.get("contact_extent")  # exact contact-face extents, apart from the sampled stability hull
     footprint = max(extent["max"][i] - extent["min"][i] for i in (0, 1)) if extent else 0.0
+    # TODO(benchhand-tw6.24): no guideline covers this; with calibration off it stays unknown, naming the gap.
     warp = ctx.calibrated("warp")
     if not warp.known:
         findings.append(Draft(f"process.{kind}.warp_uncalibrated", "minor", UNKNOWN, length(footprint),

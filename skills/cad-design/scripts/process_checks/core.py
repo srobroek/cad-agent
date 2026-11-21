@@ -371,13 +371,14 @@ def component_ids(part: Any) -> list[str]:
     return [c.id for c in part.intent.components] or [IMPLICIT]
 
 
-def component_contexts(record: Any, pn: str, component: str, catalog: Any, today: date) -> list[Context]:
+def component_contexts(record: Any, pn: str, component: str, catalog: Any, today: date,
+                       calibration: bool = True) -> list[Context]:
     """The context of every route operation that acts on `component` of part `pn`, in route order: the operations
     a component-wide scan (probe_plan) reads. A part the record does not hold has none."""
     part = record.parts.get(pn)
     if part is None or intent().is_fact(part.intent.route):
         return []
-    return [Context(record, pn, component, op, None, today, catalog=catalog)
+    return [Context(record, pn, component, op, None, today, catalog=catalog, calibration=calibration)
             for op in part.intent.route if not op.components or component in op.components]
 
 
@@ -445,6 +446,8 @@ class Context:
     catalog: Any = None  # cad-record guidelines.Catalog; None: no guideline set is consulted, so only calibrations count
     resolutions: list[Any] = field(default_factory=list, compare=False)  # guidelines.Resolved of every limit looked up (shared)
     consulted: list[Any] = field(default_factory=list, compare=False)  # the same, for this obligation alone
+    calibration: bool = True  # the calibration flag, read once per assessment (assess); off ignores FDM calibrations
+    ignored: list[Any] = field(default_factory=list, compare=False)  # recorded FDM calibrations skipped with it off (shared)
 
     # record views ---------------------------------------------------------------------------------------------
     @property
@@ -601,9 +604,19 @@ class Context:
             return Calibrated("unknown", characteristic, None, (f"{self.label}: the material profile is unknown",))
         found = self.mi.capability_limit(profile, characteristic, material=material, on=self.today,
                                          orientation=orientation, feature=feature, tool=tool)
+        if self.calibration_off(profile):
+            if found.status == "calibrated" and found.calibration.id not in self.ignored:
+                self.ignored.append(found.calibration.id)
+            return Calibrated("unknown", characteristic, None,
+                              (f"{self.label}: printer calibration is off, and no guideline value covers {characteristic}",))
         if found.status == "calibrated":
             return Calibrated("calibrated", characteristic, found.calibration.limits, (), found.calibration)
         return Calibrated(found.status, characteristic, None, tuple(found.reasons))
+
+    def calibration_off(self, profile: Any | None = None) -> bool:
+        """Whether the FDM calibration flag is off for this operation's capability profile (only FDM has the flag)."""
+        profile = profile or self.profile
+        return not self.calibration and profile is not None and profile.process in GUIDELINE_PROCESSES
 
     def guideline_context(self) -> Any | None:
         """The guideline scope (guidelines.Context) of this operation's capability profile and material, or None
@@ -639,7 +652,8 @@ class Context:
         of GUIDELINE_PASS_CLASSES. A guideline value in another class is unknown, with a finding a calibration or an
         approved waiver settles. An unknown limit is unknown too (its callers report why)."""
         service = self.service_class
-        if limit.status == "calibrated" or (limit.status == "guideline" and service in GUIDELINE_PASS_CLASSES):
+        if limit.status == "calibrated" or (limit.status == "guideline" and (service in GUIDELINE_PASS_CLASSES
+                                                                             or self.calibration_off())):
             return PASS, coverage
         if limit.status == "unknown":
             return UNKNOWN, _noted(coverage, "limit unknown")

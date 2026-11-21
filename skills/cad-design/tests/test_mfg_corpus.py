@@ -26,7 +26,20 @@ from pathlib import Path
 
 CORPUS = Path(__file__).resolve().parent / "mfg_corpus"
 sys.path.insert(0, str(CORPUS))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import corpus  # noqa: E402
+from calibration_flag import pin_on  # noqa: E402
+
+_FLAG = pin_on()
+
+
+def setUpModule() -> None:
+    """The corpus baselines were taken with printer calibration on (CAD_CALIBRATION=1); its rates move with the flag."""
+    _FLAG.start()
+
+
+def tearDownModule() -> None:
+    _FLAG.stop()
 
 
 def pair(ident: str, mutant: str, twin: str = "pass") -> corpus.Pair:
