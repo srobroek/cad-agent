@@ -6,7 +6,7 @@
 
 # /// script
 # requires-python = ">=3.12,<3.15"
-# dependencies = ["pyyaml>=6.0"]
+# dependencies = ["jsonschema>=4.23", "pyyaml>=6.0", "referencing>=0.28.4"]
 # ///
 """Plan and optionally install non-CAD prerequisites for the CAD skills.
 
@@ -14,7 +14,7 @@ The default is a dry run. ``--yes`` executes user-level actions. FreeCAD must al
 installed; runtime environments, Chromium, and the three.js cache use preflight warm-up.
 
 From a project root (the folder holding ``hw/``) setup also plans the git storage rules of the
-generated results from ``hw/product.yaml`` ``storage.results_in_git`` (cad-record layout
+generated results from ``hw/product.yaml`` ``flow.profile`` ``storage_results_in_git`` (else ``storage.results_in_git``; cad-record layout
 ``storage``). ``--storage`` plans only those rules, without the FreeCAD check or preflight.
 """
 
@@ -182,10 +182,43 @@ def plan(report, cwd: Path, home: Path, environ: Mapping[str, str], harness: str
     return items + storage_plan(cwd)
 
 
+def _load_flow_profile():
+    """flow_profile.py beside this script, whose `gate` is cad-record's reader of flow.profile; it needs PyYAML."""
+    name = "cad_flow_profile"
+    if name not in sys.modules:
+        path = SCRIPT_DIR / "flow_profile.py"
+        spec = importlib.util.spec_from_file_location(name, path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError(f"Cannot load flow_profile: {path}")
+        sys.modules[name] = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(sys.modules[name])
+        except BaseException:
+            del sys.modules[name]
+            raise
+    return sys.modules[name]
+
+
+def _profile_storage(product: object, path: Path) -> bool | None:
+    """flow.profile storage_results_in_git when the user settled that question (`asked` says user or
+    accepted default); None otherwise, since an unasked profile value is only the default."""
+    gate = _load_flow_profile().gate
+    profile = gate.profile_of(product)
+    if not isinstance(profile, Mapping):
+        return None
+    field = "storage_results_in_git"
+    asked = profile.get("asked")
+    if not isinstance(asked, Mapping) or asked.get(field) not in gate.PROVENANCE:
+        return None
+    answer = gate.value_at(profile, field)
+    if not isinstance(answer, bool):
+        raise ValueError(f"{path} flow.profile {field} must be true or false, not {answer!r}")
+    return answer
+
+
 def storage_answer(hw: Path) -> bool | None:
-    """product.yaml `storage.results_in_git`: the user's true or false, None while the user was not asked."""
-    # TODO(benchhand-d55): read flow.profile storage_results_in_git (None while `asked` lacks it), the answer to
-    # project-start question 9, and drop storage.results_in_git with layout.json's setting.
+    """Whether generated results are stored in git: the answer recorded in flow.profile (project-start question 9)
+    when asked, else product.yaml `storage.results_in_git`; None while the user was not asked. The two must agree."""
     import yaml  # in setup's environment; plain `python3 setup.py` without PyYAML reports it as a manual step
 
     path = hw / "product.yaml"
@@ -197,7 +230,13 @@ def storage_answer(hw: Path) -> bool | None:
     answer = storage.get("results_in_git") if isinstance(storage, dict) else None
     if answer is not None and not isinstance(answer, bool):
         raise ValueError(f"{path} storage.results_in_git must be true or false, not {answer!r}")
-    return answer
+    recorded = _profile_storage(product, path)
+    if recorded is None:
+        return answer
+    if answer is not None and answer != recorded:
+        raise ValueError(f"{path} flow.profile storage_results_in_git is {recorded!r} but storage.results_in_git is "
+                         f"{answer!r}; make them agree (the profile is the project-start answer), then run setup again")
+    return recorded
 
 
 def managed_block(text: str, lines: Sequence[str]) -> str:
