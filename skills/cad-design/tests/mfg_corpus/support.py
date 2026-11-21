@@ -157,6 +157,12 @@ def printed_record(supports: Mapping[str, Any] | None = None) -> tuple[Any, Any]
     return record, pc
 
 
+def shipped_catalog(pc: Any) -> Any:
+    """The guideline catalog production hands the process checks for a record with no project guideline sets: the shipped
+    ones (form_check passes `guidelines.discover(...)` of the record's folder). Without it only calibrations count."""
+    return pc.guidelines().discover(None)
+
+
 def printed_verdict(shape: Any, prefix: str, supports: Mapping[str, Any] | None = None, frame: str = "bed") -> Outcome:
     """What a release concludes about the obligations whose id starts with `prefix` (e.g. "process.fdm.support@") for one
     printed part. The path is form_check.check_version's: `shape` probed by form_check.probe with the plan the record
@@ -164,12 +170,14 @@ def printed_verdict(shape: Any, prefix: str, supports: Mapping[str, Any] | None 
     its schema, then assessed by cad-record evidence."""
     require("OCP")
     record, pc = printed_record(supports)
+    catalog = shipped_catalog(pc)
     form_check = load("cad_design_form_check", SKILLS / "cad-design" / "scripts" / "form_check.py")
     build_axis = [0.0, 0.0, 1.0] if frame == "bed" else None  # form_check.version_geometry: R^T z of a bed placement
-    facts = form_check.probe(shape, frame=frame, locators={}, plan=pc.probe_plan(record, PN, "main", today=TODAY),
+    facts = form_check.probe(shape, frame=frame, locators={}, plan=pc.probe_plan(record, PN, "main", today=TODAY, catalog=catalog),
                              build_axis=build_axis)
     evidence = ({"path": f"hw/versions/{BUILD}/manufacturing/{PN}/part.step", "sha256": "0" * 64},)
-    packet = pc.assess(record, {(PN, "main"): pc.Geometry(PN, "main", facts, evidence)}, today=TODAY).packet(
+    packet = pc.assess(record, {(PN, "main"): pc.Geometry(PN, "main", facts, evidence)}, today=TODAY,
+                       catalog=catalog).packet(
         {"version_manifest": MANIFEST_SHA256, "producer_code": "0" * 64})
     return release_verdict(record, packet, prefix, today=TODAY)
 
@@ -184,7 +192,8 @@ def purchase_verdict(record: Any, *prefixes: str) -> Outcome:
             sys.path.insert(0, str(folder))
     import process_checks as pc
 
-    packet = pc.assess(record, {}, today=TODAY).packet({"version_manifest": MANIFEST_SHA256, "producer_code": "0" * 64})
+    packet = pc.assess(record, {}, today=TODAY, catalog=shipped_catalog(pc)).packet(
+        {"version_manifest": MANIFEST_SHA256, "producer_code": "0" * 64})
     return release_verdict(record, packet, *prefixes, today=TODAY)
 
 
