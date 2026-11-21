@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from . import additive, machining, purchased, route, secondary, shaping, sheet
-from .core import (FAIL, IMPLICIT, MINIMUM, PASS, UNKNOWN, Context, Draft, Geometry, Handler, Result, access_directions,
+from .core import (FAIL, IMPLICIT, MINIMUM, NOT_ASSESSED, NOT_ASSESSED_REASONS, PASS, UNKNOWN, Context, Draft, Geometry, Handler, Result, access_directions,
                    component_contexts, direction_key, guidelines, intent, policy, stable_id, text)
 
 PRODUCER = "cad-design form_check.py process_checks 1"
@@ -112,12 +112,12 @@ class Assessment:
 
     @property
     def result(self) -> str:
-        values = [o["outcome"] for o in self.outcomes]
+        values = {o["outcome"] for o in self.outcomes}
         if FAIL in values:
             return FAIL
         if UNKNOWN in values or not self.complete:
             return UNKNOWN
-        return PASS
+        return NOT_ASSESSED if NOT_ASSESSED in values else PASS
 
     def outcome(self, obligation_id: str) -> dict[str, Any] | None:
         return next((o for o in self.outcomes if o["obligation"] == obligation_id), None)
@@ -203,9 +203,20 @@ def _result(ctx: Context, obligation: Any) -> Result:
     return handler(ctx) if handler is not None else _no_handler(ctx, obligation)
 
 
+def _carry_reason(item: dict[str, Any], outcome: str, reason: str | None, what: str) -> None:
+    """Put a not_assessed outcome's reason on the serialized row or finding; the schema requires it there and forbids it elsewhere."""
+    if outcome == NOT_ASSESSED:
+        if reason not in NOT_ASSESSED_REASONS:
+            raise HandlerError(f"{what}: a not_assessed outcome needs a reason, one of {', '.join(NOT_ASSESSED_REASONS)}")
+        item["reason"] = reason
+    elif reason is not None:
+        raise HandlerError(f"{what}: a reason belongs to a not_assessed outcome, not {outcome}")
+
+
 def _row(obligation: Any, result: Result, drafted: list[dict[str, Any]]) -> dict[str, Any]:
     row: dict[str, Any] = {"obligation": obligation.id, "outcome": result.outcome, "level": obligation.level,
                            "method": result.method, "coverage": result.coverage}
+    _carry_reason(row, result.outcome, result.reason, obligation.id)
     if result.source:
         row["source"] = dict(result.source)
     if result.uncertainty:
@@ -247,6 +258,7 @@ def _findings(ctx: Context, obligation: Any, result: Result, geometry: Geometry 
             "recheck": {"families": sorted(set(draft.recheck or [obligation.family])), "scope": [subject],
                         "earliest_stage": draft.earliest_stage},
         }
+        _carry_reason(item, draft.outcome, draft.reason, f"{obligation.id}: finding {draft.code}")
         if draft.link:
             item["obligation"] = obligation.id
         if draft.remedy:

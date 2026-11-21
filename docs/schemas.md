@@ -7,11 +7,11 @@ schema-sha256 6868af6519ab519f02414dc1d860de2b33d3757aa39d78d4960530f0b4dbbe28 s
 schema-sha256 e23a427f19c73134b6e320897d9590f66d471ea66e2c2b1872d5cffe444a8092 skills/cad-record/schemas/drawing.schema.json
 schema-sha256 77d09e3d654eef9c216f6cb70465fbca26689edbdc5bf76c70b850c15143484d skills/cad-record/schemas/evidence-run.schema.json
 schema-sha256 377686f92cdce11703004e869721cc69db870681de0a4d0e3a3b06f2fc720779 skills/cad-record/schemas/fea-case.schema.json
-schema-sha256 2f37357dc1813b5794dcd558ff9eab7c1bbf608138fb523a5d4487c23f877f4a skills/cad-record/schemas/finding.schema.json
+schema-sha256 62259bc66f295ded3cb5cf144bcfaadd85547baffee0471acc8793352efa5dbe skills/cad-record/schemas/finding.schema.json
 schema-sha256 7f68782d4b57379b118085a1d4137bf6b3152d0698ae8cd59f4cab2f48d21868 skills/cad-record/schemas/interfaces.schema.json
 schema-sha256 5d04c1dd2745de30144da9fe4080e55cea79e23c3a207b3474601dd6eb8e9125 skills/cad-record/schemas/layout.schema.json
 schema-sha256 2af936cbacdc55c0cf3789c97db7ef72a6e230ad2ab0a5a968862238ab75fcad skills/cad-record/schemas/manufacturing-capabilities.schema.json
-schema-sha256 c1cf876a115b1fe2fdb6e4260123a7038726f3b2dda54f110a916f2d66696e7e skills/cad-record/schemas/manufacturing-check-result.schema.json
+schema-sha256 6ef27bc4c8273de006b8606504ea0897de10da12688d904197b43c3d8dc84e72 skills/cad-record/schemas/manufacturing-check-result.schema.json
 schema-sha256 44eb55d0ae79137cafcf20b6b594ba922e75ea71f57e96b91feb3f38ba1faf1b skills/cad-record/schemas/manufacturing-evidence.schema.json
 schema-sha256 2e34c2bb8de9b89272743ca36cf0801afcca6c65a54260a728d43316c9b18352 skills/cad-record/schemas/manufacturing-findings.schema.json
 schema-sha256 3a70ff36a1ebb40d1485b7fa0008051dcdacfaa1d05651ac1694cf02f3ab6f83 skills/cad-record/schemas/manufacturing-guideline.schema.json
@@ -1648,7 +1648,8 @@ One finding as a CAD tool reports it in the tool-result envelope. The stable `co
 | --- | --- | --- | --- | --- |
 | `code` | `str` | yes |  | A stable finding code such as process.fdm.overhang or fit_unverified: lower-case words joined by underscores, optionally dotted into a namespace |
 | `severity` | `Literal["critical", "major", "minor", "info"]` | no |  | How bad the finding is, not whether it blocks: one shared blocking rule that every gate calls decides that, and under it minor and info are the non-blocking set. Canonical words only. Target mapping for the producers: error to major, layout stage to major or minor by layout_strict, no severity to major, warning to minor (warning is retired). That mapping keeps today's blocking effect only once the shared rule and the producers have migrated. Until then the only stand-alone same-effect mapping is warning to info |
-| `outcome` | `Literal["pass", "fail", "unknown", "not_applicable"]` | no |  | A check's result; unknown is never a pass |
+| `outcome` | `Literal["pass", "fail", "unknown", "not_applicable", "not_assessed"]` | no |  | A check's result; unknown is never a pass, and not_assessed (calibration off, or no capability profile) is not a pass either |
+| `reason` | `Literal["calibration_off", "no_capability_profile"]` | no |  | Why a not_assessed finding was not assessed: its calibration is off, or no capability profile exists for it. Only a not_assessed finding carries one |
 | `subject` | `FindingSubject` | no |  | The part and feature the finding is about |
 | `location` | `FindingLocation` | no |  | Where in the project the finding applies: a project-relative file and, when known, a 1-based line |
 | `message` | `str` | yes |  | What is wrong, in one sentence |
@@ -1660,6 +1661,7 @@ One finding as a CAD tool reports it in the tool-result envelope. The stable `co
 Constraints not expressed by the type:
 
 - additionalProperties: false
+- if {"properties":{"outcome":{"const":"not_assessed"}},"required":["outcome"]} then {"required":["reason"]} else {"not":{"required":["reason"]}}
 - `code`: pattern: "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"
 - `message`: minLength: 1
 - `remedy`: minLength: 1
@@ -3102,7 +3104,7 @@ One producer's required-check packet for one version: the obligations it was ask
 | `findings` | `list[ManufacturingFinding]` | yes |  |  |
 | `dependencies` | `Mapping[str, ManufacturingSha256]` | yes |  | sha256 of each input the producer read, by name, such as the part record, material and capability profiles and the geometry |
 | `complete` | `bool` | yes |  | true only when every expected obligation has an outcome |
-| `result` | `ManufacturingOutcome` | yes |  | fail if any outcome fails, else unknown if any is unknown or the packet is incomplete, else pass (not_applicable outcomes aside) |
+| `result` | `ManufacturingOutcome` | yes |  | fail if any outcome fails, else unknown if any is unknown or the packet is incomplete, else not_assessed if any outcome is, else pass (not_applicable outcomes aside) |
 
 Constraints not expressed by the type:
 

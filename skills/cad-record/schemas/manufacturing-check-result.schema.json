@@ -20,6 +20,6 @@
       "additionalProperties": {"$ref": "manufacturing.schema.json#/$defs/sha256"}
     },
     "complete": {"description": "true only when every expected obligation has an outcome", "type": "boolean"},
-    "result": {"description": "fail if any outcome fails, else unknown if any is unknown or the packet is incomplete, else pass (not_applicable outcomes aside)", "$ref": "manufacturing.schema.json#/$defs/outcome"}
+    "result": {"description": "fail if any outcome fails, else unknown if any is unknown or the packet is incomplete, else not_assessed if any outcome is, else pass (not_applicable outcomes aside)", "$ref": "manufacturing.schema.json#/$defs/outcome"}
   }
 }

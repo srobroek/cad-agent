@@ -168,14 +168,17 @@ class SharedDefinitions(SchemaCase):
         """D37: not_assessed is a check outcome that always says why; no other outcome carries a reason."""
         outcome = {"obligation": "process.fdm.support@TST-0001/print", "outcome": "not_assessed", "method": "none",
                    "coverage": "no calibrated profile", "reason": "calibration_off"}
-        for definition, base in (("finding", {**finding, "outcome": "not_assessed", "reason": "calibration_off"}),
-                                 ("obligation_outcome", outcome)):
+        # an unknown needs a remedy on a finding and forbids one on an obligation outcome: build each case per definition
+        for definition, base, unknown in (
+                ("finding", {**finding, "outcome": "not_assessed", "reason": "calibration_off"}, {"remedy": "x"}),
+                ("obligation_outcome", outcome, {})):
             bare = {k: v for k, v in base.items() if k != "reason"}
-            self.assert_shared(definition, {f"reason {r}": {**base, "reason": r} for r in ("calibration_off", "no_capability_profile")}, {
+            self.assert_shared(definition, {f"reason {r}": {**base, "reason": r} for r in ("calibration_off", "no_capability_profile")}
+                               | {"unknown without a reason": {**bare, "outcome": "unknown", **unknown}}, {
                 "not_assessed without a reason": bare,
                 "unknown reason": {**base, "reason": "vibes"},
                 "reason on a pass": {**base, "outcome": "pass"},
-                "reason on an unknown": {**base, "outcome": "unknown", "remedy": "x"},
+                "reason on an unknown": {**base, "outcome": "unknown", **unknown},
             })
 
     def test_subjects_criteria_findings_and_obligations(self) -> None:

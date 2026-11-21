@@ -36,7 +36,9 @@ GUIDELINE_PROCESSES = frozenset({"fdm"})  # the processes the shipped guideline 
 # included, needs a calibrated or a waived value: a guideline pass is unknown there. A guideline fail fails in every class.
 GUIDELINE_PASS_CLASSES = frozenset({"appearance_concept", "fit_assembly", "functional_demo"})
 
-PASS, FAIL, UNKNOWN, NOT_APPLICABLE = "pass", "fail", "unknown", "not_applicable"
+PASS, FAIL, UNKNOWN, NOT_APPLICABLE, NOT_ASSESSED = "pass", "fail", "unknown", "not_applicable", "not_assessed"
+OUTCOME_ORDER = (FAIL, UNKNOWN, NOT_ASSESSED, PASS)  # worst first: the order check, part and packet results take (D37)
+NOT_ASSESSED_REASONS = ("calibration_off", "no_capability_profile")  # why a check was not assessed (manufacturing.schema.json)
 IMPLICIT = "main"  # the component id of a sole solid (cad-model components.IMPLICIT)
 PROBE_FORMAT = 1  # the probe facts form_check.py writes; bump when a key's meaning changes
 DIRECTIONS = {"+x": (1.0, 0.0, 0.0), "-x": (-1.0, 0.0, 0.0), "+y": (0.0, 1.0, 0.0), "-y": (0.0, -1.0, 0.0),
@@ -99,6 +101,7 @@ class Draft:
     assumptions: Sequence[str] = ()
     requirements: Sequence[str] = ()
     link: bool = True  # False: the finding names evidence another producer or the ledger owns
+    reason: str | None = None  # why a not_assessed finding was not assessed; no other outcome carries one
 
 
 @dataclass
@@ -111,24 +114,24 @@ class Result:
     findings: list[Draft] = field(default_factory=list)
     uncertainty: str | None = None
     source: Mapping[str, Any] | None = None
+    reason: str | None = None  # why a not_assessed result was not assessed; no other outcome carries one
 
 
 def combine(method: str, parts: Iterable[tuple[str, str]], findings: list[Draft], *,
-            uncertainty: str | None = None, source: Mapping[str, Any] | None = None) -> Result:
+            uncertainty: str | None = None, source: Mapping[str, Any] | None = None,
+            reason: str | None = None) -> Result:
     """A Result from sub-check (outcome, coverage) pairs: fail if any fails, else unknown if any is
-    unknown, else pass; not_applicable sub-checks drop out, and all of them makes it not_applicable."""
+    unknown, else not_assessed if any is, else pass; not_applicable sub-checks drop out, and all of them makes it
+    not_applicable. An outcome outside those five raises, so a stray value never counts as a pass. `reason` is
+    kept only when the result is not_assessed."""
     parts = list(parts)
-    outcomes = [o for o, _ in parts if o != NOT_APPLICABLE]
-    if not outcomes:
-        outcome = NOT_APPLICABLE
-    elif FAIL in outcomes:
-        outcome = FAIL
-    elif UNKNOWN in outcomes:
-        outcome = UNKNOWN
-    else:
-        outcome = PASS
+    for o, _ in parts:
+        if o not in (*OUTCOME_ORDER, NOT_APPLICABLE):
+            raise ValueError(f"combine: {o!r} is not a check outcome")
+    outcomes = {o for o, _ in parts if o != NOT_APPLICABLE}
+    outcome = next((o for o in OUTCOME_ORDER if o in outcomes), NOT_APPLICABLE)
     coverage = "; ".join(c for _, c in parts if c) or "nothing to assess"
-    return Result(outcome, method, coverage, findings, uncertainty, source)
+    return Result(outcome, method, coverage, findings, uncertainty, source, reason if outcome == NOT_ASSESSED else None)
 
 
 def text(value: str) -> dict[str, str]:

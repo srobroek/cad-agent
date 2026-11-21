@@ -1861,6 +1861,89 @@ class DispatchContractTests(Checks):
         self.assertNotIn("pass", {o["outcome"] for o in result.outcomes if o["obligation"].startswith("process.fdm.")})
 
 
+class OutcomeOrderTests(unittest.TestCase):
+    """D37: fail > unknown > not_assessed > pass at check, part and packet level; not_applicable drops out; a stray
+    outcome is refused, never counted as a pass."""
+
+    @staticmethod
+    def combined(*outcomes: str) -> str:
+        return pc.core.combine("m", [(o, "c") for o in outcomes], []).outcome
+
+    def test_combine_takes_the_worst_outcome_of_each_pair_in_the_documented_order(self) -> None:
+        order = ["fail", "unknown", "not_assessed", "pass"]
+        for worse, better in itertools.combinations(order, 2):
+            for parts in ((worse, better), (better, worse)):
+                with self.subTest(parts=parts):
+                    self.assertEqual(self.combined(*parts), worse)
+
+    def test_combine_lets_not_applicable_drop_out_beside_not_assessed(self) -> None:
+        self.assertEqual(self.combined("not_applicable", "not_assessed"), "not_assessed")
+        self.assertEqual(self.combined("not_applicable", "not_applicable"), "not_applicable")
+
+    def test_combine_refuses_an_outcome_it_does_not_know(self) -> None:
+        for stray in ("no_limit", "Pass", "waived", ""):
+            with self.subTest(stray=stray), self.assertRaisesRegex(ValueError, "not a check outcome"):
+                self.combined("pass", stray)
+
+    def test_combine_keeps_the_reason_only_on_a_not_assessed_result(self) -> None:
+        kept = pc.core.combine("m", [("pass", ""), ("not_assessed", "")], [], reason="calibration_off")
+        dropped = pc.core.combine("m", [("pass", ""), ("unknown", "")], [], reason="calibration_off")
+        self.assertEqual((kept.outcome, kept.reason, dropped.outcome, dropped.reason),
+                         ("not_assessed", "calibration_off", "unknown", None))
+
+    @staticmethod
+    def assessment(outcomes: list[str], expected: int | None = None) -> Any:
+        rows = tuple({"obligation": f"o{i}", "outcome": o} for i, o in enumerate(outcomes))
+        wanted = tuple(SimpleNamespace(id=f"o{i}") for i in range(len(outcomes) if expected is None else expected))
+        return pc.Assessment(wanted, rows, ())
+
+    def test_the_packet_result_takes_the_worst_outcome_in_the_documented_order(self) -> None:
+        for outcomes, result in ((["pass", "not_assessed"], "not_assessed"), (["not_assessed", "unknown"], "unknown"),
+                                 (["fail", "not_assessed", "unknown"], "fail"), (["pass", "not_applicable"], "pass"),
+                                 (["pass", "not_assessed", "not_applicable"], "not_assessed")):
+            with self.subTest(outcomes=outcomes):
+                self.assertEqual(self.assessment(outcomes).result, result)
+
+    def test_an_incomplete_packet_stays_unknown_beside_not_assessed(self) -> None:
+        incomplete = self.assessment(["not_assessed", "pass"], expected=3)
+        self.assertFalse(incomplete.complete)
+        self.assertEqual(incomplete.result, "unknown")
+
+
+@unittest.skipUnless(DEPS, "pyyaml and jsonschema are required")
+class NotAssessedSerializationTests(Checks):
+    """A not_assessed result carries its reason onto the serialized outcome and finding, where the schema requires it."""
+
+    def assess_with(self, result: Any) -> Any:
+        with mock.patch.object(pc.dispatch, "_result", return_value=result):
+            return pc.assess(load(self, FX.tst_record()), {}, today=TODAY)
+
+    def not_assessed(self, reason: str | None) -> Any:
+        core = pc.core
+        draft = core.Draft("process.fdm.overhang", "info", "not_assessed", core.text("not measured"),
+                           core.policy("overhang_angle", "equals", "a calibrated limit"), "calibration check",
+                           "calibration is off", "the overhang is not assessed", reason=reason)
+        return core.Result("not_assessed", "calibration check", "nothing assessed", [draft], reason=reason)
+
+    def test_the_reason_reaches_the_outcome_the_finding_and_a_valid_packet(self) -> None:
+        assessed = self.assess_with(self.not_assessed("calibration_off"))
+        self.assertEqual({o["outcome"] for o in assessed.outcomes}, {"not_assessed"})
+        self.assertEqual({o["reason"] for o in assessed.outcomes}, {"calibration_off"})
+        self.assertTrue(assessed.findings)
+        self.assertEqual({(f["outcome"], f["reason"]) for f in assessed.findings}, {("not_assessed", "calibration_off")})
+        packet = assessed.packet({"version_manifest": "0" * 64})
+        self.assertEqual((packet["result"], packet_errors(packet)), ("not_assessed", []))
+
+    def test_a_not_assessed_result_without_a_reason_is_a_handler_error(self) -> None:
+        with self.assertRaisesRegex(pc.HandlerError, "needs a reason"):
+            self.assess_with(self.not_assessed(None))
+
+    def test_a_reason_on_another_outcome_is_a_handler_error(self) -> None:
+        result = pc.core.Result("unknown", "m", "c", reason="calibration_off")
+        with self.assertRaisesRegex(pc.HandlerError, "belongs to a not_assessed outcome"):
+            self.assess_with(result)
+
+
 # --- geometry: the OCP probe ----------------------------------------------------------------------------------------
 
 @unittest.skipUnless(UV and DEPS, "uv, pyyaml and jsonschema are required for the OCP probe")

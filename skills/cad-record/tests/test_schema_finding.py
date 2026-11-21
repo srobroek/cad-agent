@@ -88,6 +88,11 @@ class FindingSchema(unittest.TestCase):
             with self.subTest(outcome=word):
                 self.assertEqual(errors(mutated(outcome=word)), [])
 
+    def test_a_not_assessed_finding_is_accepted_with_either_reason(self) -> None:
+        for reason in ("calibration_off", "no_capability_profile"):
+            with self.subTest(reason=reason):
+                self.assertEqual(errors(mutated(outcome="not_assessed", reason=reason)), [])
+
     def test_dotted_and_single_segment_codes_are_accepted(self) -> None:
         for code in ("layout.stray", "intent.schema", "motion.play_collision", "section_hatch", "invalid_drawing_intent"):
             with self.subTest(code=code):
@@ -124,6 +129,17 @@ class HonestMistakes(unittest.TestCase):
 
     def test_a_misspelled_outcome(self) -> None:
         self.rejects(mutated(outcome="failed"), "outcome")
+
+    def test_a_not_assessed_finding_without_a_reason(self) -> None:
+        self.rejects(mutated(outcome="not_assessed"), "reason")
+
+    def test_a_not_assessed_finding_with_an_unknown_reason(self) -> None:
+        self.rejects(mutated(outcome="not_assessed", reason="vibes"), "reason")
+
+    def test_a_reason_on_any_other_outcome(self) -> None:
+        for word in ("pass", "fail", "unknown", "not_applicable"):
+            with self.subTest(outcome=word):
+                self.rejects(mutated(outcome=word, reason="calibration_off"), "reason")
 
     def test_a_missing_code(self) -> None:
         self.rejects(mutated(code=None), "'code' is a required property")

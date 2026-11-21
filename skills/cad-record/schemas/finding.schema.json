@@ -6,10 +6,13 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["code", "message"],
+  "if": {"properties": {"outcome": {"const": "not_assessed"}}, "required": ["outcome"]},
+  "then": {"required": ["reason"]}, "else": {"not": {"required": ["reason"]}},
   "properties": {
     "code": {"description": "A stable finding code such as process.fdm.overhang or fit_unverified: lower-case words joined by underscores, optionally dotted into a namespace", "type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$", "examples": ["process.fdm.overhang", "fit_unverified"]},
     "severity": {"description": "How bad the finding is, not whether it blocks: one shared blocking rule that every gate calls decides that, and under it minor and info are the non-blocking set. Canonical words only. Target mapping for the producers: error to major, layout stage to major or minor by layout_strict, no severity to major, warning to minor (warning is retired). That mapping keeps today's blocking effect only once the shared rule and the producers have migrated. Until then the only stand-alone same-effect mapping is warning to info", "enum": ["critical", "major", "minor", "info"]},
-    "outcome": {"description": "A check's result; unknown is never a pass", "enum": ["pass", "fail", "unknown", "not_applicable"]},
+    "outcome": {"description": "A check's result; unknown is never a pass, and not_assessed (calibration off, or no capability profile) is not a pass either", "enum": ["pass", "fail", "unknown", "not_applicable", "not_assessed"]},
+    "reason": {"description": "Why a not_assessed finding was not assessed: its calibration is off, or no capability profile exists for it. Only a not_assessed finding carries one", "enum": ["calibration_off", "no_capability_profile"]},
     "subject": {
       "description": "The part and feature the finding is about",
       "type": "object", "additionalProperties": false, "minProperties": 1,
