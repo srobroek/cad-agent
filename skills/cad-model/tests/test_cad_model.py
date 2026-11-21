@@ -57,6 +57,7 @@ FINDING_KEYS = {"pn", "check", "type", "message", "where"}
 sys.path.insert(0, str(SCRIPTS))
 from cadmodel import build, check, diff, fonts, manufacture, mesh, occ, orientation, runner, threemf  # noqa: E402 - stdlib-only imports; OCP loads on first use
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
+from decision_fixture import add_flow_profile  # noqa: E402
 from modload import load_module, result_payload  # noqa: E402
 
 
@@ -2421,6 +2422,38 @@ class ManufacturingIntentRuleTests(unittest.TestCase):
         self.assertEqual((changed["parts"]["TST-0001"]["changed"], changed["parts"]["TST-0002"]["changed"]),
                          (["intent"], ["components"]))
 
+
+
+class ProfileRefusalTests(unittest.TestCase):
+    """`run` builds only on a settled project-start profile (flow.profile, cited decision accepted)."""
+
+    def project(self, root: Path, product: str = "id: gate\n") -> Path:
+        hw = root / "hw"
+        hw.mkdir()
+        (hw / "product.yaml").write_text(product, encoding="utf-8")
+        return hw
+
+    def test_a_run_without_a_profile_is_refused_before_anything_is_built(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            hw = self.project(Path(tmp))
+            with self.assertRaisesRegex(build.UsageError, "flow/profile: flow.profile is missing"):
+                build.run(hw, "v1", "auto", [])
+            self.assertFalse((hw / "versions").exists())
+
+    def test_the_command_exits_2_and_names_the_fix(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            hw = self.project(Path(tmp))
+            proc, _payload, _wall = cli("run", str(hw), "--label", "v1")
+            self.assertEqual(proc.returncode, 2, proc.stderr)
+            self.assertIn("flow/profile: flow.profile is missing", proc.stderr)
+            self.assertNotIn("Traceback", proc.stderr)
+
+    def test_a_profile_whose_decision_is_not_accepted_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            hw = self.project(Path(tmp))
+            add_flow_profile(hw, status="proposed")
+            with self.assertRaisesRegex(build.UsageError, "flow/profile/decision: .*has status proposed"):
+                build.run(hw, "v1", "auto", [])
 
 
 class VersionLabelTests(unittest.TestCase):

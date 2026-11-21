@@ -58,6 +58,8 @@ evidence = _load_module("cad_record_evidence", Path(__file__).resolve().parent /
 # The one YAML reader (libyaml when PyYAML has it) and the bundled schemas' shared registry and validators.
 yaml_loader = _load_module("cad_record_yaml_loader", Path(__file__).resolve().parent / "yaml_loader.py")
 schema_registry = _load_module("cad_record_schema_registry", Path(__file__).resolve().parent / "schema_registry.py")
+# The gate on product.yaml flow.profile, the user's project-start answers (pure in the parsed record).
+profile_gate = _load_module("cad_record_flow_profile_gate", Path(__file__).resolve().parent / "flow_profile_gate.py")
 # cad-motion's pose.py and plan.py, loaded only for a record with authored motion cases.
 MOTION_SCRIPTS = Path(__file__).resolve().parents[2] / "cad-motion" / "scripts"
 
@@ -697,6 +699,33 @@ def check_flow(product: dict[str, Any], path: str, hw: Path, part_records: dict[
                 findings.append(finding(path, f"flow/change/affected_parts: {pn} has no parts/{pn}/part.yaml"))
 
 
+def check_flow_profile(hw: Path, documents: Mapping[str, Any], valid: Mapping[str, bool],
+                       part_records: Mapping[str, Any], findings: list[dict[str, Any]]) -> None:
+    """flow.profile through flow_profile_gate: the missing, unasked or unapproved profile and a bare word YAML read
+    as a boolean, at the product's stage; and, over the schema-valid documents only, where the profile contradicts
+    the record. A conflict is an error from L1 LAYOUT on and for the safety rule, a warning before."""
+    path = str(hw / "product.yaml")
+    product = documents.get("product.yaml")
+    if not isinstance(product, dict):
+        return
+    parts = {pn: part for pn, (part, _path) in part_records.items()}
+    approval = functools.partial(approval_problem, hw)
+    stage = product.get("flow", {}).get("stage") if isinstance(product.get("flow"), dict) else None
+    for item in profile_gate.unquoted(product) + profile_gate.problems(product, parts, approval, stage):
+        findings.append(finding(path, f"{item.path}: {item.message}", code=item.code, canonical_location="product.yaml",
+                                action=item.action))
+    if not valid.get("product.yaml"):
+        return
+    cases = sorted(case.parent.name for case in (hw / "analysis" / "cases").glob("*/case.yaml"))
+    strict = stage_reached(product, profile_gate.BUILD_STAGE)
+    for conflict in profile_gate.conflicts(product, documents.get("requirements.yaml") if valid.get("requirements.yaml") else None,
+                                           documents.get("interfaces.yaml") if valid.get("interfaces.yaml") else None,
+                                           parts, cases):
+        findings.append(finding(path, f"{conflict.path}: {conflict.message}", code="flow.conflict",
+                                severity="error" if strict or conflict.refuse else "warning",
+                                canonical_location="product.yaml", action=f"resolve flow.conflict rule {conflict.rule}"))
+
+
 @functools.cache
 def stages() -> tuple[str, ...]:
     """The workflow stages in order, as product.schema.json defines them."""
@@ -1110,6 +1139,7 @@ def validate_project(project_dir: Path, today: date | None = None) -> list[dict[
             check_release_readiness(hw, verification, part_records, str(path), findings)
     if valid.get("product.yaml"):
         check_flow(documents["product.yaml"], str(hw / "product.yaml"), hw, part_records, findings)
+    check_flow_profile(hw, documents, valid, part_records, findings)
     record = check_manufacturing_intent(hw, documents, part_records, verification, findings, today)
     check_acceptance_anchor(hw, record, findings)
     check_design_rules(hw, documents, valid, part_records, inventory, findings)
