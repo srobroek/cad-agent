@@ -749,7 +749,7 @@ class _IntentStack:
             self.unknown("stack.record_mismatch", item, f"{item.id}: operation {producer.id} uses {producer.capability}, "
                                                        f"not {profile_id}", "cite the capability of the operation")
         if not self.calibration and profile.process in GUIDELINE_PROCESSES:
-            # TODO(tw6.17-grade): no guideline states a manufacture deviation, so this stays unknown until the not-assessed grade.
+            # TODO(benchhand-tw6.24): no guideline states a manufacture deviation, so this stays unknown until the not-assessed grade.
             self.unknown("stack.capability_unresolved", item,
                          f"{item.id}: {profile_id} {capability['characteristic']}: printer calibration is off, and no guideline "
                          f"value covers {capability['characteristic']}", GUIDELINES.COUPON_REMEDY)
