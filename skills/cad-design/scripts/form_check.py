@@ -1517,7 +1517,7 @@ def producer_code(pc: Any) -> str:
 
 
 def version_geometry(pc: Any, record: Any, folder: Path, label: str, manifest: dict[str, Any],
-                     today: date, catalog: Any = None) -> dict[tuple[str, str], Any]:
+                     today: date, catalog: Any = None, calibration: bool | None = None) -> dict[tuple[str, str], Any]:
     """The probe facts of every exported manufacturing component of a built version, keyed (PN, COMP).
     Each component file is read alone; native feature locators are moved by its placement transform. `catalog`
     gives the guideline wall minimum the scan runs at where no calibration names one."""
@@ -1545,7 +1545,8 @@ def version_geometry(pc: Any, record: Any, folder: Path, label: str, manifest: d
             frame = placement.get("frame") or "model"
             build_axis = list(transform[2][:3]) if frame == "bed" and transform else None  # R^T z: the build axis, native
             measured = probe(part.shape, frame=frame, locators=transform_locators(locators, transform),
-                             plan=pc.probe_plan(record, pn, component, today=today, catalog=catalog), build_axis=build_axis)
+                             plan=pc.probe_plan(record, pn, component, today=today, catalog=catalog,
+                                                calibration=calibration), build_axis=build_axis)
             evidence = ({"path": f"hw/versions/{label}/{entry['path']}/{name}", "sha256": _sha256(path)},)
             found[(pn, component)] = pc.Geometry(pn, component, measured, evidence)
     return found
@@ -1575,14 +1576,16 @@ def check_version(args: argparse.Namespace, pose: Any) -> tuple[dict[str, Any], 
     manifest_path = folder / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     code = producer_code(pc)
-    recipe = {"producer": pc.PRODUCER, "code_sha256": code, "probe_format": pc.PROBE_FORMAT, "on": today.isoformat()}
+    calibration = pc.guidelines().calibration_enabled()  # read once: the probe plan, the checks and the seal share it
+    recipe = {"producer": pc.PRODUCER, "code_sha256": code, "probe_format": pc.PROBE_FORMAT, "on": today.isoformat(),
+              **pc.guidelines().calibration_recipe(calibration)}  # sealed only while on: another setting never reuses a bundle
     params = {"V": label, "S": PROCESS_SUBJECT}
     reused = None if args.out else layout.reusable(args.hw, "bundle.checks", params, recipe, replace=args.replace)
     if reused is not None:
         packet, bundle = json.loads((reused / "result.json").read_text(encoding="utf-8")), reused
     else:
-        geometry = version_geometry(pc, record, folder, label, manifest, today, catalog)
-        assessment = pc.assess(record, geometry, today=today, catalog=catalog)
+        geometry = version_geometry(pc, record, folder, label, manifest, today, catalog, calibration)
+        assessment = pc.assess(record, geometry, today=today, catalog=catalog, calibration=calibration)
         dependencies = {"version_manifest": _sha256(manifest_path), "producer_code": code}
         if args.out:
             bundle = layout.scratch_path(args.hw, args.out, "--out")

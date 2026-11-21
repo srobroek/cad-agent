@@ -124,6 +124,7 @@ STATES = ("as_manufactured", "after_finish", "assembled")
 CONSEQUENCES = ("collision", "binding", "loss_of_function", "critical_fit", "performance", "appearance", "other")
 WORST_CASE_GOVERNED = frozenset(("collision", "binding", "loss_of_function", "critical_fit"))
 GOVERNING_METHODS = ("worst_case", "justified_rss")
+GUIDELINE_PROCESSES = frozenset(("fdm",))  # the processes the calibration flag covers in code today (as process_checks.core)
 QUALIFYING_SOURCES = frozenset(("calibration", "test", "supplier", "datasheet", "standard"))
 SHEET_CUTTING = frozenset(("laser", "waterjet", "plasma"))
 FINISHING = frozenset(("drilling", "reaming", "tapping", "finishing", "coating", "joining"))
@@ -190,7 +191,7 @@ def _verdict(low: float, high: float, req_min: float | None, req_max: float | No
 
 
 def compute(stack: dict[str, Any], record: Any = None, *, case: str | None = None, on: date | None = None,
-            decisions: frozenset[str] | None = None, catalog: Any = None) -> dict[str, Any]:
+            decisions: frozenset[str] | None = None, catalog: Any = None, calibration: bool = True) -> dict[str, Any]:
     """Evaluate a parsed intent stack (`intent_version: 2`); raise StackError on invalid input. The stack is
     bound to `record` (a manufacturing_intent Record) when one is given, as the analysis case `case`, with
     calibrations judged valid `on` that date and `decisions` the project's recorded DR ids. `catalog` is the
@@ -204,7 +205,7 @@ def compute(stack: dict[str, Any], record: Any = None, *, case: str | None = Non
     problem = None if record is None else _intent_module().version_problem(record.product)
     if problem is not None:
         raise StackError(f"{problem.code}: {problem.message}")
-    return _IntentStack(stack, record, case, on, decisions, catalog).evaluate()
+    return _IntentStack(stack, record, case, on, decisions, catalog, calibration).evaluate()
 
 
 # --------------------------------------------------------------------------- intent stacks (version 2)
@@ -316,9 +317,10 @@ class _IntentStack:
     """One intent stack's evaluation: parse, bind to the record, then judge by the governing method."""
 
     def __init__(self, stack: dict[str, Any], record: Any, case: str | None, on: date | None,
-                 decisions: frozenset[str] | None, catalog: Any = None) -> None:
+                 decisions: frozenset[str] | None, catalog: Any = None, calibration: bool = True) -> None:
         self.stack, self.record, self.case, self.on, self.decisions = stack, record, case, on, decisions
         self.catalog = catalog
+        self.calibration = calibration
         self.findings: list[dict[str, Any]] = []
         self.unknown_reasons: list[str] = []
         self.critical = False
@@ -548,11 +550,15 @@ class _IntentStack:
 
     # ---------------------------------------------------------------- qualification and binding
 
+    def capability_word(self) -> str:
+        """What a contributor may cite: a calibrated capability only while the calibration flag is on."""
+        return "calibrated capability" if self.calibration else "recorded capability"
+
     def qualify(self) -> None:
         for item in self.contributors:
             if not item.known:
                 self.unknown("stack.contributor_unknown", item, f"contributor {item.id} ({item.category}) is unknown: {item.reason}",
-                             f"establish {item.id}'s limits from calibrated capability, inspection, supplier data or a "
+                             f"establish {item.id}'s limits from {self.capability_word()}, inspection, supplier data or a "
                              "sourced calculation")
                 continue
             if item.category != "manufacture":
@@ -563,20 +569,20 @@ class _IntentStack:
                 self.unknown("stack.designation_not_capability", item,
                              f"{item.id}'s limits come from {item.designation}, a desired fit or tolerance label, not "
                              "achievable precision of the process that makes it",
-                             "cite the calibrated capability of the operation that makes the feature, or the inspection "
+                             f"cite the {self.capability_word()} of the operation that makes the feature, or the inspection "
                              "that rejects parts outside these limits")
             elif item.capability is not None:
                 item.qualification = "capability"
             elif item.inspection is not None:
                 item.qualification = "inspection"
-            elif item.source_kind() in QUALIFYING_SOURCES:
-                item.qualification = f"source:{item.source_kind()}"
+            elif item.source_kind() in QUALIFYING_SOURCES or (not self.calibration and item.source_kind() == "guideline"):
+                item.qualification = f"source:{item.source_kind()}"  # a guideline-backed limit qualifies while calibration is off
             else:
                 item.qualification = "unqualified"
                 self.unknown("stack.limits_unqualified", item,
-                             f"{item.id}'s limits rest on a {item.source_kind()} source, not on calibrated capability, "
+                             f"{item.id}'s limits rest on a {item.source_kind()} source, not on {self.capability_word()}, "
                              "inspection or supplier evidence",
-                             "cite the calibrated capability, the enforcing inspection or the supplier's stated tolerance")
+                             f"cite the {self.capability_word()}, the enforcing inspection or the supplier's stated tolerance")
         present = {item.category for item in self.contributors}
         for category in self.relevant:
             if category not in present:
@@ -742,12 +748,19 @@ class _IntentStack:
         if producer is not None and producer.capability != profile_id:
             self.unknown("stack.record_mismatch", item, f"{item.id}: operation {producer.id} uses {producer.capability}, "
                                                        f"not {profile_id}", "cite the capability of the operation")
+        if not self.calibration and profile.process in GUIDELINE_PROCESSES:
+            # TODO(tw6.17-grade): no guideline states a manufacture deviation, so this stays unknown until the not-assessed grade.
+            self.unknown("stack.capability_unresolved", item,
+                         f"{item.id}: {profile_id} {capability['characteristic']}: printer calibration is off, and no guideline "
+                         f"value covers {capability['characteristic']}", GUIDELINES.COUPON_REMEDY)
+            return
         resolution = intent.capability_limit(profile, capability["characteristic"], material=material, on=self.on,
                                              feature=None)
         if resolution.status != "calibrated":
             self.unknown("stack.capability_unresolved", item,
                          f"{item.id}: {profile_id} {capability['characteristic']} is {resolution.status}: "
-                         + "; ".join(resolution.reasons), "calibrate the capability for this material and scope")
+                         + "; ".join(resolution.reasons), "calibrate the capability for this material and scope" if self.calibration
+                         else GUIDELINES.COUPON_REMEDY)
             return
         calibration = resolution.calibration
         limits = calibration.limits
@@ -956,7 +969,7 @@ class _IntentStack:
         if self.clearance is None:
             return None
         result = _clearance_result(self.clearance["per"], self.record, self.subject.get("interface"), self.catalog,
-                                   self.on, nominal)
+                                   self.on, nominal, self.calibration)
         if result.unusable is not None:
             self.unknown("stack.clearance_unknown", None, result.unusable.reason, result.unusable.remedy,
                          inputs=["hw/interfaces.yaml"])
@@ -1082,7 +1095,7 @@ def _resolver_remedy(reasons: Sequence[str]) -> str:
 
 
 def _resolve_sliding(record: Any, pns: list[str], catalog: Any, on: date | None,
-                     digests: dict[str, str]) -> tuple[list[Any], _Unusable | None]:
+                     digests: dict[str, str], calibration: bool = True) -> tuple[list[Any], _Unusable | None]:
     """(each part's resolved sliding clearance, or [] and why one is unusable). `digests` collects the sets consulted."""
     resolutions = []
     for pn in pns:
@@ -1090,9 +1103,12 @@ def _resolve_sliding(record: Any, pns: list[str], catalog: Any, on: date | None,
         if scope is None:
             return [], why
         op, material = scope
-        resolved = GUIDELINES.resolve(record, op, CLEARANCE_CHARACTERISTIC, catalog=catalog, material=material, on=on)
-        resolutions.append(resolved)
         context = GUIDELINES.context_for(record.capabilities[op.capability], record.materials[material])
+        if calibration:
+            resolved = GUIDELINES.resolve(record, op, CLEARANCE_CHARACTERISTIC, catalog=catalog, material=material, on=on)
+        else:  # a recorded calibration is not used: the guideline value governs
+            resolved = GUIDELINES.resolve_guidelines(catalog, context, CLEARANCE_CHARACTERISTIC)
+        resolutions.append(resolved)
         digests.update(GUIDELINES.applicable_digests(catalog, context))
         if resolved.status == "calibrated":
             return [], _Unusable(
@@ -1148,7 +1164,7 @@ def _clearance_inputs(record: Any, interface_id: str | None, catalog: Any) -> tu
 
 
 def _clearance_result(per: str, record: Any, interface_id: str | None, catalog: Any, on: date | None,
-                      nominal: float | None) -> _ClearanceResult:
+                      nominal: float | None, calibration: bool = True) -> _ClearanceResult:
     """Judge the nominal gap per side against the largest minimum sliding clearance the sliding parts resolve."""
     row: dict[str, Any] = {"characteristic": CLEARANCE_CHARACTERISTIC, "per": per, "status": "unknown", "met": None,
                            "parts": [], "resolutions": [], "guidelines": {}}
@@ -1156,7 +1172,7 @@ def _clearance_result(per: str, record: Any, interface_id: str | None, catalog: 
     resolutions: list[Any] = []
     if why is None:
         row["parts"] = printed
-        resolutions, why = _resolve_sliding(record, printed, catalog, on, row["guidelines"])
+        resolutions, why = _resolve_sliding(record, printed, catalog, on, row["guidelines"], calibration)
         row["resolutions"] = GUIDELINES.trace_document(resolutions)["resolutions"]
     if nominal is None and why is None:
         why = _Unusable("the nominal gap is not established: a contributor is unknown",
@@ -1270,12 +1286,13 @@ def load_inputs(record_dir: Path, *, snapshot: bool) -> tuple[Any, Any]:
 
 
 def packet_dependencies(hw: Path, stack_path: Path, stack: Mapping[str, Any],
-                        guidelines: Mapping[str, str] | None = None) -> dict[str, str]:
+                        guidelines: Mapping[str, str] | None = None, calibration: bool = False) -> dict[str, str]:
     """sha256 of the inputs beyond the version's record snapshot: the stack case, every guideline set the
     clearance check could resolve through (guidelines.packet_dependencies) and, for statistics, the decision
     that approves them."""
     found = {"stack_case": hashlib.sha256(stack_path.read_bytes()).hexdigest()}
     found.update(GUIDELINES.packet_dependencies(guidelines or {}))
+    found.update(GUIDELINES.calibration_dependencies(calibration))  # the flag is sealed only while on
     statistics = stack.get("statistics")
     decision = statistics.get("decision") if isinstance(statistics, Mapping) else None
     if isinstance(decision, str) and DECISION.match(decision):
@@ -1299,6 +1316,7 @@ def main(argv: list[str] | None = None) -> int:
         stack_path = args.stack.resolve()
         stack = load_stack(stack_path)
         record = case = decisions = catalog = None
+        calibration = GUIDELINES.calibration_enabled()  # read once: the check, the recipe and the packet share it
         if args.hw:
             version, _, record_dir = LAYOUT.built_version(args.hw, args.version)
             # a stack at hw/analysis/cases/<case>/case.yaml is that analysis case: it publishes as the case
@@ -1306,7 +1324,7 @@ def main(argv: list[str] | None = None) -> int:
             record, catalog = load_inputs(record_dir, snapshot=True)
             decisions = recorded_decisions(args.hw)
         result = compute(stack, record, case=case, on=date.today() if record is not None else None, decisions=decisions,
-                         catalog=catalog)
+                         catalog=catalog, calibration=calibration)
         status = status_of(result)
         if args.hw:
             result["status"] = status
@@ -1319,7 +1337,8 @@ def main(argv: list[str] | None = None) -> int:
                 raise StackError("--out is only allowed for standalone scratch output")
             options: dict[str, Any] = {"result_decimals": RESULT_DECIMALS, "intent_version": INTENT_VERSION, "case": case,
                                        "method": (stack.get("requirement") or {}).get("method", "worst_case")}
-            recipe = {"source_yaml_sha256": hashlib.sha256(stack_path.read_bytes()).hexdigest(), "options": options}
+            recipe = {"source_yaml_sha256": hashlib.sha256(stack_path.read_bytes()).hexdigest(), "options": options,
+                      **GUIDELINES.calibration_recipe(calibration)}  # sealed only while on: another setting never reuses a bundle
             reused = LAYOUT.reusable(args.hw, "bundle.analysis", params, recipe, replace=args.replace)
             if reused is not None:
                 result = json.loads((reused / "results.json").read_text(encoding="utf-8"))
@@ -1337,7 +1356,7 @@ def main(argv: list[str] | None = None) -> int:
                 result["reused"] = published.reused
             if record is not None:
                 packet = check_packet(result, record, packet_dependencies(
-                    args.hw, stack_path, stack, (result.get("clearance") or {}).get("guidelines")))
+                    args.hw, stack_path, stack, (result.get("clearance") or {}).get("guidelines"), calibration))
                 result["check_bundle"] = (None if packet is None else
                                           publish_check(args.hw, version, subject, result, packet, args.replace))
         elif args.out is not None:
