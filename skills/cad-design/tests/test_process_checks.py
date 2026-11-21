@@ -35,6 +35,8 @@ from typing import Any
 from unittest import mock
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))  # calibration_flag.py sits beside the tests
+from calibration_flag import pin_on  # noqa: E402
 SKILL = HERE.parent
 SKILLS = SKILL.parent
 SCRIPTS = SKILL / "scripts"
@@ -80,11 +82,11 @@ def datasheet(reference: str) -> dict[str, Any]:
     return FX.source("datasheet", reference)
 
 
-_FLAG = mock.patch.dict("os.environ", {GL.CALIBRATION_FLAG: "1"})
+_FLAG = pin_on()
 
 
 def setUpModule() -> None:
-    """The checks below pin today's behaviour, which the calibration flag turns on (CalibrationFlagTests sets it itself)."""
+    """These tests pin the behaviour of printer calibration, which the calibration flag turns on."""
     _FLAG.start()
 
 

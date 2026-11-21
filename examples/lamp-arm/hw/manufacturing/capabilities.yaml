@@ -2,7 +2,9 @@
 # Only the printer is recorded; every other capability stays unknown. Start a new profile from cad-record
 # assets/manufacturing/capability-templates.yaml; a template is never a capability.
 # h2d holds the numbers Bambu Lab publishes and nothing else. Bambu publishes no layer height, minimum wall or feature,
-# overhang angle, bridge span or hole and fit tolerance, so those stay unknown and no calibration is recorded (DR-005).
+# overhang angle, bridge span or hole and fit tolerance, so generic guideline values govern those and no calibration is
+# recorded (DR-005). For a tighter limit, print a test coupon on the printer; a calibration counts only when
+# `CAD_CALIBRATION=1`.
 profiles:
   - id: h2d
     revision: 1
